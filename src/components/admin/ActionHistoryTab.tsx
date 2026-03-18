@@ -31,7 +31,7 @@ export default function ActionHistoryTab() {
   const loadHistory = async () => {
     try {
       const { data, error } = await supabase
-        .from('tag_action_history')
+        .from('heddit_tag_actions')
         .select(`
           *,
           heddit_custom_tags!inner(tag_name),
@@ -47,7 +47,7 @@ export default function ActionHistoryTab() {
         tag_id: item.tag_id,
         action_type: item.action_type,
         performed_by: item.performed_by,
-        notes: item.notes,
+        notes: item.reason,
         created_at: item.created_at,
         tag_name: item.heddit_custom_tags?.tag_name,
         admin_email: item.user_profiles?.email

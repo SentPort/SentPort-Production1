@@ -78,12 +78,12 @@ export default function FlaggedQueueTab({ onStatsUpdate }: FlaggedQueueTabProps)
       if (updateError) throw updateError;
 
       const { error: logError } = await supabase
-        .from('tag_action_history')
+        .from('heddit_tag_actions')
         .insert({
           tag_id: selectedTag.id,
           action_type: 'unflagged',
           performed_by: user?.id,
-          notes: actionNotes || 'Reviewed and cleared flag'
+          reason: actionNotes || 'Reviewed and cleared flag'
         });
 
       if (logError) throw logError;
@@ -131,12 +131,12 @@ export default function FlaggedQueueTab({ onStatsUpdate }: FlaggedQueueTabProps)
       if (updateError) throw updateError;
 
       const { error: logError } = await supabase
-        .from('tag_action_history')
+        .from('heddit_tag_actions')
         .insert({
           tag_id: selectedTag.id,
           action_type: 'banned',
           performed_by: user?.id,
-          notes: `Banned from flagged queue. Reason: ${banReason}`
+          reason: `Banned from flagged queue. Reason: ${banReason}`
         });
 
       if (logError) throw logError;
