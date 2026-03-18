@@ -1,0 +1,228 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '../../lib/supabase';
+import { History, Filter, Calendar } from 'lucide-react';
+
+interface ActionHistoryItem {
+  id: string;
+  tag_id: string;
+  action_type: string;
+  performed_by: string | null;
+  notes: string | null;
+  created_at: string;
+  tag_name?: string;
+  admin_email?: string;
+}
+
+export default function ActionHistoryTab() {
+  const [history, setHistory] = useState<ActionHistoryItem[]>([]);
+  const [filteredHistory, setFilteredHistory] = useState<ActionHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [filterType, dateRange, history]);
+
+  const loadHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tag_action_history')
+        .select(`
+          *,
+          heddit_custom_tags!inner(tag_name),
+          user_profiles(email)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      const formattedData = (data || []).map((item: any) => ({
+        id: item.id,
+        tag_id: item.tag_id,
+        action_type: item.action_type,
+        performed_by: item.performed_by,
+        notes: item.notes,
+        created_at: item.created_at,
+        tag_name: item.heddit_custom_tags?.tag_name,
+        admin_email: item.user_profiles?.email
+      }));
+
+      setHistory(formattedData);
+      setFilteredHistory(formattedData);
+    } catch (error) {
+      console.error('Error loading action history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...history];
+
+    if (filterType !== 'all') {
+      filtered = filtered.filter((item) => item.action_type === filterType);
+    }
+
+    if (dateRange !== 'all') {
+      const now = new Date();
+      const cutoff = new Date();
+
+      switch (dateRange) {
+        case 'today':
+          cutoff.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          cutoff.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          cutoff.setMonth(now.getMonth() - 1);
+          break;
+      }
+
+      filtered = filtered.filter(
+        (item) => new Date(item.created_at) >= cutoff
+      );
+    }
+
+    setFilteredHistory(filtered);
+  };
+
+  const getActionColor = (actionType: string) => {
+    switch (actionType) {
+      case 'created':
+        return 'bg-blue-100 text-blue-800';
+      case 'renamed':
+        return 'bg-purple-100 text-purple-800';
+      case 'merged':
+        return 'bg-green-100 text-green-800';
+      case 'flagged':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'unflagged':
+        return 'bg-green-100 text-green-800';
+      case 'banned':
+        return 'bg-red-100 text-red-800';
+      case 'unbanned':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getActionLabel = (actionType: string) => {
+    return actionType.charAt(0).toUpperCase() + actionType.slice(1);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-600">Loading action history...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          Action History ({filteredHistory.length})
+        </h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="all">All Actions</option>
+              <option value="created">Created</option>
+              <option value="renamed">Renamed</option>
+              <option value="merged">Merged</option>
+              <option value="flagged">Flagged</option>
+              <option value="unflagged">Unflagged</option>
+              <option value="banned">Banned</option>
+              <option value="unbanned">Unbanned</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {filteredHistory.length === 0 ? (
+        <div className="text-center py-12">
+          <History className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No History Found</h3>
+          <p className="text-gray-600">
+            {filterType !== 'all' || dateRange !== 'all'
+              ? 'Try adjusting your filters.'
+              : 'No actions have been recorded yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredHistory.map((item) => (
+            <div
+              key={item.id}
+              className="border border-gray-200 bg-white rounded-lg p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded-full ${getActionColor(
+                        item.action_type
+                      )}`}
+                    >
+                      {getActionLabel(item.action_type)}
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      #{item.tag_name || 'Unknown Tag'}
+                    </span>
+                  </div>
+
+                  {item.notes && (
+                    <div className="text-sm text-gray-600 mb-2">{item.notes}</div>
+                  )}
+
+                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <span>
+                      {new Date(item.created_at).toLocaleDateString()} at{' '}
+                      {new Date(item.created_at).toLocaleTimeString()}
+                    </span>
+                    {item.admin_email && (
+                      <span>by {item.admin_email}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {filteredHistory.length > 0 && (
+        <div className="text-center text-sm text-gray-500 pt-4">
+          Showing {filteredHistory.length} of {history.length} total actions
+        </div>
+      )}
+    </div>
+  );
+}

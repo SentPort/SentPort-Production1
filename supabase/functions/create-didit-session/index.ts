@@ -1,0 +1,170 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+interface DiditSessionResponse {
+  session_id: string;
+  session_token: string;
+  verification_url: string;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication token" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { initiated_by } = await req.json().catch(() => ({ initiated_by: "user" }));
+
+    const { data: existingPending } = await supabase
+      .from("didit_verification_sessions")
+      .select("id, session_id, created_at")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPending) {
+      const ageMinutes = (Date.now() - new Date(existingPending.created_at).getTime()) / 60000;
+      if (ageMinutes < 30) {
+        return new Response(
+          JSON.stringify({
+            error: "You already have a pending verification session. Please complete or wait 30 minutes before creating a new one.",
+            session_id: existingPending.session_id
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    const diditApiKey = Deno.env.get("DIDIT_API_KEY");
+    const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID");
+    const appUrl = Deno.env.get("APP_URL") || supabaseUrl.replace("supabase.co", "vercel.app");
+
+    if (!diditApiKey || !diditWorkflowId) {
+      console.error("Missing Didit configuration");
+      return new Response(
+        JSON.stringify({ error: "Verification service not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const callbackUrl = `${appUrl}/verification-callback`;
+
+    const diditResponse = await fetch("https://verification.didit.me/v3/session/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${diditApiKey}`,
+      },
+      body: JSON.stringify({
+        workflow_id: diditWorkflowId,
+        callback: callbackUrl,
+        vendor_data: user.id,
+      }),
+    });
+
+    if (!diditResponse.ok) {
+      const errorText = await diditResponse.text();
+      console.error("Didit API error:", errorText);
+      return new Response(
+        JSON.stringify({ error: "Failed to create verification session" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const diditData: DiditSessionResponse = await diditResponse.json();
+
+    const { error: insertError } = await supabase
+      .from("didit_verification_sessions")
+      .insert({
+        user_id: user.id,
+        session_id: diditData.session_id,
+        workflow_id: diditWorkflowId,
+        status: "pending",
+        initiated_by: initiated_by || "user",
+      });
+
+    if (insertError) {
+      console.error("Failed to save session:", insertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to save verification session" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        session_id: diditData.session_id,
+        verification_url: diditData.verification_url,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  } catch (error) {
+    console.error("Error in create-didit-session:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
