@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Tag, Trash2, AlertCircle, Loader, Newspaper, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import ConfirmDialog from '../shared/ConfirmDialog';
 
 interface DomainRule {
   id: string;
@@ -26,6 +27,8 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
   const loadingRef = useRef(false);
   const messageTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [ruleToRemove, setRuleToRemove] = useState<{ id: string; domain: string } | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -201,23 +204,21 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
     }
   }, [user, showMessage, loadDomainRules]);
 
-  const handleRemoveRule = useCallback(async (id: string, domain: string) => {
-    if (!mountedRef.current) return;
-
-    if (!confirm(`Remove classification rule for "${domain}"?\n\nFuture crawls will use automatic detection for this domain.`)) {
-      return;
-    }
+  const handleRemoveRule = useCallback(async () => {
+    if (!mountedRef.current || !ruleToRemove) return;
 
     try {
       const { error } = await supabase
         .from('content_type_domain_rules')
         .delete()
-        .eq('id', id);
+        .eq('id', ruleToRemove.id);
 
       if (error) throw error;
 
       if (mountedRef.current) {
-        showMessage('success', `Removed rule for "${domain}"`);
+        showMessage('success', `Removed rule for "${ruleToRemove.domain}"`);
+        setShowRemoveConfirm(false);
+        setRuleToRemove(null);
       }
       await new Promise(resolve => setTimeout(resolve, 300));
       await loadDomainRules();
@@ -227,7 +228,7 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
         showMessage('error', 'Failed to remove domain rule');
       }
     }
-  }, [showMessage, loadDomainRules]);
+  }, [ruleToRemove, showMessage, loadDomainRules]);
 
   const newsSites = domainRules.filter(r => r.content_type === 'news_article');
   const webPageSites = domainRules.filter(r => r.content_type === 'web_page');
@@ -334,7 +335,10 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
                           <p className="font-medium text-gray-900 text-sm truncate">{rule.domain}</p>
                         </div>
                         <button
-                          onClick={() => handleRemoveRule(rule.id, rule.domain)}
+                          onClick={() => {
+                            setRuleToRemove({ id: rule.id, domain: rule.domain });
+                            setShowRemoveConfirm(true);
+                          }}
                           className="p-1.5 text-red-600 hover:bg-red-200 rounded transition-colors flex-shrink-0"
                           title="Remove rule"
                         >
@@ -398,7 +402,10 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
                           <p className="font-medium text-gray-900 text-sm truncate">{rule.domain}</p>
                         </div>
                         <button
-                          onClick={() => handleRemoveRule(rule.id, rule.domain)}
+                          onClick={() => {
+                            setRuleToRemove({ id: rule.id, domain: rule.domain });
+                            setShowRemoveConfirm(true);
+                          }}
                           className="p-1.5 text-blue-600 hover:bg-blue-200 rounded transition-colors flex-shrink-0"
                           title="Remove rule"
                         >
@@ -429,6 +436,20 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showRemoveConfirm}
+        onClose={() => {
+          setShowRemoveConfirm(false);
+          setRuleToRemove(null);
+        }}
+        onConfirm={handleRemoveRule}
+        title="Remove Classification Rule"
+        message={ruleToRemove ? `Remove classification rule for "${ruleToRemove.domain}"?\n\nFuture crawls will use automatic detection for this domain.` : ''}
+        confirmText="Remove Rule"
+        cancelText="Cancel"
+        type="warning"
+      />
     </div>
   );
 }

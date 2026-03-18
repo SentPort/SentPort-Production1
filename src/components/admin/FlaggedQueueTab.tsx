@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Flag, CheckCircle, X, ExternalLink } from 'lucide-react';
 import TagUnbanModal from './TagUnbanModal';
+import BanTagFromQueueModal from './BanTagFromQueueModal';
 
 interface FlaggedTag {
   id: string;
@@ -20,6 +21,7 @@ export default function FlaggedQueueTab() {
   const [loading, setLoading] = useState(true);
   const [selectedTag, setSelectedTag] = useState<FlaggedTag | null>(null);
   const [showUnflagModal, setShowUnflagModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
   const [actionNotes, setActionNotes] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -92,20 +94,17 @@ export default function FlaggedQueueTab() {
     }
   };
 
-  const handleBan = async (tag: FlaggedTag) => {
-    if (!confirm(`Are you sure you want to ban the tag "${tag.tag_name}"? This will hide it from all users.`)) {
-      return;
-    }
+  const handleBan = (tag: FlaggedTag) => {
+    setSelectedTag(tag);
+    setShowBanModal(true);
+  };
 
-    setProcessingId(tag.id);
+  const confirmBan = async (banReason: string) => {
+    if (!selectedTag) return;
+
+    setProcessingId(selectedTag.id);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
-      const banReason = prompt('Enter ban reason:');
-      if (!banReason) {
-        setProcessingId(null);
-        return;
-      }
 
       const { error: updateError } = await supabase
         .from('heddit_custom_tags')
@@ -120,14 +119,14 @@ export default function FlaggedQueueTab() {
           flagged_at: null,
           flagged_by: null
         })
-        .eq('id', tag.id);
+        .eq('id', selectedTag.id);
 
       if (updateError) throw updateError;
 
       const { error: logError } = await supabase
         .from('tag_action_history')
         .insert({
-          tag_id: tag.id,
+          tag_id: selectedTag.id,
           action_type: 'banned',
           performed_by: user?.id,
           notes: `Banned from flagged queue. Reason: ${banReason}`
@@ -136,6 +135,8 @@ export default function FlaggedQueueTab() {
       if (logError) throw logError;
 
       await loadFlaggedTags();
+      setShowBanModal(false);
+      setSelectedTag(null);
     } catch (error) {
       console.error('Error banning tag:', error);
       alert('Failed to ban tag. Please try again.');
@@ -269,6 +270,19 @@ export default function FlaggedQueueTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedTag && (
+        <BanTagFromQueueModal
+          isOpen={showBanModal}
+          tagName={selectedTag.tag_name}
+          onClose={() => {
+            setShowBanModal(false);
+            setSelectedTag(null);
+          }}
+          onConfirm={confirmBan}
+          isLoading={processingId === selectedTag.id}
+        />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import TagMergeModal from './TagMergeModal';
 import TagBanModal from './TagBanModal';
 import TagFlagModal from './TagFlagModal';
 import TagRenameModal from './TagRenameModal';
+import ConfirmDialog from '../shared/ConfirmDialog';
 
 interface Tag {
   id: string;
@@ -35,6 +36,9 @@ export default function AllTagsTab() {
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [actionTag, setActionTag] = useState<Tag | null>(null);
+  const [showBulkBanConfirm, setShowBulkBanConfirm] = useState(false);
+  const [showBulkFlagConfirm, setShowBulkFlagConfirm] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     loadTags();
@@ -134,7 +138,7 @@ export default function AllTagsTab() {
 
   const handleBulkBan = async () => {
     if (selectedTags.size === 0) return;
-    if (!confirm(`Ban ${selectedTags.size} selected tags?`)) return;
+    setIsProcessing(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -149,15 +153,18 @@ export default function AllTagsTab() {
       }
 
       setSelectedTags(new Set());
+      setShowBulkBanConfirm(false);
       loadTags();
     } catch (error) {
       console.error('Error bulk banning tags:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleBulkFlag = async () => {
     if (selectedTags.size === 0) return;
-    if (!confirm(`Flag ${selectedTags.size} selected tags for review?`)) return;
+    setIsProcessing(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -173,9 +180,12 @@ export default function AllTagsTab() {
       }
 
       setSelectedTags(new Set());
+      setShowBulkFlagConfirm(false);
       loadTags();
     } catch (error) {
       console.error('Error bulk flagging tags:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -228,14 +238,14 @@ export default function AllTagsTab() {
                 Merge
               </button>
               <button
-                onClick={handleBulkFlag}
+                onClick={() => setShowBulkFlagConfirm(true)}
                 className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg font-medium flex items-center gap-2"
               >
                 <Flag className="w-4 h-4" />
                 Flag
               </button>
               <button
-                onClick={handleBulkBan}
+                onClick={() => setShowBulkBanConfirm(true)}
                 className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg font-medium flex items-center gap-2"
               >
                 <Ban className="w-4 h-4" />
@@ -448,6 +458,30 @@ export default function AllTagsTab() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        isOpen={showBulkBanConfirm}
+        onClose={() => setShowBulkBanConfirm(false)}
+        onConfirm={handleBulkBan}
+        title="Ban Selected Tags"
+        message={`Are you sure you want to ban ${selectedTags.size} selected tag${selectedTags.size !== 1 ? 's' : ''}?\n\nThis will hide ${selectedTags.size !== 1 ? 'them' : 'it'} from all users and prevent ${selectedTags.size !== 1 ? 'them' : 'it'} from being used in new content.`}
+        confirmText="Ban Tags"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={isProcessing}
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkFlagConfirm}
+        onClose={() => setShowBulkFlagConfirm(false)}
+        onConfirm={handleBulkFlag}
+        title="Flag Selected Tags"
+        message={`Flag ${selectedTags.size} selected tag${selectedTags.size !== 1 ? 's' : ''} for manual review?\n\nFlagged tags will be added to the review queue for admin attention.`}
+        confirmText="Flag for Review"
+        cancelText="Cancel"
+        type="warning"
+        isLoading={isProcessing}
+      />
     </div>
   );
 }

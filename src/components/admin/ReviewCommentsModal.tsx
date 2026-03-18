@@ -1,6 +1,7 @@
 import { X, MessageSquare, CreditCard as Edit2, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import ConfirmDialog from '../shared/ConfirmDialog';
 
 interface Comment {
   id: string;
@@ -27,6 +28,8 @@ export default function ReviewCommentsModal({ reviewId, onClose }: ReviewComment
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     fetchComments();
@@ -80,17 +83,19 @@ export default function ReviewCommentsModal({ reviewId, onClose }: ReviewComment
     }
   };
 
-  const handleDelete = async (commentId: string) => {
-    if (!confirm('Are you sure you want to delete this comment?')) return;
+  const handleDelete = async () => {
+    if (!commentToDelete) return;
 
     try {
       const { error } = await supabase
         .from('review_admin_comments')
         .delete()
-        .eq('id', commentId);
+        .eq('id', commentToDelete);
 
       if (error) throw error;
       fetchComments();
+      setShowDeleteConfirm(false);
+      setCommentToDelete(null);
     } catch (error) {
       console.error('Error deleting comment:', error);
     }
@@ -174,7 +179,10 @@ export default function ReviewCommentsModal({ reviewId, onClose }: ReviewComment
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDelete(comment.id)}
+                          onClick={() => {
+                            setCommentToDelete(comment.id);
+                            setShowDeleteConfirm(true);
+                          }}
                           className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                           title="Delete comment"
                         >
@@ -234,6 +242,20 @@ export default function ReviewCommentsModal({ reviewId, onClose }: ReviewComment
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setCommentToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title="Delete Comment"
+        message="Are you sure you want to delete this comment? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 }

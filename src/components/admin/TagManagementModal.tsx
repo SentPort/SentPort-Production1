@@ -2,6 +2,7 @@ import { X, Plus, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import ConfirmDialog from '../shared/ConfirmDialog';
 
 interface ReviewTag {
   id: string;
@@ -22,6 +23,8 @@ export default function TagManagementModal({ selectedReviews, allTags, onClose }
   const [tags, setTags] = useState<ReviewTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'create' | 'existing' | 'manage'>('create');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<ReviewTag | null>(null);
 
   useEffect(() => {
     fetchTagsWithCounts();
@@ -137,17 +140,19 @@ export default function TagManagementModal({ selectedReviews, allTags, onClose }
     }
   };
 
-  const handleDeleteTag = async (tagId: string) => {
-    if (!confirm('Delete this tag? It will be removed from all reviews.')) return;
+  const handleDeleteTag = async () => {
+    if (!tagToDelete) return;
 
     try {
       // Associations will be deleted automatically due to CASCADE
       await supabase
         .from('review_custom_tags')
         .delete()
-        .eq('id', tagId);
+        .eq('id', tagToDelete.id);
 
       fetchTagsWithCounts();
+      setShowDeleteConfirm(false);
+      setTagToDelete(null);
     } catch (error) {
       console.error('Error deleting tag:', error);
     }
@@ -332,7 +337,10 @@ export default function TagManagementModal({ selectedReviews, allTags, onClose }
                         </span>
                       </div>
                       <button
-                        onClick={() => handleDeleteTag(tag.id)}
+                        onClick={() => {
+                          setTagToDelete(tag);
+                          setShowDeleteConfirm(true);
+                        }}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -354,6 +362,20 @@ export default function TagManagementModal({ selectedReviews, allTags, onClose }
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setTagToDelete(null);
+        }}
+        onConfirm={handleDeleteTag}
+        title="Delete Tag"
+        message={tagToDelete ? `Delete the tag "${tagToDelete.tag_name}"?\n\nThis will remove it from ${tagToDelete.review_count} review${tagToDelete.review_count !== 1 ? 's' : ''}.` : ''}
+        confirmText="Delete Tag"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 }
