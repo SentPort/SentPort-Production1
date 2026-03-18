@@ -29,9 +29,3 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     }
   }
 });
-
-if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
-    console.log('Supabase client hot module disposal');
-  });
-}
