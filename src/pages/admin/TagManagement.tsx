@@ -10,7 +10,6 @@ import {
   History,
   BarChart3
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import AllTagsTab from '../../components/admin/AllTagsTab';
 import FlaggedQueueTab from '../../components/admin/FlaggedQueueTab';
 import BannedListTab from '../../components/admin/BannedListTab';
@@ -202,9 +201,9 @@ export default function TagManagement() {
           </div>
 
           <div className="p-6">
-            {activeTab === 'overview' && <OverviewTab />}
+            {activeTab === 'overview' && <OverviewTab onNavigate={setActiveTab} />}
             {activeTab === 'all' && <AllTagsTab />}
-            {activeTab === 'flagged' && <FlaggedQueueTab />}
+            {activeTab === 'flagged' && <FlaggedQueueTab onStatsUpdate={loadStats} />}
             {activeTab === 'banned' && <BannedListTab />}
             {activeTab === 'history' && <ActionHistoryTab />}
             {activeTab === 'analytics' && <AnalyticsTab />}
@@ -215,15 +214,15 @@ export default function TagManagement() {
   );
 }
 
-function OverviewTab() {
+function OverviewTab({ onNavigate }: { onNavigate: (tab: 'overview' | 'all' | 'flagged' | 'banned' | 'history' | 'analytics') => void }) {
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            to="#"
-            className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all"
+          <button
+            onClick={() => onNavigate('all')}
+            className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all text-left"
           >
             <div className="flex items-center gap-3">
               <Search className="w-5 h-5 text-orange-600" />
@@ -232,11 +231,11 @@ function OverviewTab() {
                 <div className="text-sm text-gray-600">Detect duplicate tags</div>
               </div>
             </div>
-          </Link>
+          </button>
 
-          <Link
-            to="#"
-            className="p-4 border-2 border-gray-200 rounded-lg hover:border-yellow-300 hover:bg-yellow-50 transition-all"
+          <button
+            onClick={() => onNavigate('flagged')}
+            className="p-4 border-2 border-gray-200 rounded-lg hover:border-yellow-300 hover:bg-yellow-50 transition-all text-left"
           >
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-600" />
@@ -245,11 +244,11 @@ function OverviewTab() {
                 <div className="text-sm text-gray-600">Process flag queue</div>
               </div>
             </div>
-          </Link>
+          </button>
 
-          <Link
-            to="#"
-            className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all"
+          <button
+            onClick={() => onNavigate('analytics')}
+            className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
           >
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -258,7 +257,7 @@ function OverviewTab() {
                 <div className="text-sm text-gray-600">See emerging tags</div>
               </div>
             </div>
-          </Link>
+          </button>
         </div>
       </div>
 

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Flag, CheckCircle, X, ExternalLink } from 'lucide-react';
+import { Flag, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import TagUnbanModal from './TagUnbanModal';
 import BanTagFromQueueModal from './BanTagFromQueueModal';
 
 interface FlaggedTag {
   id: string;
   tag_name: string;
-  use_count: number;
+  usage_count: number;
   is_flagged: boolean;
   flag_reason: string | null;
   flag_notes: string | null;
@@ -16,7 +16,11 @@ interface FlaggedTag {
   created_at: string;
 }
 
-export default function FlaggedQueueTab() {
+interface FlaggedQueueTabProps {
+  onStatsUpdate?: () => void;
+}
+
+export default function FlaggedQueueTab({ onStatsUpdate }: FlaggedQueueTabProps) {
   const [flaggedTags, setFlaggedTags] = useState<FlaggedTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTag, setSelectedTag] = useState<FlaggedTag | null>(null);
@@ -24,6 +28,8 @@ export default function FlaggedQueueTab() {
   const [showBanModal, setShowBanModal] = useState(false);
   const [actionNotes, setActionNotes] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     loadFlaggedTags();
@@ -83,6 +89,7 @@ export default function FlaggedQueueTab() {
       if (logError) throw logError;
 
       await loadFlaggedTags();
+      if (onStatsUpdate) onStatsUpdate();
       setShowUnflagModal(false);
       setSelectedTag(null);
       setActionNotes('');
@@ -135,6 +142,7 @@ export default function FlaggedQueueTab() {
       if (logError) throw logError;
 
       await loadFlaggedTags();
+      if (onStatsUpdate) onStatsUpdate();
       setShowBanModal(false);
       setSelectedTag(null);
     } catch (error) {
@@ -163,16 +171,40 @@ export default function FlaggedQueueTab() {
     );
   }
 
+  const totalPages = Math.ceil(flaggedTags.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedTags = flaggedTags.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">
           Flagged Queue ({flaggedTags.length})
         </h3>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Show:</label>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-sm text-gray-600">per page</span>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-3">
-        {flaggedTags.map((tag) => (
+        {paginatedTags.map((tag) => (
           <div
             key={tag.id}
             className="border border-yellow-200 bg-yellow-50 rounded-lg p-4"
@@ -182,7 +214,7 @@ export default function FlaggedQueueTab() {
                 <div className="flex items-center gap-3 mb-2">
                   <h4 className="font-semibold text-gray-900">#{tag.tag_name}</h4>
                   <span className="text-sm text-gray-600">
-                    Used {tag.use_count} {tag.use_count === 1 ? 'time' : 'times'}
+                    Used {tag.usage_count} {tag.usage_count === 1 ? 'time' : 'times'}
                   </span>
                 </div>
 
@@ -199,10 +231,16 @@ export default function FlaggedQueueTab() {
                       <span className="text-sm text-gray-600">{tag.flag_notes}</span>
                     </div>
                   )}
-                  <div className="text-xs text-gray-500">
-                    Flagged {new Date(tag.flagged_at!).toLocaleDateString()} at{' '}
-                    {new Date(tag.flagged_at!).toLocaleTimeString()}
-                  </div>
+                  {tag.flagged_at ? (
+                    <div className="text-xs text-gray-500">
+                      Flagged {new Date(tag.flagged_at).toLocaleDateString()} at{' '}
+                      {new Date(tag.flagged_at).toLocaleTimeString()}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500">
+                      Flagged (date not recorded)
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -228,6 +266,47 @@ export default function FlaggedQueueTab() {
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+          <div className="text-sm text-gray-600">
+            Showing {startIndex + 1} to {Math.min(endIndex, flaggedTags.length)} of {flaggedTags.length} tags
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1.5 rounded-lg ${
+                    currentPage === page
+                      ? 'bg-orange-600 text-white'
+                      : 'border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {showUnflagModal && selectedTag && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
