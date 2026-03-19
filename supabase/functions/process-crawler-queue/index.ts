@@ -490,6 +490,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Check if link collection is enabled
+    const { data: linkCollectionData } = await supabase
+      .from('crawler_settings')
+      .select('value')
+      .eq('key', 'link_collection_enabled')
+      .maybeSingle();
+
+    const linkCollectionEnabled = linkCollectionData?.value !== 'false';
+
     const { data: historyRecord } = await supabase
       .from('crawler_history')
       .insert({
@@ -660,87 +669,90 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        const linkMatches = bodyHtml.matchAll(/<a[^>]+href=["']([^"']+)["']/gi);
-        const links: string[] = [];
+        // Only process links if link collection is enabled
+        if (linkCollectionEnabled) {
+          const linkMatches = bodyHtml.matchAll(/<a[^>]+href=["']([^"']+)["']/gi);
+          const links: string[] = [];
 
-        for (const match of linkMatches) {
-          const href = match[1];
-          if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
-            links.push(href);
-            if (links.length >= 50) break;
-          }
-        }
-
-        for (const link of links) {
-          // Skip social platform URLs in link discovery
-          if (shouldSkipUrl(link)) {
-            continue;
-          }
-
-          await supabase.from('crawler_links').insert({
-            source_url: normalizedUrl,
-            destination_url: link,
-            discovered_at: new Date().toISOString()
-          });
-
-          const linkUrl = new URL(link);
-          const linkDomain = linkUrl.hostname;
-          const isInternal = linkDomain.endsWith('.sentport.com') || linkDomain === 'sentport.com';
-
-          let calculatedPriority = 5;
-
-          if (isInternal) {
-            calculatedPriority = 9;
-            const pathSegments = linkUrl.pathname.split('/').filter(s => s.length > 0);
-            if (pathSegments.length === 0 || pathSegments.length === 1) {
-              calculatedPriority = 10;
-            }
-          } else {
-            const parentPriority = item.priority;
-            calculatedPriority = Math.max(1, parentPriority - 2);
-
-            const isHomepage = linkUrl.pathname === '/' || linkUrl.pathname === '';
-            if (isHomepage) {
-              calculatedPriority = Math.min(10, calculatedPriority + 2);
-            }
-
-            const highAuthorityDomains = [
-              'wikipedia.org', 'github.com', 'stackoverflow.com',
-              'medium.com', 'reddit.com', 'youtube.com'
-            ];
-
-            if (highAuthorityDomains.some(domain => linkDomain.includes(domain))) {
-              calculatedPriority = Math.min(10, calculatedPriority + 2);
+          for (const match of linkMatches) {
+            const href = match[1];
+            if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+              links.push(href);
+              if (links.length >= 50) break;
             }
           }
 
-          const { data: existingUrl } = await supabase
-            .from('crawler_queue')
-            .select('id, manual_priority')
-            .eq('url', link)
-            .maybeSingle();
-
-          if (existingUrl) {
-            if (!existingUrl.manual_priority) {
-              await supabase
-                .from('crawler_queue')
-                .update({
-                  priority: calculatedPriority,
-                  source_type: isInternal ? 'internal' : 'external',
-                  scheduled_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', existingUrl.id);
+          for (const link of links) {
+            // Skip social platform URLs in link discovery
+            if (shouldSkipUrl(link)) {
+              continue;
             }
-          } else {
-            await supabase.from('crawler_queue').insert({
-              url: link,
-              priority: calculatedPriority,
-              manual_priority: false,
-              source_type: isInternal ? 'internal' : 'external',
-              status: 'pending',
-              scheduled_at: new Date().toISOString()
+
+            await supabase.from('crawler_links').insert({
+              source_url: normalizedUrl,
+              destination_url: link,
+              discovered_at: new Date().toISOString()
             });
+
+            const linkUrl = new URL(link);
+            const linkDomain = linkUrl.hostname;
+            const isInternal = linkDomain.endsWith('.sentport.com') || linkDomain === 'sentport.com';
+
+            let calculatedPriority = 5;
+
+            if (isInternal) {
+              calculatedPriority = 9;
+              const pathSegments = linkUrl.pathname.split('/').filter(s => s.length > 0);
+              if (pathSegments.length === 0 || pathSegments.length === 1) {
+                calculatedPriority = 10;
+              }
+            } else {
+              const parentPriority = item.priority;
+              calculatedPriority = Math.max(1, parentPriority - 2);
+
+              const isHomepage = linkUrl.pathname === '/' || linkUrl.pathname === '';
+              if (isHomepage) {
+                calculatedPriority = Math.min(10, calculatedPriority + 2);
+              }
+
+              const highAuthorityDomains = [
+                'wikipedia.org', 'github.com', 'stackoverflow.com',
+                'medium.com', 'reddit.com', 'youtube.com'
+              ];
+
+              if (highAuthorityDomains.some(domain => linkDomain.includes(domain))) {
+                calculatedPriority = Math.min(10, calculatedPriority + 2);
+              }
+            }
+
+            const { data: existingUrl } = await supabase
+              .from('crawler_queue')
+              .select('id, manual_priority')
+              .eq('url', link)
+              .maybeSingle();
+
+            if (existingUrl) {
+              if (!existingUrl.manual_priority) {
+                await supabase
+                  .from('crawler_queue')
+                  .update({
+                    priority: calculatedPriority,
+                    source_type: isInternal ? 'internal' : 'external',
+                    scheduled_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', existingUrl.id);
+              }
+            } else {
+              await supabase.from('crawler_queue').insert({
+                url: link,
+                priority: calculatedPriority,
+                manual_priority: false,
+                source_type: isInternal ? 'internal' : 'external',
+                status: 'pending',
+                scheduled_at: new Date().toISOString()
+              });
+            }
           }
         }
 

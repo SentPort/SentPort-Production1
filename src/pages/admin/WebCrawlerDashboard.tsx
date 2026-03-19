@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Globe, RefreshCw, Zap, BarChart3, CheckCircle, XCircle, Clock, TrendingUp, ChevronLeft, ChevronRight, AlertCircle, ChevronDown, ChevronUp, Play, Pause, Tag } from 'lucide-react';
+import { Globe, RefreshCw, Zap, BarChart3, CheckCircle, XCircle, Clock, TrendingUp, ChevronLeft, ChevronRight, AlertCircle, ChevronDown, ChevronUp, Play, Pause, Tag, Link } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAuthError, getErrorMessage, logAuthDebug } from '../../lib/authHelpers';
@@ -116,6 +116,8 @@ export default function WebCrawlerDashboard() {
   const [timeUntilNextCrawl, setTimeUntilNextCrawl] = useState<string>('Calculating...');
   const [autoCrawlerEnabled, setAutoCrawlerEnabled] = useState<boolean | null>(null);
   const [togglingAutoCrawler, setTogglingAutoCrawler] = useState(false);
+  const [linkCollectionEnabled, setLinkCollectionEnabled] = useState<boolean | null>(null);
+  const [togglingLinkCollection, setTogglingLinkCollection] = useState(false);
   const [showContentTypeRulesManager, setShowContentTypeRulesManager] = useState(false);
 
   // Track user ID to prevent unnecessary reloads on auth token refresh
@@ -563,6 +565,88 @@ export default function WebCrawlerDashboard() {
     setTogglingAutoCrawler(false);
   };
 
+  // Fetch link collection enabled status
+  const fetchLinkCollectionStatus = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('crawler_settings')
+        .select('value')
+        .eq('key', 'link_collection_enabled')
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching link collection status:', error);
+        return;
+      }
+
+      if (data) {
+        setLinkCollectionEnabled(data.value === 'true');
+      }
+    } catch (error) {
+      console.error('Exception fetching link collection status:', error);
+    }
+  }, []);
+
+  // Toggle link collection enabled/disabled
+  const handleToggleLinkCollection = async () => {
+    if (!checkAuthBeforeOperation()) {
+      return;
+    }
+
+    setTogglingLinkCollection(true);
+
+    try {
+      const newValue = !linkCollectionEnabled;
+
+      const { error } = await supabase
+        .from('crawler_settings')
+        .update({ value: newValue ? 'true' : 'false', updated_at: new Date().toISOString() })
+        .eq('key', 'link_collection_enabled');
+
+      if (error) {
+        if (handleDatabaseError(error, 'toggling link collection')) {
+          setTogglingLinkCollection(false);
+          return;
+        }
+        console.error('Error toggling link collection:', error);
+        setAddUrlStatus({
+          show: true,
+          message: 'Failed to toggle link collection. Please try again.',
+          type: 'error'
+        });
+        setTimeout(() => {
+          setAddUrlStatus({ show: false, message: '', type: 'info' });
+        }, 5000);
+        setTogglingLinkCollection(false);
+        return;
+      }
+
+      setLinkCollectionEnabled(newValue);
+      setAddUrlStatus({
+        show: true,
+        message: `Link collection ${newValue ? 'resumed' : 'paused'}. ${newValue ? 'New links will be queued.' : 'Queue growth stopped.'}`,
+        type: 'success'
+      });
+
+      setTimeout(() => {
+        setAddUrlStatus({ show: false, message: '', type: 'info' });
+      }, 3000);
+
+    } catch (error) {
+      console.error('Exception toggling link collection:', error);
+      setAddUrlStatus({
+        show: true,
+        message: 'An unexpected error occurred.',
+        type: 'error'
+      });
+      setTimeout(() => {
+        setAddUrlStatus({ show: false, message: '', type: 'info' });
+      }, 5000);
+    }
+
+    setTogglingLinkCollection(false);
+  };
+
   // Handle auth state changes (only reload when user ID changes, not on token refresh)
   useEffect(() => {
     if (sessionExpired) {
@@ -589,6 +673,7 @@ export default function WebCrawlerDashboard() {
           await fetchQueueItems();
           await fetchCrawlerHistory();
           await fetchAutoCrawlerStatus();
+          await fetchLinkCollectionStatus();
         } finally {
           loadingDataRef.current = false;
         }
@@ -599,7 +684,7 @@ export default function WebCrawlerDashboard() {
       setCurrentPage(1);
       setPageInput('1');
     }
-  }, [user?.id, isAdmin, sessionExpired, fetchStats, fetchQueueStatusCounts, fetchQueueItems, fetchCrawlerHistory, fetchAutoCrawlerStatus]);
+  }, [user?.id, isAdmin, sessionExpired, fetchStats, fetchQueueStatusCounts, fetchQueueItems, fetchCrawlerHistory, fetchAutoCrawlerStatus, fetchLinkCollectionStatus]);
 
   // Handle filter changes (separate from auth changes)
   useEffect(() => {
@@ -804,6 +889,47 @@ export default function WebCrawlerDashboard() {
     return () => {
       console.log('[WebCrawlerDashboard] Cleaning up settings subscription');
       settingsSubscription.unsubscribe();
+    };
+  }, [user?.id, isAdmin, sessionExpired, isAuthTransitioning]);
+
+  // Real-time subscription to crawler_settings table (for link collection status)
+  useEffect(() => {
+    if (!user || !isAdmin || sessionExpired) {
+      return;
+    }
+
+    console.log('[WebCrawlerDashboard] Setting up link_collection_settings real-time subscription');
+
+    const linkCollectionSubscription = supabase
+      .channel('link_collection_settings_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'crawler_settings',
+          filter: 'key=eq.link_collection_enabled'
+        },
+        (payload) => {
+          // Pause updates during auth transitions
+          if (isAuthTransitioning || subscriptionsPausedRef.current) {
+            console.log('[WebCrawlerDashboard] Link collection update paused (auth transitioning)');
+            return;
+          }
+
+          console.log('[WebCrawlerDashboard] Link collection setting changed:', payload);
+          if (payload.new && 'value' in payload.new) {
+            setLinkCollectionEnabled(payload.new.value === 'true');
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[WebCrawlerDashboard] Link collection subscription status:', status);
+      });
+
+    return () => {
+      console.log('[WebCrawlerDashboard] Cleaning up link collection subscription');
+      linkCollectionSubscription.unsubscribe();
     };
   }, [user?.id, isAdmin, sessionExpired, isAuthTransitioning]);
 
@@ -1904,6 +2030,98 @@ export default function WebCrawlerDashboard() {
           )}
         </div>
 
+        <div className="bg-slate-800/50 border border-amber-500/30 rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Link className="w-5 h-5 text-amber-400" />
+              <h2 className="text-xl font-semibold text-white">Link Collection Control</h2>
+            </div>
+            <button
+              onClick={handleToggleLinkCollection}
+              disabled={togglingLinkCollection || linkCollectionEnabled === null}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                linkCollectionEnabled === null
+                  ? 'bg-gray-600 text-white'
+                  : linkCollectionEnabled
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              } ${togglingLinkCollection || linkCollectionEnabled === null ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {linkCollectionEnabled === null ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Loading...
+                </>
+              ) : togglingLinkCollection ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  {linkCollectionEnabled ? 'Pausing...' : 'Resuming...'}
+                </>
+              ) : (
+                <>
+                  {linkCollectionEnabled ? (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      Pause Link Collection
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Resume Link Collection
+                    </>
+                  )}
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 mb-4">
+            {linkCollectionEnabled === null ? (
+              <>
+                <div className="w-3 h-3 rounded-full bg-gray-400 animate-pulse"></div>
+                <p className="text-sm font-medium text-gray-400">
+                  Link Collection: Loading...
+                </p>
+              </>
+            ) : (
+              <>
+                <div className={`w-3 h-3 rounded-full ${linkCollectionEnabled ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`}></div>
+                <p className={`text-sm font-medium ${linkCollectionEnabled ? 'text-green-300' : 'text-amber-300'}`}>
+                  Link Collection: {linkCollectionEnabled ? 'Active' : 'Paused'}
+                </p>
+                <span className="text-gray-400 text-sm">•</span>
+                <p className="text-blue-200 text-sm">
+                  {linkCollectionEnabled ? 'Discovering and queuing new links' : 'Crawling without adding links'}
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className={`rounded-lg p-4 ${linkCollectionEnabled === null ? 'bg-slate-900/50 border border-slate-700' : linkCollectionEnabled ? 'bg-green-500/10 border border-green-500/30' : 'bg-amber-500/10 border border-amber-500/30'}`}>
+            {linkCollectionEnabled === null ? (
+              <p className="text-gray-400 text-sm">Loading link collection status...</p>
+            ) : linkCollectionEnabled ? (
+              <div className="space-y-2">
+                <p className="text-green-200 text-sm font-medium">
+                  New links discovered during crawls are being added to the queue.
+                </p>
+                <p className="text-gray-300 text-sm">
+                  Your queue will grow as more pages are crawled and new URLs are discovered. This is the normal operating mode for building your search index.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-amber-200 text-sm font-medium">
+                  Link discovery is paused. The crawler will process your existing {queueStatusCounts.pending.toLocaleString()} pending URLs without adding new links.
+                </p>
+                <p className="text-gray-300 text-sm">
+                  This allows your queue to shrink while completed crawls increase. Resume anytime to start discovering links again.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
@@ -2059,9 +2277,17 @@ export default function WebCrawlerDashboard() {
           </div>
 
           <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Zap className="w-5 h-5 text-blue-400" />
-              <h2 className="text-xl font-semibold text-white">Process Queue</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Zap className="w-5 h-5 text-blue-400" />
+                <h2 className="text-xl font-semibold text-white">Process Queue</h2>
+              </div>
+              {linkCollectionEnabled === false && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <Pause className="w-3 h-3" />
+                  Link Collection Paused
+                </span>
+              )}
             </div>
 
             {priorityCrawlCount > 0 && (
@@ -2099,7 +2325,7 @@ export default function WebCrawlerDashboard() {
             </div>
 
             <p className="text-sm text-blue-200 mb-4">
-              Click one of the buttons below to process URLs from the queue. {priorityCrawlCount > 0 && 'Priority URLs will be crawled first.'} This will crawl the pages and add discovered links.
+              Click one of the buttons below to process URLs from the queue. {priorityCrawlCount > 0 && 'Priority URLs will be crawled first.'} {linkCollectionEnabled ? 'This will crawl the pages and add discovered links.' : 'This will crawl the pages without adding discovered links to queue.'}
             </p>
 
             <div className="space-y-2">
