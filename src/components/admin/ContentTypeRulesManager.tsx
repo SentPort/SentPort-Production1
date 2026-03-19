@@ -181,9 +181,10 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
         throw new Error(`Database error: ${error.message}`);
       }
 
-      const totalUpdated = data?.reduce((sum: number, item: any) => sum + (item.search_index_updated || 0), 0) || 0;
-      const totalMatches = data?.reduce((sum: number, item: any) => sum + (item.total_matches || 0), 0) || 0;
-      const skippedDomains = data?.filter((item: any) => item.total_matches > 5000) || [];
+      const results = Array.isArray(data) ? data : [];
+      const totalUpdated = results.reduce((sum: number, item: any) => sum + (item.search_index_updated || 0), 0);
+      const totalMatches = results.reduce((sum: number, item: any) => sum + (item.total_matches || 0), 0);
+      const skippedDomains = results.filter((item: any) => item.total_matches > 5000);
       const typeName = contentType === 'news_article' ? 'News Sites' : 'Reference Sites';
 
       if (mountedRef.current) {
