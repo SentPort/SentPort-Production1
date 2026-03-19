@@ -685,7 +685,7 @@ export default function WebCrawlerDashboard() {
         } catch (error) {
           console.error('[WebCrawlerDashboard] Error refreshing data after real-time update:', error);
         }
-      }, 1000); // Increased to 1000ms debounce for more stability
+      }, 3000); // Increased to 3000ms debounce to prevent overwhelming during bulk operations
     };
 
     const subscription = supabase
@@ -723,6 +723,8 @@ export default function WebCrawlerDashboard() {
 
     console.log('[WebCrawlerDashboard] Setting up crawler_history real-time subscription');
 
+    let historyDebounceTimer: NodeJS.Timeout | null = null;
+
     const historySubscription = supabase
       .channel('crawler_history_changes')
       .on(
@@ -740,7 +742,15 @@ export default function WebCrawlerDashboard() {
           }
 
           console.log('[WebCrawlerDashboard] Crawler history change detected:', payload.eventType);
-          fetchCrawlerHistory();
+
+          // Throttle history updates to prevent excessive refreshes
+          if (historyDebounceTimer) {
+            clearTimeout(historyDebounceTimer);
+          }
+
+          historyDebounceTimer = setTimeout(() => {
+            fetchCrawlerHistory();
+          }, 2000); // 2 second debounce for history updates
         }
       )
       .subscribe((status) => {
@@ -749,6 +759,9 @@ export default function WebCrawlerDashboard() {
 
     return () => {
       console.log('[WebCrawlerDashboard] Cleaning up history subscription');
+      if (historyDebounceTimer) {
+        clearTimeout(historyDebounceTimer);
+      }
       historySubscription.unsubscribe();
     };
   }, [user?.id, isAdmin, sessionExpired, isAuthTransitioning, fetchCrawlerHistory]);

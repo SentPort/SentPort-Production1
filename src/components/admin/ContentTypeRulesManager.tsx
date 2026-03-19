@@ -181,11 +181,23 @@ export default function ContentTypeRulesManager({ onClose }: ContentTypeRulesMan
         throw new Error(`Database error: ${error.message}`);
       }
 
-      const totalUpdated = data?.reduce((sum: number, item: any) => sum + (item.urls_updated || 0), 0) || 0;
+      const totalUpdated = data?.reduce((sum: number, item: any) => sum + (item.search_index_updated || 0), 0) || 0;
+      const totalMatches = data?.reduce((sum: number, item: any) => sum + (item.total_matches || 0), 0) || 0;
+      const skippedDomains = data?.filter((item: any) => item.total_matches > 5000) || [];
       const typeName = contentType === 'news_article' ? 'News Sites' : 'Reference Sites';
 
       if (mountedRef.current) {
-        showMessage('success', `Added ${domains.length} domain(s) to ${typeName}. Updated ${totalUpdated} existing URL(s).`);
+        let message = `Added ${domains.length} domain(s) to ${typeName}. Updated ${totalUpdated} existing URL(s).`;
+
+        if (skippedDomains.length > 0) {
+          message += ` Warning: ${skippedDomains.length} domain(s) had too many matches (>5000) and were skipped.`;
+        }
+
+        if (totalMatches > totalUpdated && skippedDomains.length === 0) {
+          message += ` (${totalMatches - totalUpdated} URLs already had correct type)`;
+        }
+
+        showMessage('success', message);
         clearInput();
       }
 
