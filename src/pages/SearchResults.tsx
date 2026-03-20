@@ -8,6 +8,7 @@ import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { SearchWithHistory } from '../components/shared/SearchWithHistory';
 import { safeGetHostname } from '../lib/urlHelpers';
+import { useSearchPreferences } from '../hooks/useSearchPreferences';
 
 interface SearchResult {
   id: string;
@@ -37,7 +38,7 @@ export default function SearchResults() {
   usePageTracking('search');
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  const [includeExternal, setIncludeExternal] = useState(searchParams.get('external') === 'true');
+  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferences();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
@@ -60,7 +61,7 @@ export default function SearchResults() {
     if (query) {
       performSearch(query);
     }
-  }, [query, includeExternal]);
+  }, [query, includeExternalContent]);
 
   const performSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
@@ -87,7 +88,7 @@ export default function SearchResults() {
         .select('*')
         .abortSignal(currentController.signal);
 
-      if (!includeExternal) {
+      if (!includeExternalContent) {
         dbQuery = dbQuery.eq('is_internal', true);
       }
 
@@ -141,7 +142,7 @@ export default function SearchResults() {
         setLoading(false);
       }
     }
-  }, [includeExternal]);
+  }, [includeExternalContent]);
 
   // Filter results by active tab
   const getFilteredResults = () => {
@@ -163,21 +164,12 @@ export default function SearchResults() {
 
   const handleSearch = (searchQuery: string) => {
     if (searchQuery.trim()) {
-      setSearchParams({
-        q: searchQuery,
-        external: includeExternal.toString()
-      });
+      setSearchParams({ q: searchQuery });
     }
   };
 
   const handleIncludeExternalChange = (checked: boolean) => {
-    setIncludeExternal(checked);
-    if (query) {
-      setSearchParams({
-        q: query,
-        external: checked.toString()
-      });
-    }
+    setIncludeExternalContent(checked);
   };
 
   return (
@@ -205,14 +197,14 @@ export default function SearchResults() {
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={includeExternal}
+                checked={includeExternalContent}
                 onChange={(e) => handleIncludeExternalChange(e.target.checked)}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
               <Globe className="w-4 h-4 text-blue-600" />
               <span className="text-sm font-medium text-gray-700">Include Verified External Content</span>
             </label>
-            {includeExternal && (
+            {includeExternalContent && (
               <span className="text-xs text-blue-600">Includes trusted sources like Wikipedia</span>
             )}
           </div>
@@ -550,7 +542,7 @@ export default function SearchResults() {
                       </div>
                     </div>
 
-                    {!includeExternal && (
+                    {!includeExternalContent && (
                       <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                         <p className="text-sm text-gray-700">
                           <span className="font-semibold">Tip:</span> Try enabling "Include Verified External Content" above to search trusted sources like Wikipedia while we continue building our internal database.

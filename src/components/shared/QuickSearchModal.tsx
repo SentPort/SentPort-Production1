@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { trackSearch } from '../../lib/analytics';
 import { useAuth } from '../../contexts/AuthContext';
 import { safeGetHostname } from '../../lib/urlHelpers';
+import { useSearchPreferences } from '../../hooks/useSearchPreferences';
 
 interface SearchResult {
   id: string;
@@ -37,7 +38,7 @@ interface QuickSearchModalProps {
 
 export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }: QuickSearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
-  const [includeExternal, setIncludeExternal] = useState(false);
+  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferences();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
@@ -122,7 +123,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         .select('*')
         .abortSignal(currentController.signal);
 
-      if (!includeExternal) {
+      if (!includeExternalContent) {
         dbQuery = dbQuery.eq('is_internal', true);
       }
 
@@ -176,7 +177,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         setLoading(false);
       }
     }
-  }, [includeExternal, user]);
+  }, [includeExternalContent, user]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,8 +248,8 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={includeExternal}
-              onChange={(e) => setIncludeExternal(e.target.checked)}
+              checked={includeExternalContent}
+              onChange={(e) => setIncludeExternalContent(e.target.checked)}
               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <Globe className="w-4 h-4 text-blue-600" />
@@ -453,7 +454,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           {filteredResults.length > 15 && (
             <div className="mt-4 text-center">
               <a
-                href={`/search?q=${encodeURIComponent(query)}&external=${includeExternal}`}
+                href={`/search?q=${encodeURIComponent(query)}`}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 onClick={onClose}
               >

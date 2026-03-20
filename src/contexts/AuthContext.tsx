@@ -14,6 +14,9 @@ interface UserProfile {
   phone_number?: string | null;
   phone_verified?: boolean;
   last_password_change?: string | null;
+  search_preferences?: {
+    includeExternalContent: boolean;
+  };
 }
 
 interface PlatformAccounts {
