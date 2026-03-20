@@ -11,7 +11,7 @@ export default function HuBookRouter({ children }: { children: React.ReactNode }
   const { hubookProfile, loading: hubookLoading } = useHuBook();
   usePageTracking('hubook');
 
-  if (authLoading || hubookLoading || isAuthTransitioning) {
+  if (authLoading || isAuthTransitioning) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -29,6 +29,14 @@ export default function HuBookRouter({ children }: { children: React.ReactNode }
 
   if (!isVerified && !isAdmin) {
     return <Navigate to="/get-verified" replace />;
+  }
+
+  if (hubookLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   if (!hubookProfile) {

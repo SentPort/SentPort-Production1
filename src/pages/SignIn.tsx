@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { User, ShieldCheck, RotateCcw, Mail, Clock, AlertCircle } from 'lucide-react';
+import { User, RotateCcw, Clock, AlertCircle } from 'lucide-react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -207,23 +207,6 @@ export default function SignIn() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="mt-8 pt-8 border-t border-gray-200">
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
-              <div className="flex items-center justify-center mb-3">
-                <ShieldCheck className="text-green-600" size={28} />
-              </div>
-              <h3 className="text-lg font-semibold text-center text-gray-900 mb-2">
-                Get Verified as a Real Human
-              </h3>
-              <p className="text-sm text-gray-600 text-center mb-4">
-                Unlock exclusive access to human-only platforms and communities
-              </p>
-              <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors">
-                Start Free Verification Process
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

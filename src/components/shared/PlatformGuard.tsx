@@ -23,7 +23,7 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
   lastPlatformAccountStatusRef.current = hasPlatformAccount;
 
   useEffect(() => {
-    if (loading || isAuthTransitioning || isPlatformAccountsLoading) {
+    if (loading || isAuthTransitioning) {
       return;
     }
 
@@ -54,6 +54,10 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
         return;
       }
 
+      if (isPlatformAccountsLoading) {
+        return;
+      }
+
       if (!hasPlatformAccount) {
         console.log('[PlatformGuard] No', platform, 'account found, redirecting to join page');
         navigate(`/${platform}/join`);
@@ -71,7 +75,7 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
     };
   }, [user, isVerified, isEmailVerified, isAdmin, hasPlatformAccount, platform, loading, isAuthTransitioning, isPlatformAccountsLoading, navigate]);
 
-  if (loading || isAuthTransitioning || isPlatformAccountsLoading) {
+  if (loading || isAuthTransitioning) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
@@ -79,7 +83,19 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
     );
   }
 
-  if (!user || (!isEmailVerified && !isAdmin) || (!isVerified && !isAdmin) || !hasPlatformAccount) {
+  if (!user || (!isEmailVerified && !isAdmin) || (!isVerified && !isAdmin)) {
+    return null;
+  }
+
+  if (isPlatformAccountsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!hasPlatformAccount) {
     return null;
   }
 
