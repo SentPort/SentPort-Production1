@@ -41,9 +41,8 @@ export default function SearchResults() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
-  const { user } = useAuth();
+  const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [isVerified, setIsVerified] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
 
@@ -62,31 +61,6 @@ export default function SearchResults() {
       performSearch(query);
     }
   }, [query, includeExternal]);
-
-  useEffect(() => {
-    if (user) {
-      checkVerificationStatus();
-    }
-  }, [user]);
-
-  const checkVerificationStatus = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('is_verified, is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (isMountedRef.current) {
-        setIsVerified(data?.is_admin || data?.is_verified || false);
-      }
-    } catch (error) {
-      console.error('Error checking verification status:', error);
-    }
-  };
 
   const performSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {

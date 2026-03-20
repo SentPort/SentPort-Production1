@@ -516,10 +516,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const isAdmin = Boolean((userProfile?.is_admin || stableAdminRef.current) && adminModeEnabled);
-  const isVerified = Boolean(userProfile?.is_verified);
+
+  // In Testing Mode (admin with adminModeEnabled=false), simulate a non-verified user
+  // but keep email verification intact (admins test the post-email-verification flow)
+  const isVerified = Boolean(
+    userProfile?.is_verified &&
+    (adminModeEnabled || !userProfile?.is_admin)
+  );
+
   const isEmailVerified = Boolean(user?.email_confirmed_at);
 
-  // Log computed admin status whenever it changes
+  // Log computed admin and verification status whenever it changes
   useEffect(() => {
     console.log('[AuthContext] Admin status computed:', {
       isAdmin,
@@ -528,6 +535,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userId: user?.id
     });
   }, [isAdmin, userProfile?.is_admin, adminModeEnabled, user?.id]);
+
+  useEffect(() => {
+    console.log('[AuthContext] Verification status computed:', {
+      isVerified,
+      profileIsVerified: userProfile?.is_verified,
+      isTestingMode: userProfile?.is_admin && !adminModeEnabled,
+      adminModeEnabled,
+      userId: user?.id
+    });
+  }, [isVerified, userProfile?.is_verified, userProfile?.is_admin, adminModeEnabled, user?.id]);
 
   return (
     <AuthContext.Provider value={{

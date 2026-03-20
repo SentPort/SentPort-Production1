@@ -59,6 +59,13 @@ export default function Dashboard() {
     }
   }, [loading, user, session, isRefreshingSession, navigate]);
 
+  // Redirect non-verified users to get-verified page
+  useEffect(() => {
+    if (!loading && user && !isVerified && !isAdmin) {
+      navigate('/get-verified');
+    }
+  }, [loading, user, isVerified, isAdmin, navigate]);
+
   useEffect(() => {
     if (userProfile) {
       fetchUserStats();
