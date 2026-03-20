@@ -232,7 +232,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[AuthContext] Fetching platform accounts for user:', userId, 'force:', force);
 
     if (platformFetchAbortControllerRef.current) {
-      platformFetchAbortControllerRef.current.abort();
+      try {
+        platformFetchAbortControllerRef.current.abort();
+      } catch (err) {
+        // Ignore abort errors
+        console.log('[AuthContext] Previous fetch aborted');
+      }
     }
 
     platformFetchAbortControllerRef.current = new AbortController();
@@ -241,13 +246,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     lastPlatformFetchRef.current = now;
 
     try {
+      const signal = platformFetchAbortControllerRef.current.signal;
+
       const [hubookData, hedditData, hutubeData, hinstaData, switterData, blogData] = await Promise.all([
-        supabase.from('hubook_profiles').select('id').eq('id', userId).maybeSingle(),
-        supabase.from('heddit_accounts').select('id').eq('user_id', userId).maybeSingle(),
-        supabase.from('hutube_channels').select('id').eq('user_id', userId).maybeSingle(),
-        supabase.from('hinsta_accounts').select('id').eq('user_id', userId).maybeSingle(),
-        supabase.from('switter_accounts').select('id').eq('user_id', userId).maybeSingle(),
-        supabase.from('blog_accounts').select('id').eq('id', userId).maybeSingle(),
+        supabase.from('hubook_profiles').select('id').eq('id', userId).abortSignal(signal).maybeSingle(),
+        supabase.from('heddit_accounts').select('id').eq('user_id', userId).abortSignal(signal).maybeSingle(),
+        supabase.from('hutube_channels').select('id').eq('user_id', userId).abortSignal(signal).maybeSingle(),
+        supabase.from('hinsta_accounts').select('id').eq('user_id', userId).abortSignal(signal).maybeSingle(),
+        supabase.from('switter_accounts').select('id').eq('user_id', userId).abortSignal(signal).maybeSingle(),
+        supabase.from('blog_accounts').select('id').eq('id', userId).abortSignal(signal).maybeSingle(),
       ]);
 
       if (platformFetchAbortControllerRef.current?.signal.aborted) {

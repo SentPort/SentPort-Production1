@@ -80,14 +80,26 @@ function ViewPostContent() {
   }, [postId, user]);
 
   useEffect(() => {
-    if (post && (currentUserBlogAccountId || isAdmin)) {
+    if (!post) return;
+
+    // Admin can always delete, regardless of blog account
+    if (isAdmin) {
+      console.log('[ViewPost] Admin detected, granting delete permission');
+      setIsAuthor(true);
+      return;
+    }
+
+    // For non-admins, check if they have a blog account and are author/co-author
+    if (currentUserBlogAccountId) {
       const isPrimaryAuthor = post.account_id === currentUserBlogAccountId;
       const isCoAuthor = coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
-      const canDelete = isPrimaryAuthor || isCoAuthor || isAdmin;
-      console.log('[ViewPost] Delete permission check:', { isPrimaryAuthor, isCoAuthor, isAdmin, canDelete });
+      const canDelete = isPrimaryAuthor || isCoAuthor;
+      console.log('[ViewPost] Delete permission check:', { isPrimaryAuthor, isCoAuthor, canDelete, currentUserBlogAccountId });
       setIsAuthor(canDelete);
+    } else {
+      setIsAuthor(false);
     }
-  }, [post, currentUserBlogAccountId, coAuthors, isAdmin]);
+  }, [post, isAdmin, currentUserBlogAccountId, coAuthors]);
 
   useEffect(() => {
     if (user) {
@@ -467,10 +479,16 @@ function ViewPostContent() {
                         <div className="absolute right-0 top-12 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[140px]">
                           <button
                             onClick={() => {
-                              const isPrimaryAuthor = post.account_id === currentUserBlogAccountId;
-                              const isCoAuthor = coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
-                              const isAdminDeletion = isAdmin && !isPrimaryAuthor && !isCoAuthor;
-                              setIsAdminOverride(isAdminDeletion);
+                              // Check if this is an admin deletion
+                              if (isAdmin) {
+                                const isPrimaryAuthor = currentUserBlogAccountId && post.account_id === currentUserBlogAccountId;
+                                const isCoAuthor = currentUserBlogAccountId && coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
+                                const isAdminDeletion = !isPrimaryAuthor && !isCoAuthor;
+                                console.log('[ViewPost] Delete button clicked:', { isAdmin, isPrimaryAuthor, isCoAuthor, isAdminDeletion });
+                                setIsAdminOverride(isAdminDeletion);
+                              } else {
+                                setIsAdminOverride(false);
+                              }
                               setShowDeletePostModal(true);
                               setShowPostMenu(false);
                             }}
