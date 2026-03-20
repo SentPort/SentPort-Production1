@@ -59,7 +59,7 @@ function MyPostsContent() {
 
     try {
       const { data, error } = await supabase
-        .rpc('delete_blog_post_with_cascade', { post_id: postId });
+        .rpc('delete_blog_post_with_cascade', { p_post_id: postId });
 
       if (error) throw error;
 
