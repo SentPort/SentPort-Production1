@@ -443,7 +443,7 @@ function BlogProfileContent() {
               </h2>
               <BlogWheel
                 posts={posts}
-                onPostClick={(postId) => window.location.href = `/blog/post/${postId}`}
+                onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
                 title=""
                 subtitle=""
               />
