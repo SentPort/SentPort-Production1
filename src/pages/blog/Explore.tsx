@@ -105,6 +105,7 @@ function ExploreContent() {
         content,
         created_at,
         view_count,
+        comment_count,
         total_reaction_count,
         account:account_id (
           username,
@@ -118,7 +119,7 @@ function ExploreContent() {
       .order('total_reaction_count', { ascending: false })
       .range(from, to);
 
-    const posts = await addCommentCountsBatch(data || []);
+    const posts = transformPostData(data || []);
     setHasMoreTrending(posts.length === POSTS_PER_PAGE);
     return posts;
   };
@@ -135,6 +136,7 @@ function ExploreContent() {
         content,
         created_at,
         view_count,
+        comment_count,
         total_reaction_count,
         account:account_id (
           username,
@@ -148,7 +150,7 @@ function ExploreContent() {
       .order('created_at', { ascending: false })
       .range(from, to);
 
-    const posts = await addCommentCountsBatch(data || []);
+    const posts = transformPostData(data || []);
     setHasMoreNew(posts.length === POSTS_PER_PAGE);
     return posts;
   };
@@ -216,6 +218,7 @@ function ExploreContent() {
           content,
           created_at,
           view_count,
+          comment_count,
           total_reaction_count,
           account:account_id (
             username,
@@ -229,15 +232,16 @@ function ExploreContent() {
 
     if (data) {
       const posts = data.map((item: any) => item.post).filter(Boolean);
-      const postsWithCounts = await addCommentCountsBatch(posts);
-      setInterestPosts(postsWithCounts);
+      const transformedPosts = transformPostData(posts);
+      setInterestPosts(transformedPosts);
     }
   };
 
-  const addCommentCountsBatch = async (posts: any[]) => {
+  const transformPostData = (posts: any[]) => {
     return posts.map(post => ({
       ...post,
-      comments_count: post.comment_count || 0
+      blog_accounts: post.account,
+      account: undefined
     }));
   };
 
