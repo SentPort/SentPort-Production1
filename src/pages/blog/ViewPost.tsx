@@ -368,12 +368,14 @@ function ViewPostContent() {
 
     setIsDeleting(true);
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('id', postId);
+      const { data, error } = await supabase
+        .rpc('delete_blog_post_with_cascade', { post_id: postId });
 
       if (error) throw error;
+
+      if (data && !data.success) {
+        throw new Error(data.error || 'Failed to delete post');
+      }
 
       navigate('/blog/my-posts', { replace: true });
     } catch (err: any) {

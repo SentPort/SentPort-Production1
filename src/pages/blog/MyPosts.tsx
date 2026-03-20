@@ -58,15 +58,19 @@ function MyPostsContent() {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('id', postId);
+      const { data, error } = await supabase
+        .rpc('delete_blog_post_with_cascade', { post_id: postId });
 
       if (error) throw error;
+
+      if (data && !data.success) {
+        throw new Error(data.error || 'Failed to delete post');
+      }
+
       loadPosts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting post:', err);
+      alert(`Failed to delete post: ${err?.message || 'Unknown error'}. Please try again.`);
     }
   };
 
