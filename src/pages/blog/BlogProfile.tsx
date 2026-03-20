@@ -51,13 +51,13 @@ interface Post {
   view_count: number;
   total_reaction_count: number;
   bookmark_count: number;
-  account: {
+  comment_count: number;
+  blog_accounts: {
     username: string;
     display_name: string;
     avatar_url: string;
     bio: string;
   };
-  comments_count: number;
 }
 
 function BlogProfileContent() {
@@ -140,7 +140,8 @@ function BlogProfileContent() {
             view_count,
             total_reaction_count,
             bookmark_count,
-            account:account_id (
+            comment_count,
+            blog_accounts:account_id (
               username,
               display_name,
               avatar_url,
@@ -156,24 +157,8 @@ function BlogProfileContent() {
 
       if (signal.aborted || !isMountedRef.current) return;
 
-      if (postsData.data) {
-        const postsWithCounts = await Promise.all(
-          postsData.data.map(async (post: any) => {
-            const { count } = await supabase
-              .from('blog_comments')
-              .select('*', { count: 'exact', head: true })
-              .eq('post_id', post.id);
-
-            return {
-              ...post,
-              comments_count: count || 0
-            };
-          })
-        );
-
-        if (isMountedRef.current && !signal.aborted) {
-          setPosts(postsWithCounts);
-        }
+      if (postsData.data && isMountedRef.current && !signal.aborted) {
+        setPosts(postsData.data as Post[]);
       }
 
       if (statsData.data && statsData.data.length > 0 && isMountedRef.current && !signal.aborted) {
