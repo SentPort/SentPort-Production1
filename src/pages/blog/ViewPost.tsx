@@ -11,6 +11,7 @@ import AddToCollectionButton from '../../components/blog/AddToCollectionButton';
 import FollowButton from '../../components/blog/FollowButton';
 import ReactionButton from '../../components/blog/ReactionButton';
 import BlogShareModal from '../../components/blog/BlogShareModal';
+import DeleteBlogPostModal from '../../components/blog/DeleteBlogPostModal';
 import { useBlogReadingTracker } from '../../hooks/useBlogReadingTracker';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { splitContentIntoPages, extractHeadings, shouldShowTableOfContents, type PageContent } from '../../lib/blogPaginationHelpers';
@@ -46,6 +47,10 @@ function ViewPostContent() {
   const [currentUserBlogAccountId, setCurrentUserBlogAccountId] = useState<string | null>(null);
   const [openMenuCommentId, setOpenMenuCommentId] = useState<string | null>(null);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [showDeletePostModal, setShowDeletePostModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showPostMenu, setShowPostMenu] = useState(false);
+  const [isAuthor, setIsAuthor] = useState(false);
 
   const pageNumber = parseInt(searchParams.get('page') || '1', 10);
 
@@ -71,6 +76,14 @@ function ViewPostContent() {
       loadEngagementCounts();
     }
   }, [postId, user]);
+
+  useEffect(() => {
+    if (post && currentUserBlogAccountId) {
+      const isPrimaryAuthor = post.account_id === currentUserBlogAccountId;
+      const isCoAuthor = coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
+      setIsAuthor(isPrimaryAuthor || isCoAuthor);
+    }
+  }, [post, currentUserBlogAccountId, coAuthors]);
 
   useEffect(() => {
     if (user) {
@@ -334,6 +347,27 @@ function ViewPostContent() {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!postId) return;
+
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('blog_posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+
+      navigate('/blog/my-posts', { replace: true });
+    } catch (err) {
+      console.error('Error deleting post:', err);
+      alert('Failed to delete post. Please try again.');
+      setIsDeleting(false);
+      setShowDeletePostModal(false);
+    }
+  };
+
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > pages.length) return;
     setCurrentPage(newPage);
@@ -409,7 +443,40 @@ function ViewPostContent() {
               </div>
             )}
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-white mb-2">{post.title}</h1>
+              <div className="flex items-start justify-between gap-4">
+                <h1 className="text-3xl font-bold text-white mb-2 flex-1">{post.title}</h1>
+                {isAuthor && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowPostMenu(!showPostMenu)}
+                      className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+                      aria-label="Post options"
+                    >
+                      <MoreHorizontal className="w-5 h-5 text-gray-400" />
+                    </button>
+                    {showPostMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowPostMenu(false)}
+                        />
+                        <div className="absolute right-0 top-12 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              setShowDeletePostModal(true);
+                              setShowPostMenu(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-3 text-red-400 hover:bg-slate-700 transition-colors text-left rounded-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-sm font-medium">Delete Post</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-4 text-sm text-gray-300">
                 <span className="font-medium">{post.blog_accounts?.display_name}</span>
                 <span>•</span>
@@ -768,6 +835,14 @@ function ViewPostContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {showDeletePostModal && (
+        <DeleteBlogPostModal
+          onConfirm={handleDeletePost}
+          onCancel={() => setShowDeletePostModal(false)}
+          isDeleting={isDeleting}
+        />
       )}
     </BlogLayout>
   );
