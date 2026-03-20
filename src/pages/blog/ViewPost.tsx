@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, MessageCircle, Send, Calendar, Pin, Users, ChevronLeft, ChevronRight, List, Share2, Flag, MoreHorizontal, Trash2 } from 'lucide-react';
@@ -449,19 +449,24 @@ function ViewPostContent() {
           )}
 
           <div className="flex items-start gap-4 mb-6">
-            {post.blog_accounts?.avatar_url ? (
-              <img
-                src={post.blog_accounts.avatar_url}
-                alt={post.blog_accounts.display_name}
-                className="w-16 h-16 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <span className="text-emerald-400 font-bold text-2xl">
-                  {post.blog_accounts?.display_name?.[0]?.toUpperCase()}
-                </span>
-              </div>
-            )}
+            <Link
+              to={`/blog/profile/${post.blog_accounts?.username}`}
+              className="hover:opacity-80 transition-opacity flex-shrink-0"
+            >
+              {post.blog_accounts?.avatar_url ? (
+                <img
+                  src={post.blog_accounts.avatar_url}
+                  alt={post.blog_accounts.display_name}
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-transparent hover:ring-emerald-400 transition-all"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center ring-2 ring-transparent hover:ring-emerald-400 transition-all">
+                  <span className="text-emerald-400 font-bold text-2xl">
+                    {post.blog_accounts?.display_name?.[0]?.toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </Link>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-4">
                 <h1 className="text-3xl font-bold text-white mb-2 flex-1">{post.title}</h1>
@@ -508,7 +513,12 @@ function ViewPostContent() {
                 )}
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-300">
-                <span className="font-medium">{post.blog_accounts?.display_name}</span>
+                <Link
+                  to={`/blog/profile/${post.blog_accounts?.username}`}
+                  className="font-medium hover:text-emerald-400 transition-colors"
+                >
+                  {post.blog_accounts?.display_name}
+                </Link>
                 <span>•</span>
                 <div className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
@@ -532,9 +542,10 @@ function ViewPostContent() {
               </p>
               <div className="flex flex-wrap gap-3">
                 {coAuthors.map((coAuthor: any) => (
-                  <div
+                  <Link
                     key={coAuthor.user_profiles.id}
-                    className="flex items-center gap-2 bg-slate-700/50 rounded-full px-3 py-1.5 border border-slate-600"
+                    to={`/blog/profile/${coAuthor.user_profiles.username}`}
+                    className="flex items-center gap-2 bg-slate-700/50 rounded-full px-3 py-1.5 border border-slate-600 hover:bg-slate-600/50 hover:border-purple-400 transition-all"
                   >
                     {coAuthor.user_profiles.avatar_url ? (
                       <img
@@ -549,13 +560,13 @@ function ViewPostContent() {
                         </span>
                       </div>
                     )}
-                    <span className="text-sm text-white font-medium">
+                    <span className="text-sm text-white font-medium hover:text-purple-300 transition-colors">
                       {coAuthor.user_profiles.display_name}
                     </span>
                     <span className="text-xs text-gray-400">
                       ({coAuthor.role})
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>

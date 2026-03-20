@@ -532,6 +532,7 @@ function BlogFeedContent() {
                       created_at: post.created_at,
                       account_id: post.account_id,
                       author_name: post.blog_accounts?.display_name || 'Anonymous',
+                      author_username: post.blog_accounts?.username || '',
                       interest_name: post.interest_name || 'General',
                       engagement_metrics: {
                         view_count: post.view_count || 0,

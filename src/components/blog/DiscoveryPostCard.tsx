@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { MessageCircle, ThumbsUp, Eye, Info } from 'lucide-react';
 import DiscoveryInfoModal from './DiscoveryInfoModal';
 
@@ -11,6 +11,7 @@ interface DiscoveryPostCardProps {
     created_at: string;
     account_id: string;
     author_name?: string;
+    author_username?: string;
     interest_name?: string;
     engagement_metrics?: {
       view_count: number;
@@ -70,7 +71,17 @@ export default function DiscoveryPostCard({ post }: DiscoveryPostCardProps) {
           </h3>
 
           <div className="flex items-center gap-2 text-sm text-gray-300 mb-3">
-            <span className="font-medium">{post.author_name || 'Anonymous'}</span>
+            {post.author_username ? (
+              <Link
+                to={`/blog/profile/${post.author_username}`}
+                onClick={(e) => e.stopPropagation()}
+                className="font-medium hover:text-teal-300 transition-colors hover:underline"
+              >
+                {post.author_name || 'Anonymous'}
+              </Link>
+            ) : (
+              <span className="font-medium">{post.author_name || 'Anonymous'}</span>
+            )}
             <span>•</span>
             <span>{new Date(post.created_at).toLocaleDateString()}</span>
           </div>

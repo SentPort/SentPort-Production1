@@ -1,4 +1,5 @@
 import { Eye, MessageCircle, Calendar, User, Pin, Sparkles, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface BlogPost {
   id: string;
@@ -72,28 +73,38 @@ export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove }:
 
       <div className={`p-6 md:p-8 ${post.is_pinned ? 'pt-14 md:pt-16' : ''}`}>
         <div className="flex items-start gap-3 md:gap-4 mb-4 md:mb-6">
-          {post.blog_accounts?.avatar_url ? (
-            <img
-              src={post.blog_accounts.avatar_url}
-              alt={post.blog_accounts.display_name}
-              className={`rounded-full object-cover border-3 border-amber-200 ${
-                isCenterCard ? 'w-12 h-12 md:w-16 md:h-16 shadow-lg' : 'w-10 h-10 md:w-14 md:h-14 shadow-md'
-              }`}
-            />
-          ) : (
-            <div
-              className={`rounded-full bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shadow-lg border-3 border-white ${
-                isCenterCard ? 'w-12 h-12 md:w-16 md:h-16' : 'w-10 h-10 md:w-14 md:h-14'
-              }`}
-            >
-              <User className={`text-white ${isCenterCard ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-7 md:h-7'}`} />
-            </div>
-          )}
+          <Link
+            to={`/blog/profile/${post.blog_accounts?.username}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-shrink-0 hover:opacity-80 transition-opacity"
+          >
+            {post.blog_accounts?.avatar_url ? (
+              <img
+                src={post.blog_accounts.avatar_url}
+                alt={post.blog_accounts.display_name}
+                className={`rounded-full object-cover border-3 border-amber-200 hover:border-amber-400 transition-all ${
+                  isCenterCard ? 'w-12 h-12 md:w-16 md:h-16 shadow-lg' : 'w-10 h-10 md:w-14 md:h-14 shadow-md'
+                }`}
+              />
+            ) : (
+              <div
+                className={`rounded-full bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shadow-lg border-3 border-white hover:border-amber-300 transition-all ${
+                  isCenterCard ? 'w-12 h-12 md:w-16 md:h-16' : 'w-10 h-10 md:w-14 md:h-14'
+                }`}
+              >
+                <User className={`text-white ${isCenterCard ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-7 md:h-7'}`} />
+              </div>
+            )}
+          </Link>
 
           <div className="flex-1 min-w-0">
-            <p className={`font-semibold text-gray-800 truncate ${isCenterCard ? 'text-base md:text-lg' : 'text-sm md:text-base'}`}>
+            <Link
+              to={`/blog/profile/${post.blog_accounts?.username}`}
+              onClick={(e) => e.stopPropagation()}
+              className={`font-semibold text-gray-800 hover:text-amber-600 truncate block transition-colors ${isCenterCard ? 'text-base md:text-lg' : 'text-sm md:text-base'}`}
+            >
               {post.blog_accounts?.display_name || 'Anonymous'}
-            </p>
+            </Link>
             <p className="text-gray-500 text-xs md:text-sm flex items-center gap-1 md:gap-2">
               <Calendar className="w-3 h-3" />
               {new Date(post.created_at).toLocaleDateString('en-US', {

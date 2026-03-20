@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Search, User, FileText, Tag, Clock, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import BlogLayout from '../../components/shared/BlogLayout';
@@ -245,14 +245,18 @@ export default function SearchResults() {
                       <p className="text-gray-700 line-clamp-2 mb-3">{post.excerpt}</p>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
+                      <Link
+                        to={`/blog/profile/${post.blog_accounts.username}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-2 hover:text-emerald-600 transition-colors"
+                      >
                         <img
                           src={post.blog_accounts.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.blog_accounts.username}`}
                           alt={post.blog_accounts.display_name || post.blog_accounts.username}
-                          className="w-6 h-6 rounded-full object-cover"
+                          className="w-6 h-6 rounded-full object-cover hover:ring-2 hover:ring-emerald-400 transition-all"
                         />
                         <span>{post.blog_accounts.display_name || post.blog_accounts.username}</span>
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
                         <span>{post.reading_time_minutes} min read</span>

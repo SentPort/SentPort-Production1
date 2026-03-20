@@ -216,8 +216,11 @@ function ReadingHistoryContent() {
                       </p>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-300">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-semibold">
+                      <Link
+                        to={`/blog/profile/${item.post.blog_accounts.username}`}
+                        className="flex items-center gap-2 hover:text-emerald-300 transition-colors"
+                      >
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-semibold hover:ring-2 hover:ring-emerald-400 transition-all">
                           {item.post.blog_accounts.avatar_url ? (
                             <img
                               src={item.post.blog_accounts.avatar_url}
@@ -229,7 +232,7 @@ function ReadingHistoryContent() {
                           )}
                         </div>
                         <span className="font-medium">{item.post.blog_accounts.display_name}</span>
-                      </div>
+                      </Link>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         <span>Read {formatDate(item.last_scroll_at)}</span>
