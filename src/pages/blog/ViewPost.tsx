@@ -376,9 +376,11 @@ function ViewPostContent() {
       if (error) throw error;
 
       navigate('/blog/my-posts', { replace: true });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting post:', err);
-      alert('Failed to delete post. Please try again.');
+      console.error('Error message:', err?.message);
+      console.error('Error details:', JSON.stringify(err, null, 2));
+      alert(`Failed to delete post: ${err?.message || 'Unknown error'}. Please try again.`);
       setIsDeleting(false);
       setShowDeletePostModal(false);
     }
