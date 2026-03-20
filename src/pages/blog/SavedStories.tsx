@@ -21,6 +21,7 @@ interface Post {
   content: string;
   created_at: string;
   view_count: number;
+  comment_count: number;
   total_reaction_count: number;
   bookmark_count: number;
   account: {
@@ -29,7 +30,7 @@ interface Post {
     avatar_url: string;
     bio: string;
   };
-  comments_count: number;
+  comments_count?: number;
   bookmarked_at: string;
 }
 
@@ -91,21 +92,11 @@ function SavedStoriesContent() {
 
       const postsData = (data || []).map((item: any) => ({
         ...item.post,
+        comments_count: item.post.comment_count || 0,
         bookmarked_at: item.created_at
       })).filter((post: any) => post.id);
 
-      const postsWithComments = await Promise.all(
-        postsData.map(async (post: any) => {
-          const { count } = await supabase
-            .from('blog_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          return { ...post, comments_count: count || 0 };
-        })
-      );
-
-      setPosts(postsWithComments);
+      setPosts(postsData);
     } catch (error) {
       console.error('Error loading saved posts:', error);
     } finally {

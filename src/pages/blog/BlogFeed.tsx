@@ -537,7 +537,7 @@ function BlogFeedContent() {
                       engagement_metrics: {
                         view_count: post.view_count || 0,
                         like_count: post.like_count || 0,
-                        comment_count: post.blog_feed_metrics?.[0]?.total_comments_30d || 0
+                        comment_count: post.comment_count || 0
                       }
                     }}
                   />

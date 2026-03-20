@@ -26,6 +26,7 @@ interface Post {
   content: string;
   created_at: string;
   view_count: number;
+  comment_count: number;
   total_reaction_count: number;
   account: {
     username: string;
@@ -33,7 +34,7 @@ interface Post {
     avatar_url: string;
     bio: string;
   };
-  comments_count: number;
+  comments_count?: number;
 }
 
 interface Author {
@@ -234,25 +235,9 @@ function ExploreContent() {
   };
 
   const addCommentCountsBatch = async (posts: any[]) => {
-    if (posts.length === 0) return [];
-
-    // Batch fetch all comment counts in a single query
-    const postIds = posts.map(p => p.id);
-    const { data: comments } = await supabase
-      .from('blog_comments')
-      .select('post_id')
-      .in('post_id', postIds);
-
-    // Count comments per post
-    const countMap = new Map<string, number>();
-    comments?.forEach(comment => {
-      const count = countMap.get(comment.post_id) || 0;
-      countMap.set(comment.post_id, count + 1);
-    });
-
     return posts.map(post => ({
       ...post,
-      comments_count: countMap.get(post.id) || 0
+      comments_count: post.comment_count || 0
     }));
   };
 

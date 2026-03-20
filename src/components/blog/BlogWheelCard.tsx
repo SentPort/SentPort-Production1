@@ -7,6 +7,7 @@ interface BlogPost {
   content: string;
   created_at: string;
   view_count?: number;
+  comment_count?: number;
   blog_accounts?: {
     username: string;
     display_name: string;
@@ -159,7 +160,7 @@ export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove }:
             </div>
             <div className="flex items-center gap-1 md:gap-1.5">
               <MessageCircle className="w-3 h-3 md:w-4 md:h-4 text-amber-600" />
-              <span className="font-medium">{post.blog_feed_metrics?.[0]?.total_comments_30d || 0}</span>
+              <span className="font-medium">{post.comment_count || 0}</span>
             </div>
           </div>
 

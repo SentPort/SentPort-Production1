@@ -8,6 +8,7 @@ interface BlogPost {
   content: string;
   created_at: string;
   view_count?: number;
+  comment_count?: number;
   blog_accounts?: {
     username: string;
     display_name: string;

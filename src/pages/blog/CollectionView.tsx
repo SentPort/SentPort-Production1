@@ -22,6 +22,7 @@ interface BlogPost {
   account_id: string;
   created_at: string;
   view_count?: number;
+  comment_count?: number;
   cover_image_url?: string;
   estimated_read_minutes?: number;
   blog_accounts?: {
