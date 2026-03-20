@@ -109,10 +109,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasCompletedInitialLoadRef = useRef(false);
 
   const fetchUserProfile = async (userId: string, retainOnError = false) => {
+    console.log('[AuthContext] fetchUserProfile called with userId:', userId, 'retainOnError:', retainOnError);
     setIsAuthTransitioning(true);
 
     if (transitionTimerRef.current) {
       clearTimeout(transitionTimerRef.current);
+    }
+
+    if (!userId) {
+      console.error('[AuthContext] Cannot fetch profile: userId is null or undefined');
+      setIsAuthTransitioning(false);
+      return;
     }
 
     try {
@@ -135,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
 
-      console.log('[AuthContext] Profile loaded:', { userId, isAdmin: data?.is_admin, isVerified: data?.is_verified });
+      console.log('[AuthContext] Profile loaded successfully:', { userId, profileData: data, isAdmin: data?.is_admin, isVerified: data?.is_verified });
 
       if (data && data.account_status === 'pending_deletion') {
         console.log('Account pending deletion detected, attempting restoration...');

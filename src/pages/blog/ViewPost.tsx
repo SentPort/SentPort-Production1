@@ -12,6 +12,7 @@ import FollowButton from '../../components/blog/FollowButton';
 import ReactionButton from '../../components/blog/ReactionButton';
 import BlogShareModal from '../../components/blog/BlogShareModal';
 import DeleteBlogPostModal from '../../components/blog/DeleteBlogPostModal';
+import AdminDeleteWarningModal from '../../components/blog/AdminDeleteWarningModal';
 import { useBlogReadingTracker } from '../../hooks/useBlogReadingTracker';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { splitContentIntoPages, extractHeadings, shouldShowTableOfContents, type PageContent } from '../../lib/blogPaginationHelpers';
@@ -27,7 +28,7 @@ export default function ViewPost() {
 function ViewPostContent() {
   const { postId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -51,6 +52,7 @@ function ViewPostContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
   const [isAuthor, setIsAuthor] = useState(false);
+  const [isAdminOverride, setIsAdminOverride] = useState(false);
 
   const pageNumber = parseInt(searchParams.get('page') || '1', 10);
 
@@ -78,12 +80,14 @@ function ViewPostContent() {
   }, [postId, user]);
 
   useEffect(() => {
-    if (post && currentUserBlogAccountId) {
+    if (post && (currentUserBlogAccountId || isAdmin)) {
       const isPrimaryAuthor = post.account_id === currentUserBlogAccountId;
       const isCoAuthor = coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
-      setIsAuthor(isPrimaryAuthor || isCoAuthor);
+      const canDelete = isPrimaryAuthor || isCoAuthor || isAdmin;
+      console.log('[ViewPost] Delete permission check:', { isPrimaryAuthor, isCoAuthor, isAdmin, canDelete });
+      setIsAuthor(canDelete);
     }
-  }, [post, currentUserBlogAccountId, coAuthors]);
+  }, [post, currentUserBlogAccountId, coAuthors, isAdmin]);
 
   useEffect(() => {
     if (user) {
@@ -463,6 +467,10 @@ function ViewPostContent() {
                         <div className="absolute right-0 top-12 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[140px]">
                           <button
                             onClick={() => {
+                              const isPrimaryAuthor = post.account_id === currentUserBlogAccountId;
+                              const isCoAuthor = coAuthors.some((author: any) => author.user_profiles?.id === currentUserBlogAccountId);
+                              const isAdminDeletion = isAdmin && !isPrimaryAuthor && !isCoAuthor;
+                              setIsAdminOverride(isAdminDeletion);
                               setShowDeletePostModal(true);
                               setShowPostMenu(false);
                             }}
@@ -838,11 +846,24 @@ function ViewPostContent() {
       )}
 
       {showDeletePostModal && (
-        <DeleteBlogPostModal
-          onConfirm={handleDeletePost}
-          onCancel={() => setShowDeletePostModal(false)}
-          isDeleting={isDeleting}
-        />
+        isAdminOverride ? (
+          <AdminDeleteWarningModal
+            postTitle={post.title}
+            authorName={post.blog_accounts?.display_name || 'Unknown'}
+            onConfirm={handleDeletePost}
+            onCancel={() => {
+              setShowDeletePostModal(false);
+              setIsAdminOverride(false);
+            }}
+            isDeleting={isDeleting}
+          />
+        ) : (
+          <DeleteBlogPostModal
+            onConfirm={handleDeletePost}
+            onCancel={() => setShowDeletePostModal(false)}
+            isDeleting={isDeleting}
+          />
+        )
       )}
     </BlogLayout>
   );
