@@ -49,13 +49,6 @@ export default function About() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-16">
         <div className="text-center mb-16">
-          <div className="flex justify-center mb-8">
-            <img
-              src="/sentient-portal-logo.png"
-              alt="Sentient Portal Logo"
-              className="h-40 w-auto drop-shadow-lg"
-            />
-          </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">About Sentient Portal</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Reclaiming the internet for real human voices in an age of bot-farms, mass-produced fake AI accounts, and exploitative algorithmic manipulation

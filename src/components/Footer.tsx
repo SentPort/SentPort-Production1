@@ -7,13 +7,7 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
-            <Link to="/" className="inline-block mb-3 hover:opacity-80 transition-opacity">
-              <img
-                src="/sentient-portal-logo.png"
-                alt="Sentient Portal"
-                className="h-16 w-auto"
-              />
-            </Link>
+            <h3 className="text-white font-semibold text-xl mb-3">Sentient Portal</h3>
             <p className="text-sm text-gray-400">
               The Human Internet - where every user is verified as human.
             </p>

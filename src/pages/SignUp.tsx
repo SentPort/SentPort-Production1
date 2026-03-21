@@ -108,14 +108,6 @@ export default function SignUp() {
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center px-4 pt-20">
           <div className="max-w-md w-full">
             <div className="bg-white rounded-2xl shadow-xl p-8">
-              <div className="flex items-center justify-center mb-6">
-                <img
-                  src="/sentient-portal-logo.png"
-                  alt="Sentient Portal"
-                  className="h-24 w-auto"
-                />
-              </div>
-
               <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
                 Check Your Email
               </h1>
@@ -184,14 +176,6 @@ export default function SignUp() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center px-4 pt-20">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="flex items-center justify-center mb-6">
-            <img
-              src="/sentient-portal-logo.png"
-              alt="Sentient Portal"
-              className="h-24 w-auto"
-            />
-          </div>
-
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Create Your Account
           </h1>
