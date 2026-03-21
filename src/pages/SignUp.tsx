@@ -14,6 +14,8 @@ export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [signupComplete, setSignupComplete] = useState(false);
@@ -38,6 +40,18 @@ export default function SignUp() {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    if (!ageConfirmed) {
+      setError('You must confirm that you are 18 years or older');
+      setLoading(false);
+      return;
+    }
+
+    if (!termsAccepted) {
+      setError('You must accept the Terms of Service to create an account');
+      setLoading(false);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -235,6 +249,41 @@ export default function SignUp() {
               />
             </div>
 
+            <div className="space-y-4 pt-2">
+              <label className="flex items-start cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={ageConfirmed}
+                  onChange={(e) => setAgeConfirmed(e.target.checked)}
+                  className="mt-1 h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-2 focus:ring-green-500 cursor-pointer"
+                />
+                <span className="ml-3 text-sm text-gray-700 group-hover:text-gray-900">
+                  I confirm that I am <strong>18 years of age or older</strong>
+                </span>
+              </label>
+
+              <label className="flex items-start cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-1 h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-2 focus:ring-green-500 cursor-pointer"
+                />
+                <span className="ml-3 text-sm text-gray-700 group-hover:text-gray-900">
+                  I have read and agree to the{' '}
+                  <a
+                    href="/terms-of-service"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 font-medium underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Terms of Service
+                  </a>
+                </span>
+              </label>
+            </div>
+
             <div className="text-sm text-center">
               <span className="text-gray-600">Already have an account? </span>
               <a
@@ -247,18 +296,12 @@ export default function SignUp() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:bg-green-400 disabled:cursor-not-allowed"
+              disabled={loading || !ageConfirmed || !termsAccepted}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
-
-          <div className="mt-6">
-            <p className="text-xs text-gray-500 text-center">
-              By creating an account, you agree to our Terms of Service and Privacy Policy
-            </p>
-          </div>
         </div>
       </div>
     </div>
