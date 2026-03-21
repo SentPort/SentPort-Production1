@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Users, Search, Activity, Calendar, Globe, DollarSign, Target, Clock, Zap, Video, Camera } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Search, Activity, Calendar, Globe, DollarSign, Target, Clock, Zap, Video, Camera, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import Header from '../../components/Header';
 import { InfoTooltip } from '../../components/shared/InfoTooltip';
+import LineChart from '../../components/blog/analytics/LineChart';
 
 type TimeRange = 'today' | 'week' | 'month' | 'all';
 
@@ -65,6 +66,21 @@ interface TopSubdomain {
   topPages: Array<{ pagePath: string; pageViews: number }>;
 }
 
+interface VerifiedUsersMetrics {
+  totalUsers: number;
+  totalVerifiedUsers: number;
+  verificationRate: number;
+  periodNewVerifications: number;
+  previousPeriodVerifications: number;
+  growthRate: number;
+  avgDailyVerifications: number;
+}
+
+interface VerificationTrendData {
+  verification_date: string;
+  new_verified_count: number;
+}
+
 export default function AnalyticsDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('month');
   const [dauMauMetrics, setDauMauMetrics] = useState<DAUMAUMetrics>({
@@ -109,6 +125,16 @@ export default function AnalyticsDashboard() {
     avgAge: 0
   });
   const [topSubdomains, setTopSubdomains] = useState<TopSubdomain[]>([]);
+  const [verifiedUsersMetrics, setVerifiedUsersMetrics] = useState<VerifiedUsersMetrics>({
+    totalUsers: 0,
+    totalVerifiedUsers: 0,
+    verificationRate: 0,
+    periodNewVerifications: 0,
+    previousPeriodVerifications: 0,
+    growthRate: 0,
+    avgDailyVerifications: 0
+  });
+  const [verificationTrendData, setVerificationTrendData] = useState<VerificationTrendData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -123,7 +149,8 @@ export default function AnalyticsDashboard() {
         fetchSearchMetrics(),
         fetchSubdomainMetrics(),
         fetchDemographicMetrics(),
-        fetchTopSubdomains()
+        fetchTopSubdomains(),
+        fetchVerifiedUsersMetrics()
       ]);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -462,6 +489,44 @@ export default function AnalyticsDashboard() {
     }
   };
 
+  const fetchVerifiedUsersMetrics = async () => {
+    try {
+      const { startDate, days } = getDateRange();
+
+      const { data: summary } = await supabase
+        .rpc('get_verified_users_summary')
+        .maybeSingle();
+
+      const { data: growthStats } = await supabase
+        .rpc('get_verification_growth_stats', { p_days: days || 365 })
+        .maybeSingle();
+
+      const { data: trendData } = await supabase
+        .rpc('get_daily_verified_users', {
+          p_start_date: startDate,
+          p_end_date: new Date().toISOString().split('T')[0]
+        });
+
+      if (summary && growthStats) {
+        setVerifiedUsersMetrics({
+          totalUsers: summary.total_users || 0,
+          totalVerifiedUsers: summary.total_verified_users || 0,
+          verificationRate: summary.verification_rate || 0,
+          periodNewVerifications: growthStats.period_new_verifications || 0,
+          previousPeriodVerifications: growthStats.previous_period_verifications || 0,
+          growthRate: growthStats.growth_rate || 0,
+          avgDailyVerifications: growthStats.avg_daily_verifications || 0
+        });
+      }
+
+      if (trendData) {
+        setVerificationTrendData(trendData);
+      }
+    } catch (error) {
+      console.error('Error fetching verified users metrics:', error);
+    }
+  };
+
   const timeRangeButtons: { label: string; value: TimeRange; icon: typeof Calendar }[] = [
     { label: 'Today', value: 'today', icon: Calendar },
     { label: 'Last 7 Days', value: 'week', icon: Calendar },
@@ -552,6 +617,123 @@ export default function AnalyticsDashboard() {
             </div>
           ) : (
             <>
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                  <h2 className="text-2xl font-bold text-gray-900">User Verification Metrics</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                  <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-green-500">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">Total Verified Users</span>
+                        <InfoTooltip
+                          title="Total Verified Users"
+                          description="Total number of users who have completed human verification through DidIt. Verified users help maintain platform authenticity."
+                          advertiserValue="Verified users represent real, authentic humans - your ads reach genuine people, not bots. This dramatically improves campaign effectiveness and ROI."
+                        />
+                      </div>
+                    </div>
+                    <div className="text-4xl font-bold text-green-600 mb-1">
+                      {verifiedUsersMetrics.totalVerifiedUsers.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500">Out of {verifiedUsersMetrics.totalUsers.toLocaleString()} total users</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">New Verifications</span>
+                        <InfoTooltip
+                          title="New Verified Users This Period"
+                          description="Number of new users who completed verification during the selected time period. Shows verification adoption rate."
+                          advertiserValue="Growing verification numbers indicate an expanding pool of authentic users. More verified users means better ad targeting and higher quality traffic."
+                        />
+                      </div>
+                    </div>
+                    <div className="text-4xl font-bold text-blue-600 mb-1">
+                      {verifiedUsersMetrics.periodNewVerifications.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500">{getPeriodLabel()}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-orange-500">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">Verification Rate</span>
+                        <InfoTooltip
+                          title="Verification Percentage"
+                          description="Percentage of total users who are verified. Higher rates indicate better platform authenticity and user trust."
+                          advertiserValue="A high verification rate means most of your ad impressions go to verified humans. This is unique in social media and provides exceptional advertising value."
+                        />
+                      </div>
+                    </div>
+                    <div className="text-4xl font-bold text-orange-600 mb-1">
+                      {verifiedUsersMetrics.verificationRate.toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-gray-500">Of all users</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-purple-500">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">Growth Rate</span>
+                        <InfoTooltip
+                          title="Verification Growth"
+                          description="Growth in verified users compared to the previous period. Shows verification adoption momentum."
+                          advertiserValue="Positive growth means the platform is attracting more authentic users over time. Growing verified audiences provide stable, long-term advertising opportunities."
+                        />
+                      </div>
+                    </div>
+                    <div className="text-4xl font-bold text-purple-600 mb-1">
+                      {verifiedUsersMetrics.growthRate > 0 ? '+' : ''}{verifiedUsersMetrics.growthRate.toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-gray-500">vs previous period</div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-5 h-5 text-green-600" />
+                    <h3 className="font-semibold text-gray-900">Verification Trend Over Time</h3>
+                    <InfoTooltip
+                      title="Daily Verification Trends"
+                      description="Daily count of new verified users. Visualizes verification adoption patterns and growth trajectory."
+                      advertiserValue="Trend analysis helps predict future audience growth and plan long-term advertising strategies. Steady growth indicates platform stability and reliability."
+                    />
+                  </div>
+                  {verificationTrendData.length > 0 ? (
+                    <LineChart
+                      data={verificationTrendData.map(d => ({
+                        date: d.verification_date,
+                        value: d.new_verified_count
+                      }))}
+                      color="#10b981"
+                      height={250}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-64 text-gray-500">
+                      No verification data available for the selected period
+                    </div>
+                  )}
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Avg Daily Verifications</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {verifiedUsersMetrics.avgDailyVerifications.toFixed(1)}
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Previous Period Total</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {verifiedUsersMetrics.previousPeriodVerifications.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-6 h-6 text-blue-600" />
