@@ -89,9 +89,11 @@ export default function SignIn() {
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex items-center justify-center mb-6">
-            <div className="bg-blue-600 rounded-full p-3">
-              <User className="text-white" size={32} />
-            </div>
+            <img
+              src="/sentient-portal-logo.png"
+              alt="Sentient Portal"
+              className="h-24 w-auto"
+            />
           </div>
 
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
