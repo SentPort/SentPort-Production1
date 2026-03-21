@@ -13,6 +13,7 @@ import ReactionButton from '../../components/blog/ReactionButton';
 import BlogShareModal from '../../components/blog/BlogShareModal';
 import DeleteBlogPostModal from '../../components/blog/DeleteBlogPostModal';
 import AdminDeleteWarningModal from '../../components/blog/AdminDeleteWarningModal';
+import ScreenplayAttributions from '../../components/blog/ScreenplayAttributions';
 import { useBlogReadingTracker } from '../../hooks/useBlogReadingTracker';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { splitContentIntoPages, extractHeadings, shouldShowTableOfContents, type PageContent } from '../../lib/blogPaginationHelpers';
@@ -571,6 +572,8 @@ function ViewPostContent() {
               </div>
             </div>
           )}
+
+          <ScreenplayAttributions postId={postId || ''} isScreenplay={post?.is_screenplay || false} />
 
           <div className="flex items-center gap-6 text-sm text-gray-400 mb-6 pb-6 border-b border-slate-600/50">
             <div className="flex items-center gap-1">

@@ -7,6 +7,8 @@ import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { parsePageBreaks, PAGE_BREAK_MARKER } from '../../lib/blogPaginationHelpers';
+import ScreenplayEditor from '../../components/blog/ScreenplayEditor';
+import ScreenplayInspirationSelector from '../../components/blog/ScreenplayInspirationSelector';
 
 export default function CreatePost() {
   return (
@@ -14,6 +16,20 @@ export default function CreatePost() {
       <CreatePostContent />
     </PlatformGuard>
   );
+}
+
+interface SelectedInspiration {
+  post: {
+    id: string;
+    title: string;
+    excerpt: string;
+    account: {
+      username: string;
+      display_name: string;
+      avatar_url: string;
+    };
+  };
+  note: string;
 }
 
 function CreatePostContent() {
@@ -31,6 +47,9 @@ function CreatePostContent() {
   });
   const [error, setError] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [screenplayInspirations, setScreenplayInspirations] = useState<SelectedInspiration[]>([]);
+
+  const isScreenplay = interests.includes('Screenplays');
 
   useEffect(() => {
     loadInterests();
@@ -85,7 +104,8 @@ function CreatePostContent() {
           privacy: formData.privacy,
           status: formData.status,
           page_breaks: pageBreaks,
-          auto_paginate: formData.autoPaginate
+          auto_paginate: formData.autoPaginate,
+          is_screenplay: isScreenplay
         })
         .select()
         .single();
@@ -106,6 +126,22 @@ function CreatePostContent() {
         );
 
       if (interestsError) throw interestsError;
+
+      if (isScreenplay && screenplayInspirations.length > 0) {
+        const { error: inspirationsError } = await supabase
+          .from('blog_post_screenplay_inspirations')
+          .insert(
+            screenplayInspirations.map(inspiration => ({
+              screenplay_post_id: post.id,
+              inspired_by_post_id: inspiration.post.id,
+              attribution_note: inspiration.note || null
+            }))
+          );
+
+        if (inspirationsError) {
+          console.error('Error saving screenplay inspirations:', inspirationsError);
+        }
+      }
 
       navigate('/blog/my-posts');
     } catch (err: any) {
@@ -167,46 +203,53 @@ function CreatePostContent() {
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-300">
-                  Content *
-                </label>
-                <div className="flex items-center gap-4">
-                  <span className="text-xs text-gray-400">
-                    {wordCount} words
-                    {pageBreaksCount > 0 && ` • ${pageBreaksCount + 1} pages`}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleInsertPageBreak}
-                    className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                    title="Insert page break at cursor position"
-                  >
-                    <Scissors className="w-3 h-3" />
-                    Insert Page Break
-                  </button>
-                </div>
-              </div>
-              <textarea
+            {isScreenplay ? (
+              <ScreenplayEditor
                 value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}
-                className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono text-sm"
-                rows={16}
-                placeholder="Write your post content..."
-                required
+                onChange={(content) => setFormData({ ...formData, content })}
               />
-              <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-blue-300">
-                    <p className="font-medium mb-1">Page Breaks</p>
-                    <p>Insert {PAGE_BREAK_MARKER} to split your post into multiple pages. Readers can navigate between pages, and reading stats will track progress across all pages.</p>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Content *
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-gray-400">
+                      {wordCount} words
+                      {pageBreaksCount > 0 && ` • ${pageBreaksCount + 1} pages`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleInsertPageBreak}
+                      className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                      title="Insert page break at cursor position"
+                    >
+                      <Scissors className="w-3 h-3" />
+                      Insert Page Break
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}
+                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono text-sm"
+                  rows={16}
+                  placeholder="Write your post content..."
+                  required
+                />
+                <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-blue-300">
+                      <p className="font-medium mb-1">Page Breaks</p>
+                      <p>Insert {PAGE_BREAK_MARKER} to split your post into multiple pages. Readers can navigate between pages, and reading stats will track progress across all pages.</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-3">
@@ -234,6 +277,13 @@ function CreatePostContent() {
                 ))}
               </div>
             </div>
+
+            {isScreenplay && (
+              <ScreenplayInspirationSelector
+                selectedInspirations={screenplayInspirations}
+                onInspirationsChange={setScreenplayInspirations}
+              />
+            )}
 
             <div className="grid grid-cols-3 gap-4">
               <div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, X, Heart, MessageCircle, UserPlus, Sparkles } from 'lucide-react';
+import { Bell, X, Heart, MessageCircle, UserPlus, Sparkles, Film } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -115,6 +115,7 @@ export default function NotificationBell() {
 
   const getNotificationIcon = (type: string, reactionType?: string) => {
     if (type === 'new_follower') return <UserPlus className="w-4 h-4 text-blue-500" />;
+    if (type === 'screenplay_inspiration') return <Film className="w-4 h-4 text-amber-500" />;
     if (type === 'reaction') {
       if (reactionType === 'love') return <Heart className="w-4 h-4 text-red-500" />;
       if (reactionType === 'inspiring') return <Sparkles className="w-4 h-4 text-purple-500" />;
@@ -133,6 +134,8 @@ export default function NotificationBell() {
     switch (notif.type) {
       case 'new_follower':
         return <span>{username} started following you</span>;
+      case 'screenplay_inspiration':
+        return <span>{username} wrote a screenplay inspired by your story {postTitle}</span>;
       case 'reaction':
         return <span>{username} reacted to {postTitle}</span>;
       case 'comment':
