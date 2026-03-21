@@ -62,8 +62,8 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
             <UniversalNavigationDropdown />
-            <Link to="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
-              <span className="text-gray-900 font-semibold text-lg">Sentient Portal</span>
+            <Link to="/" className="text-gray-900 font-medium hover:text-gray-700 transition-colors">
+              Human-Only
             </Link>
             <nav className="hidden lg:flex items-center space-x-3">
               <Link

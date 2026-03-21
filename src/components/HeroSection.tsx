@@ -27,6 +27,8 @@ export default function HeroSection() {
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/30" />
 
       <div className="relative max-w-4xl mx-auto px-4 text-center">
+        <h1 className="text-white text-6xl font-bold mb-2 drop-shadow-lg">Sentient Portal</h1>
+
         <h2 className="text-white text-3xl font-semibold mb-4 drop-shadow-lg tracking-wide">
           Bringing The Internet Back to Life
         </h2>

@@ -108,6 +108,12 @@ export default function SignUp() {
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center px-4 pt-20">
           <div className="max-w-md w-full">
             <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="flex items-center justify-center mb-6">
+                <div className="bg-green-600 rounded-full p-3">
+                  <Mail className="text-white" size={32} />
+                </div>
+              </div>
+
               <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
                 Check Your Email
               </h1>
@@ -176,6 +182,12 @@ export default function SignUp() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center px-4 pt-20">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="flex items-center justify-center mb-6">
+            <div className="bg-green-600 rounded-full p-3">
+              <UserPlus className="text-white" size={32} />
+            </div>
+          </div>
+
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
             Create Your Account
           </h1>
