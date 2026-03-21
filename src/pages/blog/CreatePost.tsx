@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CheckCircle2, Scissors, Info } from 'lucide-react';
+import { CheckCircle2, Scissors, Info, Film, AlertCircle } from 'lucide-react';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -48,8 +48,10 @@ function CreatePostContent() {
   const [error, setError] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const [screenplayInspirations, setScreenplayInspirations] = useState<SelectedInspiration[]>([]);
+  const [screenplayMode, setScreenplayMode] = useState(false);
+  const [showScreenplayWarning, setShowScreenplayWarning] = useState(false);
 
-  const isScreenplay = interests.includes('Screenplays');
+  const isScreenplay = screenplayMode || interests.includes('Screenplays');
 
   useEffect(() => {
     loadInterests();
@@ -70,11 +72,46 @@ function CreatePostContent() {
   };
 
   const toggleInterest = (interestName: string) => {
+    if (interestName === 'Screenplays') {
+      const isCurrentlySelected = interests.includes('Screenplays');
+      if (!isCurrentlySelected) {
+        setScreenplayMode(true);
+      } else {
+        if (formData.content.trim().length > 0 && screenplayMode) {
+          setShowScreenplayWarning(true);
+          return;
+        }
+        setScreenplayMode(false);
+      }
+    }
+
     setInterests(prev =>
       prev.includes(interestName)
         ? prev.filter(i => i !== interestName)
         : [...prev, interestName]
     );
+  };
+
+  const toggleScreenplayMode = () => {
+    if (screenplayMode && formData.content.trim().length > 0) {
+      setShowScreenplayWarning(true);
+      return;
+    }
+
+    const newMode = !screenplayMode;
+    setScreenplayMode(newMode);
+
+    if (newMode) {
+      if (!interests.includes('Screenplays')) {
+        setInterests(prev => [...prev, 'Screenplays']);
+      }
+    }
+  };
+
+  const confirmDisableScreenplayMode = () => {
+    setScreenplayMode(false);
+    setInterests(prev => prev.filter(i => i !== 'Screenplays'));
+    setShowScreenplayWarning(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,6 +240,84 @@ function CreatePostContent() {
               />
             </div>
 
+            <div className="bg-gradient-to-r from-slate-700/50 to-slate-700/30 border-2 border-slate-600/50 rounded-lg p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg">
+                    <Film className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-medium flex items-center gap-2">
+                      Is this a screenplay?
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Enable professional screenplay formatting tools
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleScreenplayMode}
+                  className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-800 ${
+                    screenplayMode
+                      ? 'bg-emerald-500'
+                      : 'bg-slate-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-200 ${
+                      screenplayMode ? 'translate-x-8' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {screenplayMode && (
+                <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-xs text-emerald-300">
+                      <p className="font-medium mb-1">Screenplay mode enabled</p>
+                      <p>Use the formatting buttons below to structure your script professionally with scene headings, character names, dialogue, action lines, and transitions.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {showScreenplayWarning && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 rounded-lg shadow-xl max-w-md w-full p-6 border border-slate-600">
+                  <div className="flex items-start gap-3 mb-4">
+                    <AlertCircle className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Disable Screenplay Mode?
+                      </h3>
+                      <p className="text-sm text-gray-300">
+                        You have content written in screenplay format. Disabling screenplay mode may cause formatting to be lost when you switch back to the regular editor.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowScreenplayWarning(false)}
+                      className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDisableScreenplayMode}
+                      className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isScreenplay ? (
               <ScreenplayEditor
                 value={formData.content}
@@ -256,25 +371,36 @@ function CreatePostContent() {
                 Categories * (select at least one)
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {availableInterests.map((interest) => (
-                  <button
-                    key={interest.id}
-                    type="button"
-                    onClick={() => toggleInterest(interest.name)}
-                    className={`p-3 rounded-lg border-2 text-left transition-all ${
-                      interests.includes(interest.name)
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                        : 'border-slate-600 bg-slate-700/50 text-gray-300 hover:border-slate-500'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {interests.includes(interest.name) && (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                      )}
-                      <span className="font-medium text-sm">{interest.name}</span>
-                    </div>
-                  </button>
-                ))}
+                {availableInterests.map((interest) => {
+                  const isScreenplayCategory = interest.name === 'Screenplays';
+                  const isSelected = interests.includes(interest.name);
+                  const isLocked = isScreenplayCategory && screenplayMode;
+
+                  return (
+                    <button
+                      key={interest.id}
+                      type="button"
+                      onClick={() => toggleInterest(interest.name)}
+                      disabled={isLocked}
+                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                          : 'border-slate-600 bg-slate-700/50 text-gray-300 hover:border-slate-500'
+                      } ${isLocked ? 'opacity-75 cursor-not-allowed' : ''}`}
+                      title={isLocked ? 'Required for screenplay mode - disable screenplay mode to remove' : ''}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isSelected && (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                        )}
+                        <span className="font-medium text-sm">{interest.name}</span>
+                        {isLocked && (
+                          <Film className="w-4 h-4 text-emerald-400 ml-auto flex-shrink-0" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
