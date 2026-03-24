@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { MessageCircle, ThumbsUp, Eye, Info } from 'lucide-react';
 import DiscoveryInfoModal from './DiscoveryInfoModal';
+import { getExcerpt } from '../../lib/htmlHelpers';
 
 interface DiscoveryPostCardProps {
   post: {
@@ -25,10 +26,7 @@ export default function DiscoveryPostCard({ post }: DiscoveryPostCardProps) {
   const navigate = useNavigate();
   const [showInfoModal, setShowInfoModal] = useState(false);
 
-  const plainContent = post.content.replace(/\*\*/g, '').replace(/\*/g, '');
-  const excerpt = plainContent.length > 200
-    ? plainContent.substring(0, 200) + '...'
-    : plainContent;
+  const excerpt = getExcerpt(post.content, 200);
 
   const metrics = post.engagement_metrics || {
     view_count: 0,

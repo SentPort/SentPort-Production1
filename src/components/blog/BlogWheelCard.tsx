@@ -1,6 +1,7 @@
-import { Eye, MessageCircle, Calendar, User, Pin, Sparkles, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Eye, MessageCircle, Calendar, User, Pin, Sparkles, Trash2, CreditCard as Edit } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { parseFormattedText } from '../../lib/blogFormatting';
+import { getExcerpt, getWordCount } from '../../lib/htmlHelpers';
 
 interface BlogPost {
   id: string;
@@ -27,12 +28,14 @@ interface BlogWheelCardProps {
   onClick: () => void;
   isCenterCard: boolean;
   onRemove?: () => void;
+  showEdit?: boolean;
 }
 
-export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove }: BlogWheelCardProps) {
-  const plainContent = post.content.replace(/\*\*/g, '').replace(/\*/g, '');
-  const excerpt = plainContent.length > 180 ? plainContent.substring(0, 180) + '...' : plainContent;
-  const readTime = Math.max(1, Math.ceil(post.content.split(/\s+/).length / 200));
+export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove, showEdit }: BlogWheelCardProps) {
+  const navigate = useNavigate();
+  const excerpt = getExcerpt(post.content, 180);
+  const wordCount = getWordCount(post.content);
+  const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
   return (
     <div
@@ -71,6 +74,19 @@ export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove }:
           title="Remove from collection"
         >
           <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+
+      {showEdit && isCenterCard && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/blog/edit-post/${post.id}`);
+          }}
+          className="absolute top-4 right-16 p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-lg transition-all z-20"
+          title="Edit post"
+        >
+          <Edit className="w-4 h-4" />
         </button>
       )}
 

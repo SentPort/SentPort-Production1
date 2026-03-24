@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CheckCircle2, Info, Film, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Info, Film, AlertCircle, ArrowLeft } from 'lucide-react';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -10,12 +10,12 @@ import { parsePageBreaks } from '../../lib/blogPaginationHelpers';
 import ScreenplayEditor from '../../components/blog/ScreenplayEditor';
 import ScreenplayInspirationSelector from '../../components/blog/ScreenplayInspirationSelector';
 import RichTextEditor from '../../components/blog/RichTextEditor';
-import { getWordCount, parsePageBreaksFromHtml, sanitizeHtml } from '../../lib/htmlHelpers';
+import { getWordCount, parsePageBreaksFromHtml, sanitizeHtml, isHtmlContent, markdownToHtml } from '../../lib/htmlHelpers';
 
-export default function CreatePost() {
+export default function EditPost() {
   return (
     <PlatformGuard platform="blog">
-      <CreatePostContent />
+      <EditPostContent />
     </PlatformGuard>
   );
 }
@@ -34,10 +34,12 @@ interface SelectedInspiration {
   note: string;
 }
 
-function CreatePostContent() {
+function EditPostContent() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { postId } = useParams();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [loadingPost, setLoadingPost] = useState(true);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<any[]>([]);
   const [formData, setFormData] = useState({
@@ -51,11 +53,13 @@ function CreatePostContent() {
   const [screenplayInspirations, setScreenplayInspirations] = useState<SelectedInspiration[]>([]);
   const [screenplayMode, setScreenplayMode] = useState(false);
   const [showScreenplayWarning, setShowScreenplayWarning] = useState(false);
+  const [originalPost, setOriginalPost] = useState<any>(null);
 
   const isScreenplay = screenplayMode || interests.includes('Screenplays');
 
   useEffect(() => {
     loadInterests();
+    loadPost();
   }, []);
 
   const loadInterests = async () => {
@@ -69,6 +73,96 @@ function CreatePostContent() {
       setAvailableInterests(data || []);
     } catch (err) {
       console.error('Error loading interests:', err);
+    }
+  };
+
+  const loadPost = async () => {
+    if (!postId) return;
+
+    setLoadingPost(true);
+    try {
+      const { data: post, error: postError } = await supabase
+        .from('blog_posts')
+        .select(`
+          *,
+          account:blog_accounts!blog_posts_account_id_fkey(
+            id,
+            username,
+            display_name
+          ),
+          interests:blog_post_interests(
+            interest:blog_interests(*)
+          ),
+          coauthors:blog_post_coauthors(
+            user_profiles(id)
+          ),
+          inspirations:blog_post_screenplay_inspirations(
+            inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
+              id,
+              title,
+              excerpt,
+              account:blog_accounts!blog_posts_account_id_fkey(
+                username,
+                display_name,
+                avatar_url
+              )
+            ),
+            attribution_note
+          )
+        `)
+        .eq('id', postId)
+        .maybeSingle();
+
+      if (postError) throw postError;
+      if (!post) {
+        setError('Post not found');
+        return;
+      }
+
+      const isAuthor = post.account_id === user?.id;
+      const isCoAuthor = post.coauthors?.some((ca: any) => ca.user_profiles?.id === user?.id);
+
+      if (!isAuthor && !isCoAuthor && !isAdmin) {
+        setError('You do not have permission to edit this post');
+        return;
+      }
+
+      setOriginalPost(post);
+
+      let content = post.content;
+      if (!isHtmlContent(content)) {
+        content = markdownToHtml(content);
+      }
+
+      setFormData({
+        title: post.title,
+        content: content,
+        privacy: post.privacy,
+        status: post.status,
+        autoPaginate: post.auto_paginate || false
+      });
+
+      const postInterests = post.interests?.map((pi: any) => pi.interest.name) || [];
+      setInterests(postInterests);
+      setScreenplayMode(post.is_screenplay || false);
+
+      if (post.inspirations && post.inspirations.length > 0) {
+        const inspirations = post.inspirations.map((insp: any) => ({
+          post: {
+            id: insp.inspired_by_post.id,
+            title: insp.inspired_by_post.title,
+            excerpt: insp.inspired_by_post.excerpt,
+            account: insp.inspired_by_post.account
+          },
+          note: insp.attribution_note || ''
+        }));
+        setScreenplayInspirations(inspirations);
+      }
+    } catch (err: any) {
+      console.error('Error loading post:', err);
+      setError(err.message || 'Failed to load post');
+    } finally {
+      setLoadingPost(false);
     }
   };
 
@@ -118,7 +212,7 @@ function CreatePostContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
+    if (!user || !postId) {
       return;
     }
 
@@ -136,22 +230,26 @@ function CreatePostContent() {
         ? parsePageBreaks(formData.content)
         : parsePageBreaksFromHtml(sanitizedContent);
 
-      const { data: post, error: postError } = await supabase
+      const { error: postError } = await supabase
         .from('blog_posts')
-        .insert({
-          account_id: user.id,
+        .update({
           title: formData.title,
           content: sanitizedContent,
           privacy: formData.privacy,
           status: formData.status,
           page_breaks: pageBreaks,
           auto_paginate: formData.autoPaginate,
-          is_screenplay: isScreenplay
+          is_screenplay: isScreenplay,
+          updated_at: new Date().toISOString()
         })
-        .select()
-        .single();
+        .eq('id', postId);
 
       if (postError) throw postError;
+
+      await supabase
+        .from('blog_post_interests')
+        .delete()
+        .eq('post_id', postId);
 
       const interestIds = availableInterests
         .filter(i => interests.includes(i.name))
@@ -161,19 +259,24 @@ function CreatePostContent() {
         .from('blog_post_interests')
         .insert(
           interestIds.map(interestId => ({
-            post_id: post.id,
+            post_id: postId,
             interest_id: interestId
           }))
         );
 
       if (interestsError) throw interestsError;
 
+      await supabase
+        .from('blog_post_screenplay_inspirations')
+        .delete()
+        .eq('screenplay_post_id', postId);
+
       if (isScreenplay && screenplayInspirations.length > 0) {
         const { error: inspirationsError } = await supabase
           .from('blog_post_screenplay_inspirations')
           .insert(
             screenplayInspirations.map(inspiration => ({
-              screenplay_post_id: post.id,
+              screenplay_post_id: postId,
               inspired_by_post_id: inspiration.post.id,
               attribution_note: inspiration.note || null
             }))
@@ -184,10 +287,10 @@ function CreatePostContent() {
         }
       }
 
-      navigate('/blog/my-posts');
+      navigate(`/blog/post/${postId}`);
     } catch (err: any) {
-      console.error('Error creating post:', err);
-      setError(err.message || 'Failed to create post');
+      console.error('Error updating post:', err);
+      setError(err.message || 'Failed to update post');
     } finally {
       setLoading(false);
     }
@@ -200,6 +303,37 @@ function CreatePostContent() {
     ? formData.content.trim().split(/\s+/).length
     : getWordCount(formData.content);
 
+  if (loadingPost) {
+    return (
+      <BlogLayout showCreateButton={false}>
+        <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-12 px-4 flex items-center justify-center">
+          <div className="text-white text-lg">Loading post...</div>
+        </div>
+      </BlogLayout>
+    );
+  }
+
+  if (error && !originalPost) {
+    return (
+      <BlogLayout showCreateButton={false}>
+        <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-12 px-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-6 py-4 rounded-lg">
+              {error}
+            </div>
+            <button
+              onClick={() => navigate('/blog/my-posts')}
+              className="mt-4 flex items-center gap-2 text-emerald-400 hover:text-emerald-300"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to My Posts
+            </button>
+          </div>
+        </div>
+      </BlogLayout>
+    );
+  }
+
   return (
     <BlogLayout showCreateButton={false}>
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-12 px-4 relative overflow-hidden">
@@ -208,11 +342,11 @@ function CreatePostContent() {
 
         <div className="max-w-4xl mx-auto relative z-10">
           <div className="mb-6">
-            <PlatformBackButton fallbackPath="/blog" />
+            <PlatformBackButton fallbackPath={`/blog/post/${postId}`} />
           </div>
 
         <div className="bg-slate-800/70 backdrop-blur-md rounded-lg shadow-lg border border-slate-600/50 p-8">
-          <h1 className="text-3xl font-bold text-white mb-8">Write a New Post</h1>
+          <h1 className="text-3xl font-bold text-white mb-8">Edit Post</h1>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -436,13 +570,22 @@ function CreatePostContent() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || interests.length === 0}
-              className="w-full bg-emerald-500 text-white py-3 px-4 rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-lg hover:shadow-emerald-500/50"
-            >
-              {loading ? 'Publishing...' : 'Publish Post'}
-            </button>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => navigate(`/blog/post/${postId}`)}
+                className="flex-1 bg-slate-700 text-white py-3 px-4 rounded-lg hover:bg-slate-600 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading || interests.length === 0}
+                className="flex-1 bg-emerald-500 text-white py-3 px-4 rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-lg hover:shadow-emerald-500/50"
+              >
+                {loading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </form>
         </div>
         </div>

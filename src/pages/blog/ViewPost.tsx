@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, MessageCircle, Send, Calendar, Pin, Users, ChevronLeft, ChevronRight, List, Share2, Flag, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Eye, MessageCircle, Send, Calendar, Pin, Users, ChevronLeft, ChevronRight, List, Share2, Flag, MoreHorizontal, Trash2, CreditCard as Edit } from 'lucide-react';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import ReportContentModal from '../../components/shared/ReportContentModal';
@@ -488,6 +488,15 @@ function ViewPostContent() {
                           onClick={() => setShowPostMenu(false)}
                         />
                         <div className="absolute right-0 top-12 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[140px]">
+                          <button
+                            onClick={() => {
+                              navigate(`/blog/edit-post/${postId}`);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-3 text-emerald-400 hover:bg-slate-700 transition-colors text-left rounded-lg"
+                          >
+                            <Edit className="w-4 h-4" />
+                            <span className="text-sm font-medium">Edit Post</span>
+                          </button>
                           <button
                             onClick={() => {
                               // Check if this is an admin deletion

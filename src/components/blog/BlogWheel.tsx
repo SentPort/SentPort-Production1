@@ -29,9 +29,10 @@ interface BlogWheelProps {
   subtitle?: string;
   onRemoveFromCollection?: (postId: string) => void;
   showRemoveButton?: boolean;
+  showEditButton?: boolean;
 }
 
-export default function BlogWheel({ posts, onPostClick, title, subtitle, onRemoveFromCollection, showRemoveButton }: BlogWheelProps) {
+export default function BlogWheel({ posts, onPostClick, title, subtitle, onRemoveFromCollection, showRemoveButton, showEditButton }: BlogWheelProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -254,6 +255,7 @@ export default function BlogWheel({ posts, onPostClick, title, subtitle, onRemov
                 onClick={() => onPostClick?.(post.id)}
                 isCenterCard={index === currentIndex}
                 onRemove={showRemoveButton && onRemoveFromCollection ? () => onRemoveFromCollection(post.id) : undefined}
+                showEdit={showEditButton}
               />
             </div>
           ))}

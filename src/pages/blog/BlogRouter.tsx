@@ -3,6 +3,7 @@ import { usePageTracking } from '../../hooks/usePageTracking';
 import JoinHuBlog from './JoinHuBlog';
 import BlogFeed from './BlogFeed';
 import CreatePost from './CreatePost';
+import EditPost from './EditPost';
 import MyPosts from './MyPosts';
 import ViewPost from './ViewPost';
 import BlogProfile from './BlogProfile';
@@ -51,6 +52,7 @@ export default function BlogRouter() {
         <Route path="/join" element={<JoinHuBlog />} />
         <Route path="/create-account" element={<Navigate to="/blog/join" replace />} />
         <Route path="/create-post" element={<CreatePost />} />
+        <Route path="/edit-post/:postId" element={<EditPost />} />
         <Route path="/my-posts" element={<MyPosts />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/edit-profile" element={<EditProfile />} />

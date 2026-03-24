@@ -136,6 +136,7 @@ function MyPostsContent() {
             onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
             title="Your Writing Collection"
             subtitle={`${posts.length} ${posts.length === 1 ? 'story' : 'stories'} shared with the world`}
+            showEditButton={true}
           />
         )}
       </div>
