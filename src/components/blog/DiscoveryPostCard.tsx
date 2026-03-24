@@ -25,9 +25,10 @@ export default function DiscoveryPostCard({ post }: DiscoveryPostCardProps) {
   const navigate = useNavigate();
   const [showInfoModal, setShowInfoModal] = useState(false);
 
-  const excerpt = post.content.length > 200
-    ? post.content.substring(0, 200) + '...'
-    : post.content;
+  const plainContent = post.content.replace(/\*\*/g, '').replace(/\*/g, '');
+  const excerpt = plainContent.length > 200
+    ? plainContent.substring(0, 200) + '...'
+    : plainContent;
 
   const metrics = post.engagement_metrics || {
     view_count: 0,

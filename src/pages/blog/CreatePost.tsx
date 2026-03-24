@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CheckCircle2, Scissors, Info, Film, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Scissors, Info, Film, AlertCircle, Bold, Italic } from 'lucide-react';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { parsePageBreaks, PAGE_BREAK_MARKER } from '../../lib/blogPaginationHelpers';
 import ScreenplayEditor from '../../components/blog/ScreenplayEditor';
 import ScreenplayInspirationSelector from '../../components/blog/ScreenplayInspirationSelector';
+import { insertFormatting } from '../../lib/blogFormatting';
 
 export default function CreatePost() {
   return (
@@ -35,6 +36,7 @@ interface SelectedInspiration {
 function CreatePostContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [loading, setLoading] = useState(false);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<any[]>([]);
@@ -208,6 +210,28 @@ function CreatePostContent() {
     }, 0);
   };
 
+  const handleFormat = (formatType: 'bold' | 'italic') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    const { newText, newCursorStart, newCursorEnd } = insertFormatting(
+      formData.content,
+      start,
+      end,
+      formatType
+    );
+
+    setFormData({ ...formData, content: newText });
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursorStart, newCursorEnd);
+    }, 0);
+  };
+
   const pageBreaksCount = parsePageBreaks(formData.content).length;
   const wordCount = formData.content.trim().split(/\s+/).length;
 
@@ -345,7 +369,32 @@ function CreatePostContent() {
                     </button>
                   </div>
                 </div>
+                <div className="mb-2 flex items-center gap-2 p-2 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                  <span className="text-xs text-gray-400 font-medium">Format:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleFormat('bold')}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-slate-600/50 hover:bg-slate-600 rounded transition-colors"
+                    title="Bold (wrap with **text**)"
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                    Bold
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFormat('italic')}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-300 hover:text-white bg-slate-600/50 hover:bg-slate-600 rounded transition-colors"
+                    title="Italic (wrap with *text*)"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                    Italic
+                  </button>
+                  <span className="text-xs text-gray-500 ml-2">
+                    Select text and click a button, or use **bold** and *italic* syntax
+                  </span>
+                </div>
                 <textarea
+                  ref={textareaRef}
                   value={formData.content}
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                   onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}

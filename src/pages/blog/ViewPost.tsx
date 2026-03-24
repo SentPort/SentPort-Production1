@@ -14,6 +14,7 @@ import BlogShareModal from '../../components/blog/BlogShareModal';
 import DeleteBlogPostModal from '../../components/blog/DeleteBlogPostModal';
 import AdminDeleteWarningModal from '../../components/blog/AdminDeleteWarningModal';
 import ScreenplayAttributions from '../../components/blog/ScreenplayAttributions';
+import FormattedText from '../../components/blog/FormattedText';
 import { useBlogReadingTracker } from '../../hooks/useBlogReadingTracker';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import { splitContentIntoPages, extractHeadings, shouldShowTableOfContents, type PageContent } from '../../lib/blogPaginationHelpers';
@@ -621,9 +622,10 @@ function ViewPostContent() {
           )}
 
           <div className="prose max-w-none">
-            <p className="text-gray-200 whitespace-pre-wrap leading-relaxed text-lg">
-              {currentPageContent}
-            </p>
+            <FormattedText
+              content={currentPageContent}
+              className="text-gray-200 leading-relaxed text-lg"
+            />
           </div>
 
           {pages.length > 1 && (

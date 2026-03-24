@@ -1,5 +1,6 @@
 import { Eye, MessageCircle, Calendar, User, Pin, Sparkles, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { parseFormattedText } from '../../lib/blogFormatting';
 
 interface BlogPost {
   id: string;
@@ -29,7 +30,8 @@ interface BlogWheelCardProps {
 }
 
 export default function BlogWheelCard({ post, onClick, isCenterCard, onRemove }: BlogWheelCardProps) {
-  const excerpt = post.content.length > 180 ? post.content.substring(0, 180) + '...' : post.content;
+  const plainContent = post.content.replace(/\*\*/g, '').replace(/\*/g, '');
+  const excerpt = plainContent.length > 180 ? plainContent.substring(0, 180) + '...' : plainContent;
   const readTime = Math.max(1, Math.ceil(post.content.split(/\s+/).length / 200));
 
   return (
