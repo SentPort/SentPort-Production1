@@ -37,6 +37,11 @@ function MyPostsContent() {
         .from('blog_posts')
         .select(`
           *,
+          blog_accounts!blog_posts_account_id_fkey (
+            username,
+            display_name,
+            avatar_url
+          ),
           blog_feed_metrics (
             total_views_30d,
             total_comments_30d
