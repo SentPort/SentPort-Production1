@@ -47,6 +47,43 @@ function SavedStoriesContent() {
     }
   }, [user]);
 
+  // Real-time subscription for view and comment counts
+  useEffect(() => {
+    if (!user || posts.length === 0) return;
+
+    const postIds = posts.map(p => p.id);
+
+    const channel = supabase
+      .channel('saved-posts-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'blog_posts',
+          filter: `id=in.(${postIds.join(',')})`
+        },
+        (payload) => {
+          setPosts(prev => prev.map(post =>
+            post.id === payload.new.id
+              ? {
+                  ...post,
+                  view_count: payload.new.view_count,
+                  comment_count: payload.new.comment_count,
+                  total_reaction_count: payload.new.total_reaction_count,
+                  bookmark_count: payload.new.bookmark_count
+                }
+              : post
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, posts.length]);
+
   const loadSavedPosts = async () => {
     if (!user) return;
 
@@ -75,6 +112,7 @@ function SavedStoriesContent() {
             content,
             created_at,
             view_count,
+            comment_count,
             total_reaction_count,
             bookmark_count,
             account:account_id (
@@ -92,6 +130,8 @@ function SavedStoriesContent() {
 
       const postsData = (data || []).map((item: any) => ({
         ...item.post,
+        // Transform account to blog_accounts to match BlogWheelCard expectations
+        blog_accounts: item.post.account,
         comments_count: item.post.comment_count || 0,
         bookmarked_at: item.created_at
       })).filter((post: any) => post.id);
