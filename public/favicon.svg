@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a0d8e8;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7ec8d8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5ab8c8;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#1a3a4a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d1f2d;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="190" fill="url(#bgGradient)"/>
+
+  <!-- Outer S curve -->
+  <path d="M 280 120 Q 320 140 320 180 Q 320 220 280 240 Q 240 260 200 260 Q 160 260 120 240 Q 80 220 80 180 Q 80 140 120 120"
+        fill="none" stroke="url(#logoGradient)" stroke-width="16" stroke-linecap="round"/>
+
+  <path d="M 200 260 Q 160 280 120 280 Q 80 280 80 320 Q 80 360 120 360 Q 160 360 200 340"
+        fill="none" stroke="url(#logoGradient)" stroke-width="16" stroke-linecap="round"/>
+
+  <!-- Fingerprint pattern (simplified) -->
+  <g transform="translate(200, 180)">
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="4" fill="url(#logoGradient)"/>
+
+    <!-- Inner fingerprint arcs -->
+    <path d="M -25 0 Q -25 -15 -15 -25 Q 0 -30 15 -25 Q 25 -15 25 0"
+          fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -35 5 Q -40 -20 -20 -35 Q 0 -45 20 -35 Q 40 -20 35 5"
+          fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -45 10 Q -50 -25 -25 -45 Q 0 -55 25 -45 Q 50 -25 45 10"
+          fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Lower fingerprint arcs -->
+    <path d="M -25 10 Q -30 20 -20 30 Q 0 35 20 30 Q 30 20 25 10"
+          fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -35 15 Q -42 30 -25 45 Q 0 52 25 45 Q 42 30 35 15"
+          fill="none" stroke="url(#logoGradient)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- DNA helix elements (simplified) -->
+  <g transform="translate(240, 100)">
+    <!-- Upper helix strand -->
+    <path d="M 0 0 Q 10 10 5 20 Q 0 30 10 40"
+          fill="none" stroke="url(#logoGradient)" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 15 0 Q 5 10 10 20 Q 15 30 5 40"
+          fill="none" stroke="url(#logoGradient)" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- DNA base pairs -->
+    <line x1="2" y1="10" x2="13" y2="10" stroke="url(#logoGradient)" stroke-width="2"/>
+    <line x1="7" y1="20" x2="8" y2="20" stroke="url(#logoGradient)" stroke-width="2"/>
+    <line x1="2" y1="30" x2="13" y2="30" stroke="url(#logoGradient)" stroke-width="2"/>
+  </g>
+</svg>
