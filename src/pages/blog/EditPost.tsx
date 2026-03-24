@@ -92,38 +92,40 @@ function EditPostContent() {
           ),
           interests:blog_post_interests(
             interest:blog_interests(*)
-          ),
-          inspirations:blog_post_screenplay_inspirations(
-            inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
-              id,
-              title,
-              excerpt,
-              account:blog_accounts!blog_posts_account_id_fkey(
-                username,
-                display_name,
-                avatar_url
-              )
-            ),
-            attribution_note
           )
         `)
         .eq('id', postId)
         .maybeSingle();
-
-      let coauthors = [];
-      if (post) {
-        const { data: coauthorData } = await supabase
-          .from('blog_post_coauthors')
-          .select('user_id')
-          .eq('post_id', postId);
-        coauthors = coauthorData || [];
-      }
 
       if (postError) throw postError;
       if (!post) {
         setError('Post not found');
         return;
       }
+
+      let coauthors = [];
+      const { data: coauthorData } = await supabase
+        .from('blog_post_coauthors')
+        .select('user_id')
+        .eq('post_id', postId);
+      coauthors = coauthorData || [];
+
+      const { data: inspirationsData } = await supabase
+        .from('blog_post_screenplay_inspirations')
+        .select(`
+          attribution_note,
+          inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
+            id,
+            title,
+            excerpt,
+            account:blog_accounts!blog_posts_account_id_fkey(
+              username,
+              display_name,
+              avatar_url
+            )
+          )
+        `)
+        .eq('screenplay_post_id', postId);
 
       const isAuthor = post.account_id === user?.id;
       const isCoAuthor = coauthors.some((ca: any) => ca.user_id === user?.id);
@@ -152,8 +154,8 @@ function EditPostContent() {
       setInterests(postInterests);
       setScreenplayMode(post.is_screenplay || false);
 
-      if (post.inspirations && post.inspirations.length > 0) {
-        const inspirations = post.inspirations.map((insp: any) => ({
+      if (inspirationsData && inspirationsData.length > 0) {
+        const inspirations = inspirationsData.map((insp: any) => ({
           post: {
             id: insp.inspired_by_post.id,
             title: insp.inspired_by_post.title,
