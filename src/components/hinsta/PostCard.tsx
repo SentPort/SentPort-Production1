@@ -15,9 +15,10 @@ interface PostCardProps {
   onComment?: () => void;
   onDelete?: () => void;
   showComments?: boolean;
+  isPinned?: boolean;
 }
 
-export default function PostCard({ post, onLike, onComment, onDelete, showComments = true }: PostCardProps) {
+export default function PostCard({ post, onLike, onComment, onDelete, showComments = true, isPinned = false }: PostCardProps) {
   const { user } = useAuth();
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -235,7 +236,7 @@ export default function PostCard({ post, onLike, onComment, onDelete, showCommen
   const isOwnPost = currentUserAccount && currentUserAccount.id === post.author_id;
 
   return (
-    <article className="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
+    <article className={`bg-white border ${isPinned ? 'border-orange-200 border-2 rounded-b-lg' : 'border-gray-200 rounded-lg'} overflow-hidden mb-6`}>
       <div className="flex items-center justify-between px-4 py-3">
         <Link to={`/hinsta/profile/${authorAccount.username}`} className="flex items-center gap-3 hover:opacity-80">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 p-0.5">

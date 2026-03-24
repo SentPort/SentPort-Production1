@@ -54,7 +54,7 @@ export default function HedditPinsManagement() {
             name,
             display_name
           ),
-          author:heddit_accounts!account_id (
+          author:heddit_accounts!author_id (
             username,
             display_name
           )

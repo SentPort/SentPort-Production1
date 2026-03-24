@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import HinstaLayout from '../../components/shared/HinstaLayout';
@@ -13,6 +13,7 @@ export default function HinstaFeed() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<any[]>([]);
+  const [pinnedPosts, setPinnedPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedType, setFeedType] = useState<'following' | 'explore'>('following');
 
@@ -37,10 +38,21 @@ export default function HinstaFeed() {
         return;
       }
 
+      const { data: pinnedData } = await supabase
+        .from('hinsta_posts')
+        .select('*')
+        .eq('is_pinned', true)
+        .eq('is_archived', false)
+        .neq('status', 'paused')
+        .order('pinned_at', { ascending: false });
+
+      setPinnedPosts(pinnedData || []);
+
       let query = supabase
         .from('hinsta_posts')
         .select('*')
         .eq('is_archived', false)
+        .eq('is_pinned', false)
         .neq('status', 'paused')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -107,7 +119,7 @@ export default function HinstaFeed() {
             <div className="flex justify-center py-12">
               <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
             </div>
-          ) : posts.length === 0 ? (
+          ) : posts.length === 0 && pinnedPosts.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
               <p className="text-gray-600 mb-4">
                 {feedType === 'following'
@@ -123,12 +135,27 @@ export default function HinstaFeed() {
             </div>
           ) : (
             <div>
+              {pinnedPosts.map((post) => (
+                <div key={post.id} className="mb-4">
+                  <div className="bg-orange-50 px-4 py-2 flex items-center gap-2 text-sm text-orange-600 font-semibold rounded-t-lg">
+                    <Pin size={16} className="fill-orange-600" />
+                    <span>Pinned by Admin</span>
+                  </div>
+                  <PostCard
+                    post={post}
+                    onLike={fetchPosts}
+                    onComment={() => navigate(`/hinsta/post/${post.id}`)}
+                    isPinned={true}
+                  />
+                </div>
+              ))}
               {posts.map((post) => (
                 <PostCard
                   key={post.id}
                   post={post}
                   onLike={fetchPosts}
                   onComment={() => navigate(`/hinsta/post/${post.id}`)}
+                  isPinned={false}
                 />
               ))}
             </div>
