@@ -93,9 +93,6 @@ function EditPostContent() {
           interests:blog_post_interests(
             interest:blog_interests(*)
           ),
-          coauthors:blog_post_coauthors(
-            user_profiles(id)
-          ),
           inspirations:blog_post_screenplay_inspirations(
             inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
               id,
@@ -113,6 +110,15 @@ function EditPostContent() {
         .eq('id', postId)
         .maybeSingle();
 
+      let coauthors = [];
+      if (post) {
+        const { data: coauthorData } = await supabase
+          .from('blog_post_coauthors')
+          .select('user_id')
+          .eq('post_id', postId);
+        coauthors = coauthorData || [];
+      }
+
       if (postError) throw postError;
       if (!post) {
         setError('Post not found');
@@ -120,7 +126,7 @@ function EditPostContent() {
       }
 
       const isAuthor = post.account_id === user?.id;
-      const isCoAuthor = post.coauthors?.some((ca: any) => ca.user_profiles?.id === user?.id);
+      const isCoAuthor = coauthors.some((ca: any) => ca.user_id === user?.id);
 
       if (!isAuthor && !isCoAuthor && !isAdmin) {
         setError('You do not have permission to edit this post');
@@ -298,7 +304,7 @@ function EditPostContent() {
 
   const pageBreaksCount = isScreenplay
     ? parsePageBreaks(formData.content).length
-    : parsePageBreaksFromHtml(formData.content).length - 1;
+    : parsePageBreaksFromHtml(formData.content).length;
   const wordCount = isScreenplay
     ? formData.content.trim().split(/\s+/).length
     : getWordCount(formData.content);

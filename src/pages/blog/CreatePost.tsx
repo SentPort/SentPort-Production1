@@ -195,7 +195,7 @@ function CreatePostContent() {
 
   const pageBreaksCount = isScreenplay
     ? parsePageBreaks(formData.content).length
-    : parsePageBreaksFromHtml(formData.content).length - 1;
+    : parsePageBreaksFromHtml(formData.content).length;
   const wordCount = isScreenplay
     ? formData.content.trim().split(/\s+/).length
     : getWordCount(formData.content);

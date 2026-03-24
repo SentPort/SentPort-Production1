@@ -51,37 +51,29 @@ export function markdownToHtml(markdown: string): string {
   return `<p>${html}</p>`;
 }
 
-export function parsePageBreaksFromHtml(html: string): string[] {
-  const pages: string[] = [];
+export function parsePageBreaksFromHtml(html: string): number[] {
+  const breaks: number[] = [];
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
   const pageBreaks = doc.querySelectorAll('[data-page-break]');
 
   if (pageBreaks.length === 0) {
-    pages.push(html);
-    return pages;
+    return [];
   }
 
-  let currentPage = '';
+  let position = 0;
   const body = doc.body;
 
   Array.from(body.childNodes).forEach((node) => {
     if (node instanceof HTMLElement && node.hasAttribute('data-page-break')) {
-      if (currentPage.trim()) {
-        pages.push(currentPage);
-        currentPage = '';
-      }
+      breaks.push(position);
     } else {
       const div = document.createElement('div');
       div.appendChild(node.cloneNode(true));
-      currentPage += div.innerHTML;
+      position += div.innerHTML.length;
     }
   });
 
-  if (currentPage.trim()) {
-    pages.push(currentPage);
-  }
-
-  return pages.length > 0 ? pages : [html];
+  return breaks;
 }
