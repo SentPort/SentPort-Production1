@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Upload, X, Loader2, Link as LinkIcon, Image, Video } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, X, Loader2, Link as LinkIcon, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -27,46 +27,78 @@ export default function HedditMediaUploader({
   const [urlType, setUrlType] = useState<'image' | 'video'>('image');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync state with parent component when media items change
+  useEffect(() => {
+    const completedItems = mediaItems.filter(item => !item.uploading);
+    onMediaChange(
+      completedItems.map(item => item.url),
+      completedItems.map(item => item.type)
+    );
+  }, [mediaItems, onMediaChange]);
+
   const compressImage = async (file: File): Promise<File> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const maxDimension = 1920;
+    return new Promise((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const img = new window.Image();
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxDimension = 1920;
 
-          if (width > height && width > maxDimension) {
-            height = (height / width) * maxDimension;
-            width = maxDimension;
-          } else if (height > maxDimension) {
-            width = (width / height) * maxDimension;
-            height = maxDimension;
-          }
+                if (width > height && width > maxDimension) {
+                  height = (height / width) * maxDimension;
+                  width = maxDimension;
+                } else if (height > maxDimension) {
+                  width = (width / height) * maxDimension;
+                  height = maxDimension;
+                }
 
-          canvas.width = width;
-          canvas.height = height;
+                canvas.width = width;
+                canvas.height = height;
 
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
 
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-              } else {
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob) {
+                      resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+                    } else {
+                      resolve(file);
+                    }
+                  },
+                  'image/jpeg',
+                  0.9
+                );
+              } catch (error) {
+                console.error('Error during image compression:', error);
                 resolve(file);
               }
-            },
-            'image/jpeg',
-            0.9
-          );
+            };
+            img.onerror = () => {
+              console.error('Error loading image for compression');
+              resolve(file);
+            };
+            img.src = e.target?.result as string;
+          } catch (error) {
+            console.error('Error creating image:', error);
+            resolve(file);
+          }
         };
-        img.src = e.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+        reader.onerror = () => {
+          console.error('Error reading file');
+          resolve(file);
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Error in compressImage:', error);
+        resolve(file);
+      }
     });
   };
 
@@ -155,8 +187,6 @@ export default function HedditMediaUploader({
         });
       }
     }
-
-    updateParent();
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -177,11 +207,7 @@ export default function HedditMediaUploader({
   };
 
   const removeMedia = (index: number) => {
-    setMediaItems(prev => {
-      const updated = prev.filter((_, i) => i !== index);
-      setTimeout(() => updateParent(), 0);
-      return updated;
-    });
+    setMediaItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const addUrlMedia = () => {
@@ -195,17 +221,6 @@ export default function HedditMediaUploader({
     setMediaItems(prev => [...prev, { url: urlInput, type: urlType }]);
     setUrlInput('');
     setShowUrlInput(false);
-    setTimeout(() => updateParent(), 0);
-  };
-
-  const updateParent = () => {
-    setTimeout(() => {
-      const completedItems = mediaItems.filter(item => !item.uploading);
-      onMediaChange(
-        completedItems.map(item => item.url),
-        completedItems.map(item => item.type)
-      );
-    }, 100);
   };
 
   return (
@@ -272,7 +287,7 @@ export default function HedditMediaUploader({
                   : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <Image className="w-4 h-4 inline mr-2" />
+              <ImageIcon className="w-4 h-4 inline mr-2" />
               Image
             </button>
             <button
@@ -284,7 +299,7 @@ export default function HedditMediaUploader({
                   : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <Video className="w-4 h-4 inline mr-2" />
+              <VideoIcon className="w-4 h-4 inline mr-2" />
               Video
             </button>
           </div>
@@ -328,7 +343,7 @@ export default function HedditMediaUploader({
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                    <Video className="w-12 h-12 text-white" />
+                    <VideoIcon className="w-12 h-12 text-white" />
                   </div>
                 )}
 
