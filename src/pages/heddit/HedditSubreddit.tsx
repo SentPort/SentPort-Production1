@@ -18,6 +18,7 @@ import ConfirmationDialog from '../../components/shared/ConfirmationDialog';
 import ShareModal from '../../components/heddit/ShareModal';
 import HedditContentRenderer from '../../components/heddit/HedditContentRenderer';
 import SharedPostCard from '../../components/heddit/SharedPostCard';
+import HedditMediaGallery from '../../components/heddit/HedditMediaGallery';
 
 interface Community {
   id: string;
@@ -692,6 +693,7 @@ export default function HedditSubreddit() {
                                 <HedditContentRenderer
                                   content={post.content}
                                   className="text-gray-800 mb-4 whitespace-pre-wrap"
+                                  hasRichFormatting={post.has_rich_formatting}
                                 />
                               )}
 
@@ -706,7 +708,15 @@ export default function HedditSubreddit() {
                                 </a>
                               )}
 
-                              {post.type === 'image' && post.url && (
+                              {(post.type === 'image' || post.type === 'video') && post.media_urls && post.media_urls.length > 0 && (
+                                <HedditMediaGallery
+                                  mediaUrls={post.media_urls}
+                                  mediaTypes={post.media_types || []}
+                                  className="mb-4"
+                                />
+                              )}
+
+                              {post.type === 'image' && post.url && (!post.media_urls || post.media_urls.length === 0) && (
                                 <img
                                   src={post.url}
                                   alt={post.title}
@@ -862,6 +872,7 @@ export default function HedditSubreddit() {
                                 <HedditContentRenderer
                                   content={post.content}
                                   className="text-gray-800 mb-4 whitespace-pre-wrap"
+                                  hasRichFormatting={post.has_rich_formatting}
                                 />
                               )}
 
@@ -876,7 +887,15 @@ export default function HedditSubreddit() {
                                 </a>
                               )}
 
-                              {post.type === 'image' && post.url && (
+                              {(post.type === 'image' || post.type === 'video') && post.media_urls && post.media_urls.length > 0 && (
+                                <HedditMediaGallery
+                                  mediaUrls={post.media_urls}
+                                  mediaTypes={post.media_types || []}
+                                  className="mb-4"
+                                />
+                              )}
+
+                              {post.type === 'image' && post.url && (!post.media_urls || post.media_urls.length === 0) && (
                                 <img
                                   src={post.url}
                                   alt={post.title}

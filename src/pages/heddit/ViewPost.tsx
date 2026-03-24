@@ -13,6 +13,7 @@ import { EditTagsModal } from '../../components/heddit/EditTagsModal';
 import ConfirmationDialog from '../../components/shared/ConfirmationDialog';
 import ShareModal from '../../components/heddit/ShareModal';
 import HedditContentRenderer from '../../components/heddit/HedditContentRenderer';
+import HedditMediaGallery from '../../components/heddit/HedditMediaGallery';
 
 export default function ViewPost() {
   const { postId } = useParams();
@@ -320,6 +321,7 @@ export default function ViewPost() {
                     <HedditContentRenderer
                       content={post.content}
                       className="text-gray-800 whitespace-pre-wrap"
+                      hasRichFormatting={post.has_rich_formatting}
                     />
                   </div>
                 )}
@@ -335,7 +337,17 @@ export default function ViewPost() {
                   </a>
                 )}
 
-                {post.type === 'image' && post.url && (
+                {/* Display media gallery for posts with uploaded media */}
+                {(post.type === 'image' || post.type === 'video') && post.media_urls && post.media_urls.length > 0 && (
+                  <HedditMediaGallery
+                    mediaUrls={post.media_urls}
+                    mediaTypes={post.media_types || []}
+                    className="mb-4"
+                  />
+                )}
+
+                {/* Legacy support for single URL image posts */}
+                {post.type === 'image' && post.url && (!post.media_urls || post.media_urls.length === 0) && (
                   <img
                     src={post.url}
                     alt={post.title}
