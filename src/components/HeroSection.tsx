@@ -28,9 +28,9 @@ export default function HeroSection() {
 
       <div className="relative max-w-4xl mx-auto px-4 text-center">
         <img
-          src="/sentient-portal-logo.svg"
-          alt="Sentient Portal - Building a Human-Only Web"
-          className="w-full max-w-3xl mx-auto mb-6 drop-shadow-2xl"
+          src="/image_ad5f687c.png"
+          alt="Sentient Portal - verified human-only web | sentport.com"
+          className="w-full max-w-4xl mx-auto mb-6 drop-shadow-2xl"
         />
 
         <h2 className="text-white text-3xl font-semibold mb-4 drop-shadow-lg tracking-wide">
