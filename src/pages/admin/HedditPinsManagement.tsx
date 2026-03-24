@@ -59,6 +59,7 @@ export default function HedditPinsManagement() {
             display_name
           )
         `)
+        .eq('status', 'active')
         .order('is_pinned', { ascending: false })
         .order('pinned_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
