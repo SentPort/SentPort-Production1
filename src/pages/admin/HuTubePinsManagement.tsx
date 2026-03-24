@@ -35,10 +35,10 @@ export default function HuTubePinsManagement() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from('videos')
+        .from('hutube_videos')
         .select(`
           *,
-          channel:channels(channel_name, display_name)
+          channel:hutube_channels(channel_name, display_name)
         `)
         .eq('status', 'active')
         .order('is_pinned', { ascending: false })
