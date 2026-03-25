@@ -162,6 +162,9 @@ export default function CreatePost() {
       clearTimeout(autoSaveTimerRef.current);
     }
 
+    let shouldNavigate = false;
+    let saveSuccessful = false;
+
     try {
       setIsSaving(true);
       const { data: hedditAccount } = await supabase
@@ -245,7 +248,7 @@ export default function CreatePost() {
           .eq('post_id', savedDraft.id);
       }
 
-      // Save tags
+      // Save tags - ensure this completes before navigation
       if (savedDraft && tags.length > 0) {
         // Delete existing tags
         await supabase
@@ -253,8 +256,8 @@ export default function CreatePost() {
           .delete()
           .eq('post_id', savedDraft.id);
 
-        // Insert new tags
-        for (const tagName of tags) {
+        // Insert new tags - wait for all to complete
+        const tagInsertPromises = tags.map(async (tagName) => {
           const { data: tagId } = await supabase
             .rpc('get_or_create_tag', { input_tag: tagName });
 
@@ -266,22 +269,38 @@ export default function CreatePost() {
                 tag_id: tagId
               });
           }
-        }
+        });
+
+        // Wait for all tag operations to complete
+        await Promise.all(tagInsertPromises);
       }
 
+      // All save operations completed successfully
+      saveSuccessful = true;
       setLastSaved(new Date());
+
       if (showNotification) {
+        shouldNavigate = true;
         setToast({ message: 'Draft saved successfully!', type: 'success' });
-        // Navigate immediately without delay
-        navigate('/heddit/drafts');
       }
     } catch (error) {
       console.error('Error saving draft:', error);
       if (showNotification) {
         setToast({ message: 'Failed to save draft', type: 'error' });
       }
+      saveSuccessful = false;
+      shouldNavigate = false;
     } finally {
+      // Always reset saving state
       setIsSaving(false);
+
+      // Only navigate after state is updated and save was successful
+      if (shouldNavigate && saveSuccessful) {
+        // Small delay to ensure state updates propagate and toast is visible
+        setTimeout(() => {
+          navigate('/heddit/drafts');
+        }, 200);
+      }
     }
   };
 
@@ -834,6 +853,20 @@ export default function CreatePost() {
               type={toast.type}
               onClose={() => setToast(null)}
             />
+          )}
+
+          {isSaving && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                  <div>
+                    <p className="text-lg font-semibold text-gray-900">Saving draft...</p>
+                    <p className="text-sm text-gray-600">Please wait while we save your work</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>
