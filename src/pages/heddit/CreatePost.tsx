@@ -65,7 +65,7 @@ export default function CreatePost() {
       }
 
       autoSaveTimerRef.current = setTimeout(() => {
-        saveDraft();
+        saveDraft(true); // Silent auto-save
       }, 30000); // 30 seconds
     }
 
@@ -73,6 +73,22 @@ export default function CreatePost() {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
+    };
+  }, [title, content, mediaUrls, selectedSubreddits, postType, tags, useRichText]);
+
+  // Save draft when leaving page
+  useEffect(() => {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      if (title.trim() || content.trim() || mediaUrls.length > 0) {
+        // Save draft silently
+        await saveDraft(true);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [title, content, mediaUrls, selectedSubreddits, postType, tags, useRichText]);
 
@@ -96,7 +112,7 @@ export default function CreatePost() {
         .from('heddit_posts')
         .select(`
           *,
-          heddit_post_tags(tag_id, custom_tags(tag_name))
+          heddit_post_tags(tag_id, heddit_custom_tags(tag_name))
         `)
         .eq('id', id)
         .eq('is_draft', true)
@@ -134,7 +150,7 @@ export default function CreatePost() {
       // Load tags
       if (draft.heddit_post_tags) {
         const tagNames = draft.heddit_post_tags
-          .map((pt: any) => pt.custom_tags?.tag_name)
+          .map((pt: any) => pt.heddit_custom_tags?.tag_name)
           .filter(Boolean);
         setTags(tagNames);
       }
@@ -154,19 +170,17 @@ export default function CreatePost() {
     }
   };
 
-  const saveDraft = async (showNotification = false) => {
-    if (!user || !title.trim()) return;
+  const saveDraft = async (silent = true) => {
+    if (!user || !title.trim()) return false;
 
     // Cancel any pending auto-save
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
 
-    let shouldNavigate = false;
-    let saveSuccessful = false;
-
     try {
-      setIsSaving(true);
+      if (!silent) setIsSaving(true);
+
       const { data: hedditAccount } = await supabase
         .from('heddit_accounts')
         .select('id')
@@ -174,13 +188,15 @@ export default function CreatePost() {
         .maybeSingle();
 
       if (!hedditAccount) {
-        setToast({ message: 'Heddit account not found', type: 'error' });
-        throw new Error('No heddit account found');
+        if (!silent) setToast({ message: 'Heddit account not found', type: 'error' });
+        return false;
       }
 
-      if (selectedSubreddits.length === 0) {
-        setToast({ message: 'Please select a subreddit before saving', type: 'error' });
-        throw new Error('No subreddit selected');
+      // Allow saving without subreddit for auto-save
+      // Only require subreddit for publishing
+      if (!silent && selectedSubreddits.length === 0) {
+        setToast({ message: 'Please select a subreddit', type: 'error' });
+        return false;
       }
 
       // Determine actual post type based on media
@@ -190,7 +206,6 @@ export default function CreatePost() {
       }
 
       const draftData: any = {
-        subreddit_id: selectedSubreddits[0].id,
         author_id: hedditAccount.id,
         title: title.trim(),
         type: actualPostType,
@@ -201,6 +216,11 @@ export default function CreatePost() {
         media_types: mediaTypes
       };
 
+      // Only set subreddit_id if one is selected
+      if (selectedSubreddits.length > 0) {
+        draftData.subreddit_id = selectedSubreddits[0].id;
+      }
+
       if (url.trim()) {
         draftData.url = url.trim();
       }
@@ -209,7 +229,6 @@ export default function CreatePost() {
 
       if (draftId) {
         // Update existing draft
-        draftData.id = draftId;
         const { data, error } = await supabase
           .from('heddit_posts')
           .update(draftData)
@@ -230,7 +249,7 @@ export default function CreatePost() {
         if (error) {
           // Check if it's a draft limit error
           if (error.message?.includes('Draft limit reached')) {
-            await showDraftLimitDialog();
+            if (!silent) await showDraftLimitDialog();
             throw error;
           }
           throw error;
@@ -248,7 +267,7 @@ export default function CreatePost() {
           .eq('post_id', savedDraft.id);
       }
 
-      // Save tags - ensure this completes before navigation
+      // Save tags
       if (savedDraft && tags.length > 0) {
         // Delete existing tags
         await supabase
@@ -271,36 +290,40 @@ export default function CreatePost() {
           }
         });
 
-        // Wait for all tag operations to complete
         await Promise.all(tagInsertPromises);
       }
 
       // All save operations completed successfully
-      saveSuccessful = true;
       setLastSaved(new Date());
-
-      if (showNotification) {
-        shouldNavigate = true;
-        setToast({ message: 'Draft saved successfully!', type: 'success' });
-      }
+      return true;
     } catch (error) {
       console.error('Error saving draft:', error);
-      if (showNotification) {
+      if (!silent) {
         setToast({ message: 'Failed to save draft', type: 'error' });
       }
-      saveSuccessful = false;
-      shouldNavigate = false;
+      return false;
     } finally {
-      // Always reset saving state
-      setIsSaving(false);
+      if (!silent) setIsSaving(false);
+    }
+  };
 
-      // Only navigate after state is updated and save was successful
-      if (shouldNavigate && saveSuccessful) {
-        // Small delay to ensure state updates propagate and toast is visible
-        setTimeout(() => {
-          navigate('/heddit/drafts');
-        }, 200);
-      }
+  const saveAndClose = async () => {
+    if (!title.trim()) {
+      // If there's nothing to save, just navigate away
+      navigate('/heddit/feed');
+      return;
+    }
+
+    setIsSaving(true);
+    const success = await saveDraft(false);
+
+    if (success) {
+      setToast({ message: 'Draft saved successfully!', type: 'success' });
+      // Wait a moment for the toast to show, then navigate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      navigate('/heddit/feed');
+    } else {
+      setIsSaving(false);
     }
   };
 
@@ -541,14 +564,22 @@ export default function CreatePost() {
               </h1>
               <div className="flex items-center gap-3">
                 {isSaving && (
-                  <span className="text-sm text-blue-600 flex items-center gap-2">
+                  <span className="text-sm text-blue-600 flex items-center gap-2 bg-blue-50 px-3 py-1 rounded-full">
                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                     Saving...
                   </span>
                 )}
                 {lastSaved && !isSaving && (
-                  <span className="text-sm text-green-600">
-                    Saved {lastSaved.toLocaleTimeString()}
+                  <span className="text-sm text-green-600 flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Last saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+                {!lastSaved && !isSaving && title.trim() && (
+                  <span className="text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
+                    Auto-save enabled
                   </span>
                 )}
               </div>
@@ -712,23 +743,12 @@ export default function CreatePost() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => navigate('/heddit/feed')}
-                  className="flex-1 px-6 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    saveDraft(true);
-                  }}
-                  disabled={loading || isSaving || !title.trim() || selectedSubreddits.length === 0}
-                  className="flex-1 px-6 py-2 border border-orange-600 text-orange-600 rounded-full font-medium hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  onClick={saveAndClose}
+                  disabled={loading || isSaving}
+                  className="flex-1 px-6 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : draftId ? 'Update Draft' : 'Save Draft'}
+                  {isSaving ? 'Saving...' : 'Save & Close'}
                 </button>
                 <button
                   type="submit"
