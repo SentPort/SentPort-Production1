@@ -93,6 +93,60 @@ export default function CreatePost() {
     };
   }, [title, content, mediaUrls, selectedSubreddits, postType, tags, useRichText]);
 
+  // Force page refresh on any navigation attempt
+  useEffect(() => {
+    const handleNavigationClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      // Find if the clicked element or any parent is a navigation link
+      let element: HTMLElement | null = target;
+      while (element) {
+        // Check for anchor tags or elements with navigation data attributes
+        if (
+          element.tagName === 'A' ||
+          element.tagName === 'BUTTON' && (
+            element.textContent?.includes('Back') ||
+            element.getAttribute('aria-label')?.includes('back')
+          ) ||
+          element.closest('[role="navigation"]') ||
+          element.closest('nav') ||
+          element.closest('header')
+        ) {
+          // Get the href from anchor tag
+          const anchor = element.closest('a') as HTMLAnchorElement;
+          if (anchor?.href) {
+            const href = anchor.getAttribute('href');
+            // Only intercept internal links (not external or anchor links)
+            if (href && href.startsWith('/') && !href.startsWith('/#')) {
+              e.preventDefault();
+              e.stopPropagation();
+              window.location.href = href;
+              return;
+            }
+          }
+
+          // Handle back button specifically
+          if (element.textContent?.includes('Back') || element.getAttribute('aria-label')?.includes('back')) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = '/heddit';
+            return;
+          }
+
+          break;
+        }
+        element = element.parentElement;
+      }
+    };
+
+    // Add click listener to document to catch all navigation attempts
+    document.addEventListener('click', handleNavigationClick, true);
+
+    return () => {
+      document.removeEventListener('click', handleNavigationClick, true);
+    };
+  }, []);
+
   const loadDraft = async (id: string) => {
     if (!user) return;
 
