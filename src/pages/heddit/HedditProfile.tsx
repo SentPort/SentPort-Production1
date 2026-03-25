@@ -221,25 +221,14 @@ export default function HedditProfile() {
         .limit(20);
 
       if (data) {
-        const postsWithTags = await Promise.all(
-          data.map(async (post) => {
-            const { data: tagData } = await supabase
-              .from('heddit_post_tags')
-              .select('heddit_custom_tags(display_name)')
-              .eq('post_id', post.id);
+        const postsWithQuality = data.map((post) => {
+          const qualityScore = post.heddit_quality_signals?.calculated_quality_score;
+          return { ...post, quality_score: qualityScore };
+        });
 
-            const tags = tagData
-              ?.map((t: any) => t.heddit_custom_tags?.display_name)
-              .filter((tag): tag is string => tag != null) || [];
-            const qualityScore = post.heddit_quality_signals?.calculated_quality_score;
-
-            return { ...post, tags, quality_score: qualityScore };
-          })
-        );
-
-        setPosts(postsWithTags);
+        setPosts(postsWithQuality);
         const scores: { [key: string]: number } = {};
-        postsWithTags.forEach(p => {
+        postsWithQuality.forEach(p => {
           scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
         });
         setVoteScores(scores);
@@ -848,18 +837,6 @@ export default function HedditProfile() {
                               />
                             )}
                           </Link>
-
-                          {post.tags && post.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {post.tags.map((tag, idx) => (
-                                <TagChip
-                                  key={idx}
-                                  tag={{ tag_name: tag, display_name: tag }}
-                                  size="sm"
-                                />
-                              ))}
-                            </div>
-                          )}
 
                           <div className="flex items-center gap-4 text-sm text-gray-600">
                             <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
