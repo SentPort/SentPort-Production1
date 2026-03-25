@@ -516,10 +516,15 @@ export default function CreatePost() {
       }
 
       if (isDraft) {
-        alert('Draft saved successfully!');
-        setLastSaved(new Date());
+        setToast({ message: 'Draft saved successfully!', type: 'success' });
+        navigate('/heddit/drafts', {
+          state: { message: 'Draft saved successfully!' }
+        });
       } else {
-        navigate('/heddit/feed');
+        setToast({ message: 'Post published successfully!', type: 'success' });
+        navigate('/heddit/feed', {
+          state: { message: 'Post published successfully!' }
+        });
       }
     } catch (error) {
       console.error('Error creating post:', error);

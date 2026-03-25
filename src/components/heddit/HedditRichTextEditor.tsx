@@ -1,7 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   Bold,
@@ -42,13 +40,13 @@ export default function HedditRichTextEditor({
         heading: {
           levels: [1, 2, 3],
         },
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-orange-600 hover:text-orange-700 underline',
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class: 'text-orange-600 hover:text-orange-700 underline',
+          },
         },
+        underline: true,
       }),
       Placeholder.configure({
         placeholder: placeholder || 'Write your post content...',
