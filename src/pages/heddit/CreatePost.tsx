@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, Link as LinkIcon, Image as ImageIcon, Video, AlertCircle, Save, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -10,6 +10,7 @@ import { TagInput } from '../../components/heddit/TagInput';
 import HedditMentionTextarea from '../../components/heddit/HedditMentionTextarea';
 import HedditRichTextEditor from '../../components/heddit/HedditRichTextEditor';
 import HedditMediaUploader from '../../components/heddit/HedditMediaUploader';
+import Toast from '../../components/heddit/Toast';
 import { saveHedditMentions, validateMentionCount } from '../../lib/hedditMentionHelpers';
 
 interface SubHeddit {
@@ -25,6 +26,10 @@ interface SubHeddit {
 export default function CreatePost() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const draftIdFromUrl = searchParams.get('draft');
+
+  const [draftId, setDraftId] = useState<string | null>(draftIdFromUrl);
   const [selectedSubreddits, setSelectedSubreddits] = useState<SubHeddit[]>([]);
   const [postType, setPostType] = useState<'text' | 'link' | 'image'>('text');
   const [title, setTitle] = useState('');
@@ -33,13 +38,24 @@ export default function CreatePost() {
   const [tags, setTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showDraftLimitModal, setShowDraftLimitModal] = useState(false);
+  const [existingDrafts, setExistingDrafts] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
 
   // Rich text and media features
   const [useRichText, setUseRichText] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout>();
+
+  // Load draft if editing existing draft
+  useEffect(() => {
+    if (draftIdFromUrl && user) {
+      loadDraft(draftIdFromUrl);
+    }
+  }, [draftIdFromUrl, user]);
 
   // Auto-save draft every 30 seconds
   useEffect(() => {
@@ -60,10 +76,78 @@ export default function CreatePost() {
     };
   }, [title, content, mediaUrls, selectedSubreddits, postType, tags, useRichText]);
 
-  const saveDraft = async () => {
+  const loadDraft = async (id: string) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const { data: hedditAccount } = await supabase
+        .from('heddit_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!hedditAccount) return;
+
+      const { data: draft, error } = await supabase
+        .from('heddit_posts')
+        .select(`
+          *,
+          heddit_post_subreddits!inner(subreddit_id),
+          heddit_post_tags(tag_id, custom_tags(tag_name))
+        `)
+        .eq('id', id)
+        .eq('is_draft', true)
+        .eq('author_id', hedditAccount.id)
+        .maybeSingle();
+
+      if (error || !draft) {
+        console.error('Error loading draft:', error);
+        return;
+      }
+
+      // Load subreddits
+      const subredditIds = draft.heddit_post_subreddits.map((ps: any) => ps.subreddit_id);
+      const { data: subreddits } = await supabase
+        .from('heddit_subreddits')
+        .select('*')
+        .in('id', subredditIds);
+
+      if (subreddits) {
+        setSelectedSubreddits(subreddits.map((sub: any) => ({
+          ...sub,
+          is_member: true
+        })));
+      }
+
+      // Load tags
+      if (draft.heddit_post_tags) {
+        const tagNames = draft.heddit_post_tags
+          .map((pt: any) => pt.custom_tags?.tag_name)
+          .filter(Boolean);
+        setTags(tagNames);
+      }
+
+      // Set form data
+      setTitle(draft.title || '');
+      setContent(draft.content || '');
+      setUrl(draft.url || '');
+      setPostType(draft.type || 'text');
+      setUseRichText(draft.has_rich_formatting || false);
+      setMediaUrls(draft.media_urls || []);
+      setMediaTypes(draft.media_types || []);
+    } catch (error) {
+      console.error('Error loading draft:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveDraft = async (showNotification = false) => {
     if (!user || !title.trim()) return;
 
     try {
+      setIsSaving(true);
       const { data: hedditAccount } = await supabase
         .from('heddit_accounts')
         .select('id')
@@ -72,11 +156,17 @@ export default function CreatePost() {
 
       if (!hedditAccount || selectedSubreddits.length === 0) return;
 
+      // Determine actual post type based on media
+      let actualPostType = postType;
+      if (postType === 'image' && mediaTypes.some(type => type === 'video')) {
+        actualPostType = 'video';
+      }
+
       const draftData: any = {
         subreddit_id: selectedSubreddits[0].id,
         author_id: hedditAccount.id,
         title: title.trim(),
-        type: postType,
+        type: actualPostType,
         content: content.trim(),
         is_draft: true,
         has_rich_formatting: useRichText,
@@ -84,17 +174,124 @@ export default function CreatePost() {
         media_types: mediaTypes
       };
 
-      if (postType === 'link' || postType === 'image') {
+      if (url.trim()) {
         draftData.url = url.trim();
       }
 
-      await supabase
-        .from('heddit_posts')
-        .upsert(draftData, { onConflict: 'id' });
+      let savedDraft;
+
+      if (draftId) {
+        // Update existing draft
+        draftData.id = draftId;
+        const { data, error } = await supabase
+          .from('heddit_posts')
+          .update(draftData)
+          .eq('id', draftId)
+          .select()
+          .single();
+
+        if (error) throw error;
+        savedDraft = data;
+      } else {
+        // Create new draft
+        const { data, error } = await supabase
+          .from('heddit_posts')
+          .insert(draftData)
+          .select()
+          .single();
+
+        if (error) {
+          // Check if it's a draft limit error
+          if (error.message?.includes('Draft limit reached')) {
+            await showDraftLimitDialog();
+            return;
+          }
+          throw error;
+        }
+        savedDraft = data;
+        setDraftId(savedDraft.id);
+      }
+
+      // Save cross-post subreddits for draft
+      if (savedDraft) {
+        // Delete existing cross-posts
+        await supabase
+          .from('heddit_post_subreddits')
+          .delete()
+          .eq('post_id', savedDraft.id);
+
+        // Insert new cross-posts
+        const crossPostInserts = selectedSubreddits.map((subreddit, index) => ({
+          post_id: savedDraft.id,
+          subreddit_id: subreddit.id,
+          is_primary: index === 0
+        }));
+
+        await supabase
+          .from('heddit_post_subreddits')
+          .insert(crossPostInserts);
+      }
+
+      // Save tags
+      if (savedDraft && tags.length > 0) {
+        // Delete existing tags
+        await supabase
+          .from('heddit_post_tags')
+          .delete()
+          .eq('post_id', savedDraft.id);
+
+        // Insert new tags
+        for (const tagName of tags) {
+          const { data: tagId } = await supabase
+            .rpc('get_or_create_tag', { input_tag: tagName });
+
+          if (tagId) {
+            await supabase
+              .from('heddit_post_tags')
+              .insert({
+                post_id: savedDraft.id,
+                tag_id: tagId
+              });
+          }
+        }
+      }
 
       setLastSaved(new Date());
+      if (showNotification) {
+        setToast({ message: 'Draft saved successfully! Redirecting...', type: 'success' });
+        setTimeout(() => navigate('/heddit/drafts'), 1500);
+      }
     } catch (error) {
       console.error('Error saving draft:', error);
+      if (showNotification) {
+        setToast({ message: 'Failed to save draft', type: 'error' });
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const showDraftLimitDialog = async () => {
+    if (!user) return;
+
+    const { data: hedditAccount } = await supabase
+      .from('heddit_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!hedditAccount) return;
+
+    const { data: drafts } = await supabase
+      .from('heddit_posts')
+      .select('id, title, created_at')
+      .eq('author_id', hedditAccount.id)
+      .eq('is_draft', true)
+      .order('created_at', { ascending: false });
+
+    if (drafts) {
+      setExistingDrafts(drafts);
+      setShowDraftLimitModal(true);
     }
   };
 
@@ -111,7 +308,7 @@ export default function CreatePost() {
     if (!isDraft) {
       const validation = validateMentionCount(content);
       if (!validation.valid) {
-        alert(validation.message);
+        setToast({ message: validation.message, type: 'warning' });
         return;
       }
     }
@@ -131,8 +328,8 @@ export default function CreatePost() {
         .maybeSingle();
 
       if (!hedditAccount) {
-        alert('Please create a Heddit account first');
-        navigate('/heddit/join');
+        setToast({ message: 'Please create a Heddit account first', type: 'warning' });
+        setTimeout(() => navigate('/heddit/join'), 1500);
         return;
       }
 
@@ -157,21 +354,39 @@ export default function CreatePost() {
         share_count: 0
       };
 
-      if (postType === 'text' || postType === 'link') {
+      // Always include content if provided, regardless of post type
+      if (content.trim()) {
         postData.content = content.trim();
       }
 
-      if (postType === 'link' || (postType === 'image' && url.trim())) {
+      if (url.trim()) {
         postData.url = url.trim();
       }
 
-      const { data: newPost, error: postError } = await supabase
-        .from('heddit_posts')
-        .insert(postData)
-        .select()
-        .single();
+      let newPost;
 
-      if (postError) throw postError;
+      // If editing a draft and publishing, update it instead of inserting
+      if (draftId && !isDraft) {
+        postData.id = draftId;
+        const { data, error: postError } = await supabase
+          .from('heddit_posts')
+          .update(postData)
+          .eq('id', draftId)
+          .select()
+          .single();
+
+        if (postError) throw postError;
+        newPost = data;
+      } else {
+        const { data, error: postError } = await supabase
+          .from('heddit_posts')
+          .insert(postData)
+          .select()
+          .single();
+
+        if (postError) throw postError;
+        newPost = data;
+      }
 
       // Only create cross-posts for published posts
       if (!isDraft) {
@@ -221,7 +436,7 @@ export default function CreatePost() {
       }
     } catch (error) {
       console.error('Error creating post:', error);
-      alert('Failed to create post');
+      setToast({ message: 'Failed to create post', type: 'error' });
     } finally {
       setLoading(false);
       setShowConfirmation(false);
@@ -258,12 +473,22 @@ export default function CreatePost() {
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">Create a Post</h1>
-              {lastSaved && (
-                <span className="text-sm text-gray-500">
-                  Last saved: {lastSaved.toLocaleTimeString()}
-                </span>
-              )}
+              <h1 className="text-2xl font-bold text-gray-900">
+                {draftId ? 'Edit Draft' : 'Create a Post'}
+              </h1>
+              <div className="flex items-center gap-3">
+                {isSaving && (
+                  <span className="text-sm text-blue-600 flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </span>
+                )}
+                {lastSaved && !isSaving && (
+                  <span className="text-sm text-green-600">
+                    Saved {lastSaved.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 mb-6">
@@ -373,39 +598,37 @@ export default function CreatePost() {
                 </div>
               )}
 
-              {postType !== 'image' && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      {postType === 'text' ? 'Text (optional)' : 'Description (optional)'}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={toggleRichText}
-                      className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
-                    >
-                      {useRichText ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                      {useRichText ? 'Rich Text' : 'Plain Text'}
-                    </button>
-                  </div>
-
-                  {useRichText ? (
-                    <HedditRichTextEditor
-                      content={content}
-                      onChange={setContent}
-                      placeholder="Write your post content with rich formatting..."
-                      maxLength={40000}
-                    />
-                  ) : (
-                    <HedditMentionTextarea
-                      value={content}
-                      onChange={setContent}
-                      placeholder="What are your thoughts? Use @ to mention users or @h/ to mention communities"
-                      rows={8}
-                    />
-                  )}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {postType === 'text' ? 'Text (optional)' : postType === 'image' ? 'Caption & Description (optional)' : 'Description (optional)'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={toggleRichText}
+                    className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    {useRichText ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                    {useRichText ? 'Rich Text' : 'Plain Text'}
+                  </button>
                 </div>
-              )}
+
+                {useRichText ? (
+                  <HedditRichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    placeholder={postType === 'image' ? 'Add a caption and description for your media...' : 'Write your post content with rich formatting...'}
+                    maxLength={40000}
+                  />
+                ) : (
+                  <HedditMentionTextarea
+                    value={content}
+                    onChange={setContent}
+                    placeholder={postType === 'image' ? 'Add a caption and description for your media... Use @ to mention users or @h/ to mention communities' : 'What are your thoughts? Use @ to mention users or @h/ to mention communities'}
+                    rows={8}
+                  />
+                )}
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -433,12 +656,12 @@ export default function CreatePost() {
                 </button>
                 <button
                   type="button"
-                  onClick={(e) => handleSubmit(e, true)}
-                  disabled={loading || !title.trim() || selectedSubreddits.length === 0}
+                  onClick={() => saveDraft(true)}
+                  disabled={loading || isSaving || !title.trim() || selectedSubreddits.length === 0}
                   className="flex-1 px-6 py-2 border border-orange-600 text-orange-600 rounded-full font-medium hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  Save Draft
+                  {isSaving ? 'Saving...' : draftId ? 'Update Draft' : 'Save Draft'}
                 </button>
                 <button
                   type="submit"
@@ -494,6 +717,75 @@ export default function CreatePost() {
                 </div>
               </div>
             </div>
+          )}
+
+          {showDraftLimitModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg max-w-md w-full p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  Draft Limit Reached
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  You have reached the maximum of 5 drafts. Please delete an existing draft to save this one:
+                </p>
+                <div className="space-y-2 mb-6 max-h-64 overflow-y-auto">
+                  {existingDrafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 truncate">{draft.title}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(draft.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await supabase
+                            .from('heddit_posts')
+                            .delete()
+                            .eq('id', draft.id);
+                          setShowDraftLimitModal(false);
+                          saveDraft(true);
+                        }}
+                        className="ml-3 px-3 py-1 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDraftLimitModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDraftLimitModal(false);
+                      navigate('/heddit/drafts');
+                    }}
+                    className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700"
+                  >
+                    Manage Drafts
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
           )}
         </div>
       </div>

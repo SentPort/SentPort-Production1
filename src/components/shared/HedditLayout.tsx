@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, Plus, Users, MessageCircle, Trophy, Info } from 'lucide-react';
+import { MessageSquare, Plus, Users, MessageCircle, Trophy, Info, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import PlatformHeaderDropdown from './PlatformHeaderDropdown';
 import PlatformBackButton from './PlatformBackButton';
 import { SearchBar } from '../heddit/SearchBar';
@@ -19,6 +20,37 @@ interface HedditLayoutProps {
 export default function HedditLayout({ children, showCreateButtons = true, showBackButton = false, backButtonPath = '/heddit' }: HedditLayoutProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [draftCount, setDraftCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      loadDraftCount();
+    }
+  }, [user]);
+
+  const loadDraftCount = async () => {
+    if (!user) return;
+
+    try {
+      const { data: hedditAccount } = await supabase
+        .from('heddit_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!hedditAccount) return;
+
+      const { count } = await supabase
+        .from('heddit_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('author_id', hedditAccount.id)
+        .eq('is_draft', true);
+
+      setDraftCount(count || 0);
+    } catch (error) {
+      console.error('Error loading draft count:', error);
+    }
+  };
 
   return (
     <HedditNotificationProvider>
@@ -65,6 +97,18 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
                       title="Messages"
                     >
                       <MessageCircle className="w-6 h-6 text-gray-600" />
+                    </Link>
+                    <Link
+                      to="/heddit/drafts"
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative"
+                      title="Drafts"
+                    >
+                      <FileText className="w-6 h-6 text-gray-600" />
+                      {draftCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                          {draftCount}
+                        </span>
+                      )}
                     </Link>
                   </>
                 )}

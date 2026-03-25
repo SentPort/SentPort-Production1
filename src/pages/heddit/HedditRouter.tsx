@@ -14,6 +14,7 @@ import Settings from './Settings';
 import NotificationSettings from './NotificationSettings';
 import Leaderboard from './Leaderboard';
 import KarmaGuide from './KarmaGuide';
+import Drafts from './Drafts';
 import FlaggedContentNotificationWrapper from '../../components/shared/FlaggedContentNotificationWrapper';
 
 export default function HedditRouter() {
@@ -25,6 +26,7 @@ export default function HedditRouter() {
         <Route path="/join" element={<JoinHeddit />} />
         <Route path="/feed" element={<HedditFeed />} />
         <Route path="/create-post" element={<CreatePost />} />
+        <Route path="/drafts" element={<Drafts />} />
         <Route path="/post/:postId" element={<ViewPost />} />
         <Route path="/h/:subredditName" element={<HedditSubreddit />} />
         <Route path="/r/:subredditName" element={<HedditSubreddit />} />
