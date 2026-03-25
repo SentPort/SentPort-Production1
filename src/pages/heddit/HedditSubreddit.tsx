@@ -115,7 +115,8 @@ export default function HedditSubreddit() {
     const { count } = await supabase
       .from('heddit_posts')
       .select('*', { count: 'exact', head: true })
-      .eq('subreddit_id', communityData.id);
+      .eq('subreddit_id', communityData.id)
+      .eq('is_draft', false);
 
     setPostCount(count || 0);
 
@@ -195,6 +196,7 @@ export default function HedditSubreddit() {
         `)
         .eq('subreddit_id', communityData.id)
         .eq('is_pinned', true)
+        .eq('is_draft', false)
         .order('pinned_at', { ascending: false }),
       supabase
         .from('heddit_posts')
@@ -205,6 +207,7 @@ export default function HedditSubreddit() {
         `)
         .eq('subreddit_id', communityData.id)
         .eq('is_pinned', false)
+        .eq('is_draft', false)
         .order('created_at', { ascending: false })
         .limit(20)
     ]);

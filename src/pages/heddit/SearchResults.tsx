@@ -69,6 +69,7 @@ export default function SearchResults() {
             heddit_accounts(username, display_name, karma, kindness, quality_score)
           `)
           .or(`title.ilike.${searchPattern},content.ilike.${searchPattern}`)
+          .eq('is_draft', false)
           .order('created_at', { ascending: false })
           .limit(50),
         supabase

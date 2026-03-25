@@ -216,6 +216,7 @@ export default function HedditProfile() {
           heddit_accounts(username, display_name, avatar_url, karma, kindness, quality_score)
         `)
         .eq('author_id', profile.id)
+        .eq('is_draft', false)
         .order('created_at', { ascending: false })
         .limit(20);
 

@@ -146,6 +146,11 @@ export default function CreatePost() {
   const saveDraft = async (showNotification = false) => {
     if (!user || !title.trim()) return;
 
+    // Cancel any pending auto-save
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
     try {
       setIsSaving(true);
       const { data: hedditAccount } = await supabase
@@ -212,24 +217,13 @@ export default function CreatePost() {
         setDraftId(savedDraft.id);
       }
 
-      // Save cross-post subreddits for draft
+      // DO NOT save cross-post subreddits for drafts to prevent them from appearing in feeds
+      // Delete any existing cross-posts (in case this draft was previously published)
       if (savedDraft) {
-        // Delete existing cross-posts
         await supabase
           .from('heddit_post_subreddits')
           .delete()
           .eq('post_id', savedDraft.id);
-
-        // Insert new cross-posts
-        const crossPostInserts = selectedSubreddits.map((subreddit, index) => ({
-          post_id: savedDraft.id,
-          subreddit_id: subreddit.id,
-          is_primary: index === 0
-        }));
-
-        await supabase
-          .from('heddit_post_subreddits')
-          .insert(crossPostInserts);
       }
 
       // Save tags
@@ -258,8 +252,9 @@ export default function CreatePost() {
 
       setLastSaved(new Date());
       if (showNotification) {
-        setToast({ message: 'Draft saved successfully! Redirecting...', type: 'success' });
-        setTimeout(() => navigate('/heddit/drafts'), 1500);
+        setToast({ message: 'Draft saved successfully!', type: 'success' });
+        // Navigate immediately without delay
+        navigate('/heddit/drafts');
       }
     } catch (error) {
       console.error('Error saving draft:', error);
@@ -395,6 +390,13 @@ export default function CreatePost() {
 
       // Only create cross-posts for published posts
       if (!isDraft) {
+        // First, delete any existing cross-posts (in case converting from draft)
+        await supabase
+          .from('heddit_post_subreddits')
+          .delete()
+          .eq('post_id', newPost.id);
+
+        // Then insert new cross-posts
         const crossPostInserts = selectedSubreddits.map((subreddit, index) => ({
           post_id: newPost.id,
           subreddit_id: subreddit.id,

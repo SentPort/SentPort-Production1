@@ -86,6 +86,7 @@ export default function HedditFeed() {
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
         .eq('is_pinned', true)
+        .eq('is_draft', false)
         .order('pinned_at', { ascending: false }),
       supabase
         .from('heddit_posts')
@@ -95,6 +96,7 @@ export default function HedditFeed() {
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
         .eq('is_pinned', false)
+        .eq('is_draft', false)
         .order('created_at', { ascending: false })
         .limit(20),
       supabase
