@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CheckCircle2, Info, Film, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Info, Film, AlertCircle, Save, Clock } from 'lucide-react';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformBackButton from '../../components/shared/PlatformBackButton';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -37,6 +37,9 @@ interface SelectedInspiration {
 function CreatePostContent() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get('draft');
+
   const [loading, setLoading] = useState(false);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<any[]>([]);
@@ -52,11 +55,56 @@ function CreatePostContent() {
   const [screenplayMode, setScreenplayMode] = useState(false);
   const [showScreenplayWarning, setShowScreenplayWarning] = useState(false);
 
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [daysUntilExpiration, setDaysUntilExpiration] = useState<number | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
+
   const isScreenplay = screenplayMode || interests.includes('Screenplays');
 
   useEffect(() => {
     loadInterests();
+    if (draftId) {
+      loadDraft(draftId);
+    }
   }, []);
+
+  useEffect(() => {
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    if ((formData.title.trim() || formData.content.trim()) && !loading) {
+      autoSaveTimerRef.current = setTimeout(() => {
+        handleAutoSave();
+      }, 30000);
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [formData.title, formData.content, interests, screenplayMode]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if ((formData.title.trim() || formData.content.trim()) && autoSaveStatus !== 'saving') {
+        handleAutoSave();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [formData, interests, screenplayMode, autoSaveStatus]);
 
   const loadInterests = async () => {
     try {
@@ -69,6 +117,228 @@ function CreatePostContent() {
       setAvailableInterests(data || []);
     } catch (err) {
       console.error('Error loading interests:', err);
+    }
+  };
+
+  const loadDraft = async (draftIdToLoad: string) => {
+    try {
+      const { data: draft, error } = await supabase
+        .from('blog_posts')
+        .select(`
+          *,
+          interests:blog_post_interests(
+            interest:blog_interests(*)
+          ),
+          inspirations:blog_post_screenplay_inspirations(
+            inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
+              id,
+              title,
+              excerpt,
+              account:blog_accounts!blog_posts_account_id_fkey(
+                username,
+                display_name,
+                avatar_url
+              )
+            ),
+            attribution_note
+          )
+        `)
+        .eq('id', draftIdToLoad)
+        .eq('is_draft', true)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!draft) {
+        setError('Draft not found or has been published');
+        return;
+      }
+
+      setFormData({
+        title: draft.title || '',
+        content: draft.content || '',
+        privacy: draft.privacy || 'public',
+        status: draft.status || 'published',
+        autoPaginate: draft.auto_paginate || false
+      });
+
+      const interestNames = draft.interests?.map((item: any) => item.interest.name) || [];
+      setInterests(interestNames);
+
+      setScreenplayMode(draft.is_screenplay || false);
+
+      if (draft.inspirations && draft.inspirations.length > 0) {
+        const mappedInspirations = draft.inspirations.map((insp: any) => ({
+          post: {
+            id: insp.inspired_by_post.id,
+            title: insp.inspired_by_post.title,
+            excerpt: insp.inspired_by_post.excerpt,
+            account: insp.inspired_by_post.account
+          },
+          note: insp.attribution_note || ''
+        }));
+        setScreenplayInspirations(mappedInspirations);
+      }
+
+      setLastSavedAt(new Date(draft.draft_updated_at));
+
+      if (draft.expires_at) {
+        const daysLeft = Math.ceil((new Date(draft.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        setDaysUntilExpiration(daysLeft);
+      }
+    } catch (err) {
+      console.error('Error loading draft:', err);
+      setError('Failed to load draft');
+    }
+  };
+
+  const checkDraftLimit = async () => {
+    if (!user) return true;
+
+    const { data, error } = await supabase
+      .from('blog_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', user.id)
+      .eq('is_draft', true);
+
+    if (error) {
+      console.error('Error checking draft limit:', error);
+      return true;
+    }
+
+    return (data || 0) < 10;
+  };
+
+  const handleAutoSave = useCallback(async () => {
+    if (!user || !formData.title.trim() || !formData.content.trim()) return;
+    if (autoSaveStatus === 'saving') return;
+
+    setAutoSaveStatus('saving');
+
+    try {
+      const sanitizedContent = sanitizeHtml(formData.content);
+      const pageBreaks = isScreenplay
+        ? parsePageBreaks(formData.content)
+        : parsePageBreaksFromHtml(sanitizedContent);
+
+      if (currentDraftId) {
+        const { error: updateError } = await supabase
+          .from('blog_posts')
+          .update({
+            title: formData.title,
+            content: sanitizedContent,
+            privacy: formData.privacy,
+            auto_paginate: formData.autoPaginate,
+            page_breaks: pageBreaks,
+            is_screenplay: isScreenplay
+          })
+          .eq('id', currentDraftId);
+
+        if (updateError) throw updateError;
+      } else {
+        const canCreate = await checkDraftLimit();
+        if (!canCreate) {
+          setAutoSaveStatus('error');
+          setError('Draft limit reached (10 drafts max). Please delete old drafts before creating new ones.');
+          return;
+        }
+
+        const { data: newDraft, error: insertError } = await supabase
+          .from('blog_posts')
+          .insert({
+            account_id: user.id,
+            title: formData.title,
+            content: sanitizedContent,
+            privacy: formData.privacy,
+            status: 'draft',
+            is_draft: true,
+            page_breaks: pageBreaks,
+            auto_paginate: formData.autoPaginate,
+            is_screenplay: isScreenplay
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        setCurrentDraftId(newDraft.id);
+
+        const interestIds = availableInterests
+          .filter(i => interests.includes(i.name))
+          .map(i => i.id);
+
+        if (interestIds.length > 0) {
+          await supabase
+            .from('blog_post_interests')
+            .insert(
+              interestIds.map(interestId => ({
+                post_id: newDraft.id,
+                interest_id: interestId
+              }))
+            );
+        }
+
+        if (isScreenplay && screenplayInspirations.length > 0) {
+          await supabase
+            .from('blog_post_screenplay_inspirations')
+            .insert(
+              screenplayInspirations.map(inspiration => ({
+                screenplay_post_id: newDraft.id,
+                inspired_by_post_id: inspiration.post.id,
+                attribution_note: inspiration.note || null
+              }))
+            );
+        }
+      }
+
+      if (currentDraftId && interests.length > 0) {
+        await supabase
+          .from('blog_post_interests')
+          .delete()
+          .eq('post_id', currentDraftId);
+
+        const interestIds = availableInterests
+          .filter(i => interests.includes(i.name))
+          .map(i => i.id);
+
+        if (interestIds.length > 0) {
+          await supabase
+            .from('blog_post_interests')
+            .insert(
+              interestIds.map(interestId => ({
+                post_id: currentDraftId,
+                interest_id: interestId
+              }))
+            );
+        }
+      }
+
+      setAutoSaveStatus('saved');
+      setLastSavedAt(new Date());
+      setTimeout(() => setAutoSaveStatus('idle'), 3000);
+    } catch (err) {
+      console.error('Error auto-saving draft:', err);
+      setAutoSaveStatus('error');
+    }
+  }, [user, formData, interests, screenplayMode, currentDraftId, availableInterests, screenplayInspirations]);
+
+  const handleSaveAsDraft = async () => {
+    if (!user) return;
+
+    if (interests.length === 0) {
+      setError('Please select at least one interest category');
+      return;
+    }
+
+    setSavingDraft(true);
+    setError('');
+
+    try {
+      await handleAutoSave();
+      navigate('/blog/drafts');
+    } catch (err: any) {
+      console.error('Error saving draft:', err);
+      setError(err.message || 'Failed to save draft');
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -136,55 +406,117 @@ function CreatePostContent() {
         ? parsePageBreaks(formData.content)
         : parsePageBreaksFromHtml(sanitizedContent);
 
-      const { data: post, error: postError } = await supabase
-        .from('blog_posts')
-        .insert({
-          account_id: user.id,
-          title: formData.title,
-          content: sanitizedContent,
-          privacy: formData.privacy,
-          status: formData.status,
-          page_breaks: pageBreaks,
-          auto_paginate: formData.autoPaginate,
-          is_screenplay: isScreenplay
-        })
-        .select()
-        .single();
+      if (currentDraftId) {
+        const { error: updateError } = await supabase
+          .from('blog_posts')
+          .update({
+            title: formData.title,
+            content: sanitizedContent,
+            privacy: formData.privacy,
+            status: 'published',
+            is_draft: false,
+            published_at: new Date().toISOString(),
+            page_breaks: pageBreaks,
+            auto_paginate: formData.autoPaginate,
+            is_screenplay: isScreenplay
+          })
+          .eq('id', currentDraftId);
 
-      if (postError) throw postError;
+        if (updateError) throw updateError;
 
-      const interestIds = availableInterests
-        .filter(i => interests.includes(i.name))
-        .map(i => i.id);
+        await supabase
+          .from('blog_post_interests')
+          .delete()
+          .eq('post_id', currentDraftId);
 
-      const { error: interestsError } = await supabase
-        .from('blog_post_interests')
-        .insert(
-          interestIds.map(interestId => ({
-            post_id: post.id,
-            interest_id: interestId
-          }))
-        );
+        const interestIds = availableInterests
+          .filter(i => interests.includes(i.name))
+          .map(i => i.id);
 
-      if (interestsError) throw interestsError;
-
-      if (isScreenplay && screenplayInspirations.length > 0) {
-        const { error: inspirationsError } = await supabase
-          .from('blog_post_screenplay_inspirations')
+        const { error: interestsError } = await supabase
+          .from('blog_post_interests')
           .insert(
-            screenplayInspirations.map(inspiration => ({
-              screenplay_post_id: post.id,
-              inspired_by_post_id: inspiration.post.id,
-              attribution_note: inspiration.note || null
+            interestIds.map(interestId => ({
+              post_id: currentDraftId,
+              interest_id: interestId
             }))
           );
 
-        if (inspirationsError) {
-          console.error('Error saving screenplay inspirations:', inspirationsError);
-        }
-      }
+        if (interestsError) throw interestsError;
 
-      navigate('/blog/my-posts');
+        if (isScreenplay) {
+          await supabase
+            .from('blog_post_screenplay_inspirations')
+            .delete()
+            .eq('screenplay_post_id', currentDraftId);
+
+          if (screenplayInspirations.length > 0) {
+            await supabase
+              .from('blog_post_screenplay_inspirations')
+              .insert(
+                screenplayInspirations.map(inspiration => ({
+                  screenplay_post_id: currentDraftId,
+                  inspired_by_post_id: inspiration.post.id,
+                  attribution_note: inspiration.note || null
+                }))
+              );
+          }
+        }
+
+        navigate(`/blog/post/${currentDraftId}`);
+      } else {
+        const { data: post, error: postError } = await supabase
+          .from('blog_posts')
+          .insert({
+            account_id: user.id,
+            title: formData.title,
+            content: sanitizedContent,
+            privacy: formData.privacy,
+            status: 'published',
+            is_draft: false,
+            published_at: new Date().toISOString(),
+            page_breaks: pageBreaks,
+            auto_paginate: formData.autoPaginate,
+            is_screenplay: isScreenplay
+          })
+          .select()
+          .single();
+
+        if (postError) throw postError;
+
+        const interestIds = availableInterests
+          .filter(i => interests.includes(i.name))
+          .map(i => i.id);
+
+        const { error: interestsError } = await supabase
+          .from('blog_post_interests')
+          .insert(
+            interestIds.map(interestId => ({
+              post_id: post.id,
+              interest_id: interestId
+            }))
+          );
+
+        if (interestsError) throw interestsError;
+
+        if (isScreenplay && screenplayInspirations.length > 0) {
+          const { error: inspirationsError } = await supabase
+            .from('blog_post_screenplay_inspirations')
+            .insert(
+              screenplayInspirations.map(inspiration => ({
+                screenplay_post_id: post.id,
+                inspired_by_post_id: inspiration.post.id,
+                attribution_note: inspiration.note || null
+              }))
+            );
+
+          if (inspirationsError) {
+            console.error('Error saving screenplay inspirations:', inspirationsError);
+          }
+        }
+
+        navigate('/blog/my-posts');
+      }
     } catch (err: any) {
       console.error('Error creating post:', err);
       setError(err.message || 'Failed to create post');
@@ -212,7 +544,47 @@ function CreatePostContent() {
           </div>
 
         <div className="bg-slate-800/70 backdrop-blur-md rounded-lg shadow-lg border border-slate-600/50 p-8">
-          <h1 className="text-3xl font-bold text-white mb-8">Write a New Post</h1>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold text-white">
+              {currentDraftId ? 'Edit Draft' : 'Write a New Post'}
+            </h1>
+            <div className="flex items-center gap-2 text-sm">
+              {autoSaveStatus === 'saving' && (
+                <span className="flex items-center gap-2 text-blue-400">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                  Auto-saving...
+                </span>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <span className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  All changes saved
+                </span>
+              )}
+              {autoSaveStatus === 'error' && (
+                <span className="flex items-center gap-2 text-red-400">
+                  <AlertCircle className="w-4 h-4" />
+                  Save failed
+                </span>
+              )}
+              {lastSavedAt && autoSaveStatus === 'idle' && (
+                <span className="flex items-center gap-2 text-gray-400">
+                  <Clock className="w-4 h-4" />
+                  Last saved {new Date(lastSavedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {daysUntilExpiration !== null && daysUntilExpiration <= 7 && (
+            <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-300">
+                <p className="font-medium">Draft expiring soon</p>
+                <p>This draft will expire in {daysUntilExpiration} day{daysUntilExpiration !== 1 ? 's' : ''}. Publish it or save changes to extend the expiration.</p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -436,13 +808,24 @@ function CreatePostContent() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading || interests.length === 0}
-              className="w-full bg-emerald-500 text-white py-3 px-4 rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-lg hover:shadow-emerald-500/50"
-            >
-              {loading ? 'Publishing...' : 'Publish Post'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleSaveAsDraft}
+                disabled={savingDraft || loading || !formData.title.trim() || !formData.content.trim()}
+                className="flex-1 bg-slate-600 text-white py-3 px-4 rounded-lg hover:bg-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+              >
+                <Save className="w-5 h-5" />
+                {savingDraft ? 'Saving...' : 'Save as Draft'}
+              </button>
+              <button
+                type="submit"
+                disabled={loading || interests.length === 0}
+                className="flex-1 bg-emerald-500 text-white py-3 px-4 rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium shadow-lg hover:shadow-emerald-500/50"
+              >
+                {loading ? 'Publishing...' : 'Publish Post'}
+              </button>
+            </div>
           </form>
         </div>
         </div>

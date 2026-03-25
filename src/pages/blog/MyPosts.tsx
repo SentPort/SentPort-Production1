@@ -48,6 +48,7 @@ function MyPostsContent() {
           )
         `)
         .eq('account_id', user.id)
+        .eq('is_draft', false)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

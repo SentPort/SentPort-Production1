@@ -5,6 +5,7 @@ import BlogFeed from './BlogFeed';
 import CreatePost from './CreatePost';
 import EditPost from './EditPost';
 import MyPosts from './MyPosts';
+import Drafts from './Drafts';
 import ViewPost from './ViewPost';
 import BlogProfile from './BlogProfile';
 import EditProfile from './EditProfile';
@@ -54,6 +55,7 @@ export default function BlogRouter() {
         <Route path="/create-post" element={<CreatePost />} />
         <Route path="/edit-post/:postId" element={<EditPost />} />
         <Route path="/my-posts" element={<MyPosts />} />
+        <Route path="/drafts" element={<Drafts />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/edit-profile" element={<EditProfile />} />
         <Route path="/post/:postId" element={<ViewPost />} />
