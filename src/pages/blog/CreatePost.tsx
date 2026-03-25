@@ -47,7 +47,6 @@ function CreatePostContent() {
     title: '',
     content: '',
     privacy: 'public',
-    status: 'published',
     autoPaginate: false
   });
   const [error, setError] = useState('');
@@ -157,7 +156,6 @@ function CreatePostContent() {
         title: draft.title || '',
         content: draft.content || '',
         privacy: draft.privacy || 'public',
-        status: draft.status || 'published',
         autoPaginate: draft.auto_paginate || false
       });
 
@@ -757,7 +755,7 @@ function CreatePostContent() {
               />
             )}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Privacy
@@ -769,20 +767,6 @@ function CreatePostContent() {
                 >
                   <option value="public">Public</option>
                   <option value="private">Private</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Status
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                >
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
                 </select>
               </div>
 
