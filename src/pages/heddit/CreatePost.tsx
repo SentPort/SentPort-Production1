@@ -48,6 +48,7 @@ export default function CreatePost() {
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingAndClosing, setIsSavingAndClosing] = useState(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout>();
 
   // Load draft if editing existing draft
@@ -314,16 +315,16 @@ export default function CreatePost() {
       return;
     }
 
-    setIsSaving(true);
+    setIsSavingAndClosing(true);
     const success = await saveDraft(false);
+    setIsSavingAndClosing(false);
 
     if (success) {
       setToast({ message: 'Draft saved successfully!', type: 'success' });
-      // Navigate immediately to drafts page
-      navigate('/heddit/drafts');
-    } else {
-      setIsSaving(false);
     }
+
+    // Navigate to drafts page regardless of save success
+    navigate('/heddit/drafts');
   };
 
   const showDraftLimitDialog = async () => {
@@ -743,15 +744,24 @@ export default function CreatePost() {
                 <button
                   type="button"
                   onClick={saveAndClose}
-                  disabled={loading || isSaving}
+                  disabled={loading || isSaving || isSavingAndClosing}
                   className="flex-1 px-6 py-2 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : 'Save & Close'}
+                  {isSavingAndClosing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save & Close
+                    </>
+                  )}
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || isSaving || !title.trim() || selectedSubreddits.length === 0}
+                  disabled={loading || isSaving || isSavingAndClosing || !title.trim() || selectedSubreddits.length === 0}
                   className="flex-1 px-6 py-2 bg-orange-600 text-white rounded-full font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading ? 'Posting...' : selectedSubreddits.length > 1 ? `Post to ${selectedSubreddits.length} SubHeddits` : 'Post'}
@@ -874,7 +884,7 @@ export default function CreatePost() {
             />
           )}
 
-          {isSaving && (
+          {isSaving && !isSavingAndClosing && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
                 <div className="flex items-center gap-4">
