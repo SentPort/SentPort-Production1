@@ -114,11 +114,11 @@ function EditPostContent() {
         .from('blog_post_screenplay_inspirations')
         .select(`
           attribution_note,
-          inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
+          inspired_by_post:blog_posts!inspired_by_post_id(
             id,
             title,
             excerpt,
-            account:blog_accounts!blog_posts_account_id_fkey(
+            account:blog_accounts!account_id(
               username,
               display_name,
               avatar_url

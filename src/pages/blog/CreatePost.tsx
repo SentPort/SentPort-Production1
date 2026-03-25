@@ -121,25 +121,13 @@ function CreatePostContent() {
 
   const loadDraft = async (draftIdToLoad: string) => {
     try {
+      // First, load the basic draft data with interests
       const { data: draft, error } = await supabase
         .from('blog_posts')
         .select(`
           *,
           interests:blog_post_interests(
             interest:blog_interests(*)
-          ),
-          inspirations:blog_post_screenplay_inspirations(
-            inspired_by_post:blog_posts!blog_post_screenplay_inspirations_inspired_by_post_id_fkey(
-              id,
-              title,
-              excerpt,
-              account:blog_accounts!blog_posts_account_id_fkey(
-                username,
-                display_name,
-                avatar_url
-              )
-            ),
-            attribution_note
           )
         `)
         .eq('id', draftIdToLoad)
@@ -164,17 +152,45 @@ function CreatePostContent() {
 
       setScreenplayMode(draft.is_screenplay || false);
 
-      if (draft.inspirations && draft.inspirations.length > 0) {
-        const mappedInspirations = draft.inspirations.map((insp: any) => ({
-          post: {
-            id: insp.inspired_by_post.id,
-            title: insp.inspired_by_post.title,
-            excerpt: insp.inspired_by_post.excerpt,
-            account: insp.inspired_by_post.account
-          },
-          note: insp.attribution_note || ''
-        }));
-        setScreenplayInspirations(mappedInspirations);
+      // Separately load screenplay inspirations if this is a screenplay
+      if (draft.is_screenplay) {
+        try {
+          const { data: inspirationsData, error: inspirationsError } = await supabase
+            .from('blog_post_screenplay_inspirations')
+            .select(`
+              inspired_by_post_id,
+              attribution_note,
+              inspired_by_post:blog_posts!inspired_by_post_id(
+                id,
+                title,
+                excerpt,
+                account:blog_accounts!account_id(
+                  username,
+                  display_name,
+                  avatar_url
+                )
+              )
+            `)
+            .eq('screenplay_post_id', draftIdToLoad);
+
+          if (inspirationsError) throw inspirationsError;
+
+          if (inspirationsData && inspirationsData.length > 0) {
+            const mappedInspirations = inspirationsData.map((insp: any) => ({
+              post: {
+                id: insp.inspired_by_post.id,
+                title: insp.inspired_by_post.title,
+                excerpt: insp.inspired_by_post.excerpt,
+                account: insp.inspired_by_post.account
+              },
+              note: insp.attribution_note || ''
+            }));
+            setScreenplayInspirations(mappedInspirations);
+          }
+        } catch (inspError) {
+          console.error('Error loading screenplay inspirations:', inspError);
+          // Continue loading the draft even if inspirations fail
+        }
       }
 
       setLastSavedAt(new Date(draft.draft_updated_at));
