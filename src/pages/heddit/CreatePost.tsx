@@ -87,13 +87,15 @@ export default function CreatePost() {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (!hedditAccount) return;
+      if (!hedditAccount) {
+        setToast({ message: 'Heddit account not found', type: 'error' });
+        throw new Error('No heddit account found');
+      }
 
       const { data: draft, error } = await supabase
         .from('heddit_posts')
         .select(`
           *,
-          heddit_post_subreddits!inner(subreddit_id),
           heddit_post_tags(tag_id, custom_tags(tag_name))
         `)
         .eq('id', id)
@@ -103,21 +105,30 @@ export default function CreatePost() {
 
       if (error || !draft) {
         console.error('Error loading draft:', error);
-        return;
+        setToast({ message: 'Failed to load draft', type: 'error' });
+        throw error || new Error('Draft not found');
       }
 
-      // Load subreddits
-      const subredditIds = draft.heddit_post_subreddits.map((ps: any) => ps.subreddit_id);
-      const { data: subreddits } = await supabase
-        .from('heddit_subreddits')
-        .select('*')
-        .in('id', subredditIds);
+      // Load the primary subreddit using the subreddit_id field
+      if (draft.subreddit_id) {
+        const { data: subreddit } = await supabase
+          .from('heddit_subreddits')
+          .select('*')
+          .eq('id', draft.subreddit_id)
+          .maybeSingle();
 
-      if (subreddits) {
-        setSelectedSubreddits(subreddits.map((sub: any) => ({
-          ...sub,
-          is_member: true
-        })));
+        if (subreddit) {
+          setSelectedSubreddits([{
+            ...subreddit,
+            is_member: true
+          }]);
+        } else {
+          setToast({
+            message: 'The subreddit for this draft no longer exists. Please select a new subreddit before posting.',
+            type: 'error'
+          });
+          setSelectedSubreddits([]);
+        }
       }
 
       // Load tags
@@ -159,7 +170,15 @@ export default function CreatePost() {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (!hedditAccount || selectedSubreddits.length === 0) return;
+      if (!hedditAccount) {
+        setToast({ message: 'Heddit account not found', type: 'error' });
+        throw new Error('No heddit account found');
+      }
+
+      if (selectedSubreddits.length === 0) {
+        setToast({ message: 'Please select a subreddit before saving', type: 'error' });
+        throw new Error('No subreddit selected');
+      }
 
       // Determine actual post type based on media
       let actualPostType = postType;
@@ -209,7 +228,7 @@ export default function CreatePost() {
           // Check if it's a draft limit error
           if (error.message?.includes('Draft limit reached')) {
             await showDraftLimitDialog();
-            return;
+            throw error;
           }
           throw error;
         }
@@ -302,6 +321,24 @@ export default function CreatePost() {
     // Prevent form submission while saving draft
     if (isSaving) {
       return;
+    }
+
+    // Validate that selected subreddits still exist
+    for (const subreddit of selectedSubreddits) {
+      const { data: existingSubreddit } = await supabase
+        .from('heddit_subreddits')
+        .select('id')
+        .eq('id', subreddit.id)
+        .maybeSingle();
+
+      if (!existingSubreddit) {
+        setToast({
+          message: `The subreddit "${subreddit.name}" no longer exists. Please select a different subreddit.`,
+          type: 'error'
+        });
+        setSelectedSubreddits(selectedSubreddits.filter(s => s.id !== subreddit.id));
+        return;
+      }
     }
 
     // Validate mention count for published posts
