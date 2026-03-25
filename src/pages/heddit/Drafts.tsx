@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileText, Link as LinkIcon, Image as ImageIcon, Video, Trash2, CreditCard as Edit, Send, Calendar, Clock } from 'lucide-react';
@@ -28,6 +28,7 @@ interface Draft {
 
 export default function Drafts() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,16 @@ export default function Drafts() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+
+  // Check for toast message from navigation state
+  useEffect(() => {
+    const navigationToast = (location.state as any)?.toast;
+    if (navigationToast) {
+      setToast(navigationToast);
+      // Clear the navigation state to prevent showing toast on page refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   useEffect(() => {
     if (user) {

@@ -317,14 +317,16 @@ export default function CreatePost() {
 
     setIsSavingAndClosing(true);
     const success = await saveDraft(false);
-    setIsSavingAndClosing(false);
 
-    if (success) {
-      setToast({ message: 'Draft saved successfully!', type: 'success' });
-    }
-
-    // Navigate to drafts page regardless of save success
-    navigate('/heddit/drafts');
+    // Navigate immediately without setting state
+    // This prevents React state batching from blocking navigation
+    navigate('/heddit/drafts', {
+      state: {
+        toast: success
+          ? { message: 'Draft saved successfully!', type: 'success' as const }
+          : null
+      }
+    });
   };
 
   const showDraftLimitDialog = async () => {
