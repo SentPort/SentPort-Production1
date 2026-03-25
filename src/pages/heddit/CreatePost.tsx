@@ -311,7 +311,7 @@ export default function CreatePost() {
   const saveAndClose = async () => {
     if (!title.trim()) {
       // If there's nothing to save, just navigate to drafts
-      navigate('/heddit/drafts');
+      window.location.href = '/heddit/drafts';
       return;
     }
 
@@ -319,13 +319,8 @@ export default function CreatePost() {
     const success = await saveDraft(false);
     setIsSavingAndClosing(false);
 
-    navigate('/heddit/drafts', {
-      state: {
-        toast: success
-          ? { message: 'Draft saved successfully!', type: 'success' as const }
-          : null
-      }
-    });
+    // Auto-refresh to clear form state and show saved draft
+    window.location.href = '/heddit/drafts';
   };
 
   const showDraftLimitDialog = async () => {
@@ -516,15 +511,11 @@ export default function CreatePost() {
       }
 
       if (isDraft) {
-        setToast({ message: 'Draft saved successfully!', type: 'success' });
-        navigate('/heddit/drafts', {
-          state: { message: 'Draft saved successfully!' }
-        });
+        // Auto-refresh to clear form state and show updated drafts
+        window.location.href = '/heddit/drafts';
       } else {
-        setToast({ message: 'Post published successfully!', type: 'success' });
-        navigate('/heddit/feed', {
-          state: { message: 'Post published successfully!' }
-        });
+        // Auto-refresh to clear form state and show published post
+        window.location.href = '/heddit/feed';
       }
     } catch (error) {
       console.error('Error creating post:', error);
@@ -876,7 +867,7 @@ export default function CreatePost() {
                     type="button"
                     onClick={() => {
                       setShowDraftLimitModal(false);
-                      navigate('/heddit/drafts');
+                      window.location.href = '/heddit/drafts';
                     }}
                     className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700"
                   >
