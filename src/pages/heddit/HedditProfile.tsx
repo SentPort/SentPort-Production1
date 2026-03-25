@@ -228,7 +228,9 @@ export default function HedditProfile() {
               .select('heddit_custom_tags(display_name)')
               .eq('post_id', post.id);
 
-            const tags = tagData?.map((t: any) => t.heddit_custom_tags.display_name) || [];
+            const tags = tagData
+              ?.map((t: any) => t.heddit_custom_tags?.display_name)
+              .filter((tag): tag is string => tag != null) || [];
             const qualityScore = post.heddit_quality_signals?.calculated_quality_score;
 
             return { ...post, tags, quality_score: qualityScore };
