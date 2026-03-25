@@ -304,6 +304,11 @@ export default function CreatePost() {
     e.preventDefault();
     if (!user || !title.trim() || selectedSubreddits.length === 0) return;
 
+    // Prevent form submission while saving draft
+    if (isSaving) {
+      return;
+    }
+
     // Validate mention count for published posts
     if (!isDraft) {
       const validation = validateMentionCount(content);
@@ -656,7 +661,11 @@ export default function CreatePost() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => saveDraft(true)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    saveDraft(true);
+                  }}
                   disabled={loading || isSaving || !title.trim() || selectedSubreddits.length === 0}
                   className="flex-1 px-6 py-2 border border-orange-600 text-orange-600 rounded-full font-medium hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
@@ -665,7 +674,7 @@ export default function CreatePost() {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !title.trim() || selectedSubreddits.length === 0}
+                  disabled={loading || isSaving || !title.trim() || selectedSubreddits.length === 0}
                   className="flex-1 px-6 py-2 bg-orange-600 text-white rounded-full font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading ? 'Posting...' : selectedSubreddits.length > 1 ? `Post to ${selectedSubreddits.length} SubHeddits` : 'Post'}
