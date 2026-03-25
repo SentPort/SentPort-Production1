@@ -309,8 +309,8 @@ export default function CreatePost() {
 
   const saveAndClose = async () => {
     if (!title.trim()) {
-      // If there's nothing to save, just navigate away
-      navigate('/heddit/feed');
+      // If there's nothing to save, just navigate to drafts
+      navigate('/heddit/drafts');
       return;
     }
 
@@ -319,9 +319,8 @@ export default function CreatePost() {
 
     if (success) {
       setToast({ message: 'Draft saved successfully!', type: 'success' });
-      // Wait a moment for the toast to show, then navigate
-      await new Promise(resolve => setTimeout(resolve, 500));
-      navigate('/heddit/feed');
+      // Navigate immediately to drafts page
+      navigate('/heddit/drafts');
     } else {
       setIsSaving(false);
     }
