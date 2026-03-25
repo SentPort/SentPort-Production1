@@ -689,6 +689,11 @@ export default function CreatePost() {
                   <HedditMediaUploader
                     onMediaChange={handleMediaChange}
                     maxFiles={10}
+                    initialMedia={
+                      draftId && mediaUrls.length > 0
+                        ? { urls: mediaUrls, types: mediaTypes }
+                        : undefined
+                    }
                   />
                 </div>
               )}

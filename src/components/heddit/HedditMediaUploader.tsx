@@ -13,11 +13,13 @@ interface MediaItem {
 interface HedditMediaUploaderProps {
   onMediaChange: (mediaUrls: string[], mediaTypes: string[]) => void;
   maxFiles?: number;
+  initialMedia?: { urls: string[]; types: string[] };
 }
 
 export default function HedditMediaUploader({
   onMediaChange,
-  maxFiles = 10
+  maxFiles = 10,
+  initialMedia
 }: HedditMediaUploaderProps) {
   const { user } = useAuth();
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -25,7 +27,20 @@ export default function HedditMediaUploader({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlType, setUrlType] = useState<'image' | 'video'>('image');
+  const [isInitialized, setIsInitialized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize media items from props when editing a draft
+  useEffect(() => {
+    if (initialMedia && !isInitialized && initialMedia.urls.length > 0) {
+      const items: MediaItem[] = initialMedia.urls.map((url, index) => ({
+        url,
+        type: (initialMedia.types[index] || 'image') as 'image' | 'video'
+      }));
+      setMediaItems(items);
+      setIsInitialized(true);
+    }
+  }, [initialMedia, isInitialized]);
 
   // Sync state with parent component when media items change
   useEffect(() => {
