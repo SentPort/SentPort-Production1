@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import HedditContentRenderer from './HedditContentRenderer';
 import ConfirmationDialog from '../shared/ConfirmationDialog';
 import { useHedditNotification } from '../../contexts/HedditNotificationContext';
+import { TagChip } from './TagChip';
 
 interface SharedPostCardProps {
   sharePost: any;
@@ -30,6 +31,7 @@ export default function SharedPostCard({ sharePost, onNavigate, currentAccountId
   const [showModMenu, setShowModMenu] = useState(false);
   const [confirmModDelete, setConfirmModDelete] = useState(false);
   const [moderatorActionLoading, setModeratorActionLoading] = useState(false);
+  const [postTags, setPostTags] = useState<string[]>([]);
 
   const isOwnShare = currentAccountId && sharePost.author_id === currentAccountId;
   const showModeratorActions = isModerator && moderatorPermissions && (moderatorPermissions.pin_posts || moderatorPermissions.delete_posts);
@@ -66,11 +68,28 @@ export default function SharedPostCard({ sharePost, onNavigate, currentAccountId
 
       if (!error && data) {
         setOriginalPost(data);
+        // Fetch tags for the original post
+        fetchPostTags(data.id);
       }
     } catch (err) {
       console.error('Error fetching original post:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPostTags = async (postId: string) => {
+    try {
+      const { data } = await supabase
+        .from('heddit_post_tags')
+        .select('heddit_custom_tags(display_name)')
+        .eq('post_id', postId);
+
+      if (data) {
+        setPostTags(data.map((t: any) => t.heddit_custom_tags.display_name));
+      }
+    } catch (err) {
+      console.error('Error fetching post tags:', err);
     }
   };
 
@@ -579,6 +598,14 @@ export default function SharedPostCard({ sharePost, onNavigate, currentAccountId
             alt={originalPost.title}
             className="w-full max-h-64 object-cover rounded-lg mb-3"
           />
+        )}
+
+        {postTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {postTags.map((tag) => (
+              <TagChip key={tag} tag={tag} size="sm" />
+            ))}
+          </div>
         )}
 
         {/* Engagement stats */}

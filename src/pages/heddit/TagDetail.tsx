@@ -75,7 +75,10 @@ export default function TagDetail() {
         }
 
         if (postsRes.data) {
-          setPosts(postsRes.data.map((item: any) => item.heddit_posts).filter(Boolean));
+          const postsList = postsRes.data.map((item: any) => item.heddit_posts).filter(Boolean);
+          // Sort by created_at descending (most recent first)
+          postsList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setPosts(postsList);
         }
       }
     } catch (error) {

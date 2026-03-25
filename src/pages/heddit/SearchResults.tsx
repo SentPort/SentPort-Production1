@@ -24,6 +24,7 @@ export default function SearchResults() {
   const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
   const [sharingPost, setSharingPost] = useState<any | null>(null);
+  const [postTags, setPostTags] = useState<{ [key: string]: string[] }>({});
 
   useEffect(() => {
     loadCurrentAccount();
@@ -80,12 +81,38 @@ export default function SearchResults() {
       ]);
 
       if (subredditsRes.data) setSubreddits(subredditsRes.data);
-      if (postsRes.data) setPosts(postsRes.data);
+      if (postsRes.data) {
+        setPosts(postsRes.data);
+        // Load tags for posts
+        if (postsRes.data.length > 0) {
+          loadTagsForPosts(postsRes.data.map(p => p.id));
+        }
+      }
       if (tagsRes.data) setTags(tagsRes.data);
     } catch (error) {
       console.error('Error searching:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTagsForPosts = async (postIds: string[]) => {
+    if (postIds.length === 0) return;
+
+    const { data } = await supabase
+      .from('heddit_post_tags')
+      .select('post_id, heddit_custom_tags(display_name)')
+      .in('post_id', postIds);
+
+    if (data) {
+      const tagsMap: { [key: string]: string[] } = {};
+      data.forEach((item: any) => {
+        if (!tagsMap[item.post_id]) {
+          tagsMap[item.post_id] = [];
+        }
+        tagsMap[item.post_id].push(item.heddit_custom_tags.display_name);
+      });
+      setPostTags(tagsMap);
     }
   };
 
@@ -190,6 +217,14 @@ export default function SearchResults() {
                 content={post.content}
                 className="text-gray-800 mb-4 line-clamp-3 whitespace-pre-wrap"
               />
+            )}
+
+            {postTags[post.id] && postTags[post.id].length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {postTags[post.id].map((tag) => (
+                  <TagChip key={tag} tag={tag} size="sm" />
+                ))}
+              </div>
             )}
 
             <div className="pt-4 border-t border-gray-200">

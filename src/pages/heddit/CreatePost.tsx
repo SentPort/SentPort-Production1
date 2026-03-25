@@ -539,18 +539,42 @@ export default function CreatePost() {
         if (crossPostError) throw crossPostError;
       }
 
+      // Delete existing tags first (in case updating or converting from draft)
+      const { error: deleteTagsError } = await supabase
+        .from('heddit_post_tags')
+        .delete()
+        .eq('post_id', newPost.id);
+
+      if (deleteTagsError) {
+        console.error('Error deleting existing tags:', deleteTagsError);
+      }
+
+      // Insert tags with proper error handling
       if (tags.length > 0) {
         for (const tagName of tags) {
-          const { data: tagId } = await supabase
-            .rpc('get_or_create_tag', { input_tag: tagName });
+          try {
+            const { data: tagId, error: rpcError } = await supabase
+              .rpc('get_or_create_tag', { input_tag: tagName });
 
-          if (tagId) {
-            await supabase
-              .from('heddit_post_tags')
-              .insert({
-                post_id: newPost.id,
-                tag_id: tagId
-              });
+            if (rpcError) {
+              console.error('Error getting/creating tag:', tagName, rpcError);
+              continue;
+            }
+
+            if (tagId) {
+              const { error: insertError } = await supabase
+                .from('heddit_post_tags')
+                .insert({
+                  post_id: newPost.id,
+                  tag_id: tagId
+                });
+
+              if (insertError) {
+                console.error('Error inserting post tag:', tagName, insertError);
+              }
+            }
+          } catch (tagError) {
+            console.error('Error processing tag:', tagName, tagError);
           }
         }
       }
