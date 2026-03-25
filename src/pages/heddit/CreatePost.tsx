@@ -317,9 +317,8 @@ export default function CreatePost() {
 
     setIsSavingAndClosing(true);
     const success = await saveDraft(false);
+    setIsSavingAndClosing(false);
 
-    // Navigate immediately without setting state
-    // This prevents React state batching from blocking navigation
     navigate('/heddit/drafts', {
       state: {
         toast: success
