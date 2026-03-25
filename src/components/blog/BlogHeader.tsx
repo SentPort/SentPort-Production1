@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, SquarePen as PenSquare, Compass, Bookmark } from 'lucide-react';
+import { BookOpen, SquarePen as PenSquare, Compass, Bookmark, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import PlatformHeaderDropdown from '../shared/PlatformHeaderDropdown';
 import PlatformBackButton from '../shared/PlatformBackButton';
 import UniversalNavigationDropdown from '../shared/UniversalNavigationDropdown';
@@ -16,6 +18,47 @@ interface BlogHeaderProps {
 export default function BlogHeader({ showCreateButton = true, showBackButton = false, backButtonPath = '/blog' }: BlogHeaderProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [draftCount, setDraftCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      loadDraftCount();
+
+      const subscription = supabase
+        .channel('blog_drafts_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'blog_posts',
+            filter: `account_id=eq.${user.id}`
+          },
+          () => {
+            loadDraftCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, [user]);
+
+  const loadDraftCount = async () => {
+    if (!user) return;
+
+    const { count, error } = await supabase
+      .from('blog_posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('account_id', user.id)
+      .eq('is_draft', true);
+
+    if (!error && count !== null) {
+      setDraftCount(count);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
@@ -46,6 +89,18 @@ export default function BlogHeader({ showCreateButton = true, showBackButton = f
             </button>
             {user && (
               <>
+                <button
+                  onClick={() => navigate('/blog/drafts')}
+                  className="relative p-2 rounded-full hover:bg-gray-100 transition-colors hidden md:block"
+                  title="Drafts"
+                >
+                  <FileText className="w-6 h-6 text-gray-700" />
+                  {draftCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {draftCount}
+                    </span>
+                  )}
+                </button>
                 <button
                   onClick={() => navigate('/blog/saved')}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors hidden sm:block"
