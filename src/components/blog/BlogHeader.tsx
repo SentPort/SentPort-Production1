@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, SquarePen as PenSquare, Compass, Bookmark, FileText } from 'lucide-react';
+import { BookOpen, SquarePen as PenSquare, Compass, Bookmark, FileText, Menu } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PlatformHeaderDropdown from '../shared/PlatformHeaderDropdown';
@@ -13,9 +13,10 @@ interface BlogHeaderProps {
   showCreateButton?: boolean;
   showBackButton?: boolean;
   backButtonPath?: string;
+  onMenuClick?: () => void;
 }
 
-export default function BlogHeader({ showCreateButton = true, showBackButton = false, backButtonPath = '/blog' }: BlogHeaderProps) {
+export default function BlogHeader({ showCreateButton = true, showBackButton = false, backButtonPath = '/blog', onMenuClick }: BlogHeaderProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [draftCount, setDraftCount] = useState(0);
@@ -65,6 +66,15 @@ export default function BlogHeader({ showCreateButton = true, showBackButton = f
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-3 flex-shrink-0">
+            {onMenuClick && (
+              <button
+                onClick={onMenuClick}
+                className="lg:hidden p-2 rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="Toggle sidebar"
+              >
+                <Menu className="w-6 h-6 text-gray-700" />
+              </button>
+            )}
             {showBackButton && (
               <PlatformBackButton fallbackPath={backButtonPath} />
             )}

@@ -32,6 +32,7 @@ function BlogFeedContent() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [discoveryPosts, setDiscoveryPosts] = useState<any[]>([]);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Track user ID to prevent unnecessary reloads on auth token refresh
   const lastUserIdRef = useRef<string | null>(null);
@@ -443,7 +444,7 @@ function BlogFeedContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <BlogHeader />
+        <BlogHeader onMenuClick={() => setSidebarOpen(true)} />
         <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 64px)' }}>
           <div className="text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-emerald-400 mx-auto mb-4"></div>
@@ -456,8 +457,8 @@ function BlogFeedContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <BlogHeader />
-      <BlogSidebar />
+      <BlogHeader onMenuClick={() => setSidebarOpen(true)} />
+      <BlogSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <BlogRightSidebar />
       <div className="lg:pl-64 xl:pr-80 px-4 relative overflow-hidden transition-all duration-300 pt-16">
         <div className="absolute inset-0 opacity-20 pointer-events-none">

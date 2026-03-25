@@ -22,6 +22,7 @@ function FollowingContent() {
   const { user } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -68,8 +69,8 @@ function FollowingContent() {
 
   if (loading) {
     return (
-      <BlogLayout showBackButton backButtonPath="/blog">
-        <BlogSidebar />
+      <BlogLayout showBackButton backButtonPath="/blog" onMenuClick={() => setSidebarOpen(true)}>
+        <BlogSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <BlogRightSidebar />
         <div className="lg:pl-64 xl:pr-80 min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
           <div className="text-center">
@@ -82,8 +83,8 @@ function FollowingContent() {
   }
 
   return (
-    <BlogLayout showBackButton backButtonPath="/blog">
-      <BlogSidebar />
+    <BlogLayout showBackButton backButtonPath="/blog" onMenuClick={() => setSidebarOpen(true)}>
+      <BlogSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <BlogRightSidebar />
       <div className="lg:pl-64 xl:pr-80 min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 px-4 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">

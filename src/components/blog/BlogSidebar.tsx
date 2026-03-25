@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, TrendingUp, Users, Bookmark, MessageCircle, FolderHeart, PenTool, Clock } from 'lucide-react';
+import { Home, TrendingUp, Users, Bookmark, MessageCircle, FolderHeart, PenTool, Clock, FileText, File as FileEdit, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function BlogSidebar() {
+interface BlogSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function BlogSidebar({ isOpen = true, onClose }: BlogSidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
   const [stats, setStats] = useState({ posts: 0, reads: 0, followers: 0 });
+  const [draftCount, setDraftCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       loadStats();
+      loadDraftCount();
     }
   }, [user]);
 
@@ -48,10 +55,28 @@ export default function BlogSidebar() {
     }
   };
 
+  const loadDraftCount = async () => {
+    if (!user) return;
+
+    try {
+      const { count } = await supabase
+        .from('blog_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('account_id', user.id)
+        .eq('is_draft', true);
+
+      setDraftCount(count || 0);
+    } catch (error) {
+      console.error('Error loading draft count:', error);
+    }
+  };
+
   const navItems = [
     { path: '/blog', icon: Home, label: 'Feed', exact: true },
     { path: '/blog/trending', icon: TrendingUp, label: 'Trending' },
     { path: '/blog/following', icon: Users, label: 'Following' },
+    { path: '/blog/my-posts', icon: FileEdit, label: 'My Posts' },
+    { path: '/blog/drafts', icon: FileText, label: 'Drafts', badge: draftCount },
     { path: '/blog/saved', icon: Bookmark, label: 'Saved' },
     { path: '/blog/collections', icon: FolderHeart, label: 'Collections' },
     { path: '/blog/messages', icon: MessageCircle, label: 'Messages' },
@@ -66,35 +91,76 @@ export default function BlogSidebar() {
     return location.pathname.startsWith(path);
   };
 
-  return (
-    <aside className="hidden lg:block fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-slate-800 via-slate-700 to-slate-900 border-r border-slate-600/30 overflow-y-auto z-40 shadow-2xl">
-      <nav className="p-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.path, item.exact);
+  const handleLinkClick = () => {
+    if (onClose && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
 
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200
-                ${active
-                  ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 font-semibold shadow-lg border border-emerald-500/30'
-                  : 'text-gray-300 hover:bg-white/10 hover:text-emerald-400'
-                }
-              `}
-            >
-              <Icon className={`w-5 h-5 ${active ? 'text-emerald-400' : ''}`} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+  return (
+    <>
+      {/* Backdrop for mobile */}
+      {isOpen && onClose && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gradient-to-b from-slate-800 via-slate-700 to-slate-900 border-r border-slate-600/30 overflow-y-auto shadow-2xl
+          transition-transform duration-300 ease-in-out
+          lg:translate-x-0 lg:z-40
+          ${isOpen ? 'translate-x-0 z-50' : '-translate-x-full z-50'}
+        `}
+      >
+        {/* Close button for mobile */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden absolute top-4 right-4 p-2 rounded-full hover:bg-white/10 transition-colors text-gray-300"
+            aria-label="Close sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
+
+        <nav className="p-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path, item.exact);
+
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={handleLinkClick}
+                className={`
+                  flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative
+                  ${active
+                    ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 font-semibold shadow-lg border border-emerald-500/30'
+                    : 'text-gray-300 hover:bg-white/10 hover:text-emerald-400'
+                  }
+                `}
+              >
+                <Icon className={`w-5 h-5 ${active ? 'text-emerald-400' : ''}`} />
+                <span>{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="ml-auto bg-emerald-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {item.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
 
       <div className="p-4 border-t border-slate-600/30 mt-4">
         <Link
           to="/blog/create-post"
+          onClick={handleLinkClick}
           className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 shadow-lg hover:shadow-emerald-500/50 hover:shadow-xl"
         >
           <PenTool className="w-5 h-5" />
@@ -121,6 +187,7 @@ export default function BlogSidebar() {
           </div>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
