@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Image as ImageIcon, Loader2, BarChart2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +11,8 @@ interface CreateTweetModalProps {
   onSuccess: () => void;
 }
 
+const STORAGE_KEY = 'switter_draft_tweet';
+
 export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModalProps) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
@@ -21,6 +23,34 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [pollDuration, setPollDuration] = useState(1440);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setContent(data.content || '');
+        setMediaUrls(data.mediaUrls || []);
+        setShowPoll(data.showPoll || false);
+        setPollOptions(data.pollOptions || ['', '']);
+        setPollDuration(data.pollDuration || 1440);
+      } catch (e) {
+        console.error('Error restoring draft:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (content || mediaUrls.length > 0 || showPoll) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        content,
+        mediaUrls,
+        showPoll,
+        pollOptions,
+        pollDuration
+      }));
+    }
+  }, [content, mediaUrls, showPoll, pollOptions, pollDuration]);
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || !user) return;
@@ -123,6 +153,7 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
         }
       }
 
+      sessionStorage.removeItem(STORAGE_KEY);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -130,6 +161,19 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleClose = () => {
+    if (content || mediaUrls.length > 0 || showPoll) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        content,
+        mediaUrls,
+        showPoll,
+        pollOptions,
+        pollDuration
+      }));
+    }
+    onClose();
   };
 
   const characterCount = content.length;
@@ -140,7 +184,7 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
       <div className="bg-white rounded-2xl max-w-2xl w-full mx-4 shadow-xl">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />

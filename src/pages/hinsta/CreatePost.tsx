@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, MapPin, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +11,8 @@ interface CreatePostProps {
   onPostCreated: () => void;
 }
 
+const STORAGE_KEY = 'hinsta_draft_post';
+
 export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) {
   const { user } = useAuth();
   const { showSuccess, showError } = useHinstaNotification();
@@ -18,6 +20,26 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setCaption(data.caption || '');
+        setMediaUrls(data.mediaUrls || []);
+        setLocation(data.location || '');
+      } catch (e) {
+        console.error('Error restoring draft:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (caption || mediaUrls.length > 0 || location) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ caption, mediaUrls, location }));
+    }
+  }, [caption, mediaUrls, location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +78,7 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
         await savePostHashtags(newPost.id, caption);
       }
 
+      sessionStorage.removeItem(STORAGE_KEY);
       showSuccess('Post shared successfully');
       onPostCreated();
     } catch (error: any) {
@@ -66,12 +89,19 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
     }
   };
 
+  const handleClose = () => {
+    if (caption || mediaUrls.length > 0 || location) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ caption, mediaUrls, location }));
+    }
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">Create New Post</h2>
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
+          <button onClick={handleClose} className="text-gray-600 hover:text-gray-900">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -120,7 +150,7 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 px-6 py-3 border border-gray-300 rounded-lg font-semibold hover:bg-gray-50"
             >
               Cancel

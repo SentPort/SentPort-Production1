@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Image as ImageIcon, Globe, Users as FriendsIcon, Lock } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
@@ -11,6 +11,8 @@ interface PostComposerProps {
   placeholder?: string;
 }
 
+const STORAGE_KEY = 'hubook_draft_post';
+
 export default function PostComposer({ onPostCreated, placeholder }: PostComposerProps) {
   const { hubookProfile } = useHuBook();
   const [content, setContent] = useState('');
@@ -18,6 +20,29 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setContent(data.content || '');
+        setPrivacy(data.privacy || 'public');
+        setMediaUrls(data.mediaUrls || []);
+        if (data.mediaUrls && data.mediaUrls.length > 0) {
+          setShowMediaUploader(true);
+        }
+      } catch (e) {
+        console.error('Error restoring draft:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (content || mediaUrls.length > 0) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ content, privacy, mediaUrls }));
+    }
+  }, [content, privacy, mediaUrls]);
 
   const privacyOptions = [
     { value: 'public', label: 'Public', icon: Globe, description: 'Anyone can see' },
@@ -67,6 +92,7 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
         if (mediaError) throw mediaError;
       }
 
+      sessionStorage.removeItem(STORAGE_KEY);
       setContent('');
       setMediaUrls([]);
       setPrivacy('public');

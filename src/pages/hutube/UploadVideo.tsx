@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -8,6 +8,8 @@ import HuTubeLayout from '../../components/shared/HuTubeLayout';
 import VideoUploadZone from '../../components/hutube/VideoUploadZone';
 import ThumbnailUploadZone from '../../components/hutube/ThumbnailUploadZone';
 import { useHuTubeNotification } from '../../contexts/HuTubeNotificationContext';
+
+const STORAGE_KEY = 'hutube_draft_video';
 
 function UploadVideoForm() {
   const navigate = useNavigate();
@@ -22,6 +24,32 @@ function UploadVideoForm() {
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setTitle(data.title || '');
+        setDescription(data.description || '');
+        setVideoUrl(data.videoUrl || '');
+        setThumbnailUrl(data.thumbnailUrl || '');
+      } catch (e) {
+        console.error('Error restoring draft:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (title || description || videoUrl || thumbnailUrl) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        title,
+        description,
+        videoUrl,
+        thumbnailUrl
+      }));
+    }
+  }, [title, description, videoUrl, thumbnailUrl]);
 
   const uploadFileToStorage = async (
     file: File,
@@ -117,6 +145,7 @@ function UploadVideoForm() {
 
       if (error) throw error;
 
+      sessionStorage.removeItem(STORAGE_KEY);
       navigate('/hutube/feed');
     } catch (error) {
       console.error('Error uploading video:', error);
@@ -126,6 +155,18 @@ function UploadVideoForm() {
       setVideoUploadProgress(0);
       setThumbnailUploadProgress(0);
     }
+  };
+
+  const handleCancel = () => {
+    if (title || description || videoUrl || thumbnailUrl) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        title,
+        description,
+        videoUrl,
+        thumbnailUrl
+      }));
+    }
+    navigate('/hutube/feed');
   };
 
   return (
@@ -197,7 +238,7 @@ function UploadVideoForm() {
             <div className="flex gap-3 pt-4">
               <button
                 type="button"
-                onClick={() => navigate('/hutube/feed')}
+                onClick={handleCancel}
                 disabled={loading}
                 className="flex-1 px-6 py-3 border border-gray-300 rounded-full text-gray-700 font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
