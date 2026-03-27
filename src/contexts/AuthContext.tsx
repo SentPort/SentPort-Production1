@@ -14,6 +14,11 @@ interface UserProfile {
   phone_number?: string | null;
   phone_verified?: boolean;
   last_password_change?: string | null;
+  primary_subdomain_id?: string | null;
+  primary_subdomain?: {
+    id: string;
+    subdomain: string;
+  } | null;
   search_preferences?: {
     includeExternalContent: boolean;
   };
@@ -128,7 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select(`
+          *,
+          primary_subdomain:subdomains!primary_subdomain_id(id, subdomain)
+        `)
         .eq('id', userId)
         .maybeSingle();
 
@@ -168,7 +176,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const { data: updatedProfile, error: profileError } = await supabase
               .from('user_profiles')
-              .select('*')
+              .select(`
+                *,
+                primary_subdomain:subdomains!primary_subdomain_id(id, subdomain)
+              `)
               .eq('id', userId)
               .maybeSingle();
 

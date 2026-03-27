@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  User, MessageSquare, Heart, Share2, AlertCircle, Globe, BarChart3, Eye, TrendingUp, Wrench, Trash2, RefreshCw
+  User, MessageSquare, Heart, Share2, AlertCircle, Globe, BarChart3, Eye, TrendingUp, Wrench, Trash2, RefreshCw, Settings, Star
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePageTracking } from '../hooks/usePageTracking';
 import MyProfile from '../components/shared/MyProfile';
 import AdminBanner from '../components/shared/AdminBanner';
 import DeleteSubdomainModal from '../components/shared/DeleteSubdomainModal';
+import SetPrimarySubdomainModal from '../components/shared/SetPrimarySubdomainModal';
 import SubdomainDashboardNotification from '../components/shared/SubdomainDashboardNotification';
 import { getUserPlatformsWithStatus, PlatformInfo } from '../lib/platformHelpers';
 
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [selectedSubdomain, setSelectedSubdomain] = useState<SubdomainData | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [subdomainToDelete, setSubdomainToDelete] = useState<SubdomainData | null>(null);
+  const [showPrimarySubdomainModal, setShowPrimarySubdomainModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [userPlatforms, setUserPlatforms] = useState<PlatformInfo[]>([]);
   const [loadingPlatforms, setLoadingPlatforms] = useState(true);
@@ -176,6 +178,10 @@ export default function Dashboard() {
     setTimeout(() => setSuccessMessage(''), 5000);
     fetchOwnedSubdomains();
     setSelectedSubdomain(null);
+  };
+
+  const handlePrimarySubdomainChanged = () => {
+    fetchOwnedSubdomains();
   };
 
   const fetchUserStats = async () => {
@@ -374,7 +380,7 @@ export default function Dashboard() {
         </div>
 
         {ownedSubdomainCount > 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div id="subdomain-dashboard" className="bg-white rounded-lg shadow-sm p-6 mb-8 scroll-mt-8">
             <div className="mb-6">
               <SubdomainDashboardNotification />
             </div>
@@ -384,7 +390,18 @@ export default function Dashboard() {
                 <BarChart3 className="w-6 h-6 text-blue-600" />
                 My Subdomains Dashboard
               </h2>
-              <span className="text-sm text-gray-500">{ownedSubdomainCount} subdomain{ownedSubdomainCount !== 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-3">
+                {ownedSubdomainCount > 1 && (
+                  <button
+                    onClick={() => setShowPrimarySubdomainModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    <Star className="w-4 h-4" />
+                    Set Primary Subdomain
+                  </button>
+                )}
+                <span className="text-sm text-gray-500">{ownedSubdomainCount} subdomain{ownedSubdomainCount !== 1 ? 's' : ''}</span>
+              </div>
             </div>
             {loadingSubdomains ? (
               <div className="flex justify-center py-8">
@@ -394,19 +411,27 @@ export default function Dashboard() {
               <>
                 <div className="mb-6">
                   <div className="flex flex-wrap gap-3">
-                    {ownedSubdomains.map((subdomain) => (
-                      <button
-                        key={subdomain.id}
-                        onClick={() => setSelectedSubdomain(subdomain)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                          selectedSubdomain?.id === subdomain.id
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {subdomain.subdomain}.sentport.com
-                      </button>
-                    ))}
+                    {ownedSubdomains.map((subdomain) => {
+                      const isPrimary = subdomain.id === userProfile?.primary_subdomain_id;
+                      return (
+                        <button
+                          key={subdomain.id}
+                          onClick={() => setSelectedSubdomain(subdomain)}
+                          className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                            selectedSubdomain?.id === subdomain.id
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {isPrimary && (
+                            <Star className={`w-4 h-4 fill-current ${
+                              selectedSubdomain?.id === subdomain.id ? 'text-yellow-300' : 'text-yellow-500'
+                            }`} />
+                          )}
+                          {subdomain.subdomain}.sentport.com
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -535,6 +560,13 @@ export default function Dashboard() {
         onClose={() => setDeleteModalOpen(false)}
         subdomain={subdomainToDelete}
         onDeleted={handleSubdomainDeleted}
+      />
+
+      <SetPrimarySubdomainModal
+        isOpen={showPrimarySubdomainModal}
+        onClose={() => setShowPrimarySubdomainModal(false)}
+        currentPrimaryId={userProfile?.primary_subdomain_id}
+        onPrimaryChanged={handlePrimarySubdomainChanged}
       />
     </div>
   );

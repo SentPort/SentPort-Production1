@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, CheckCircle, XCircle, Globe, Calendar, Trash2, Shield, CreditCard as Edit2, Lock, Phone, ChevronDown, ChevronUp, Check, X, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Mail, CheckCircle, XCircle, Globe, Calendar, Trash2, Shield, CreditCard as Edit2, Lock, Phone, ChevronDown, ChevronUp, Check, X, Eye, EyeOff, AlertCircle, Settings, Star } from 'lucide-react';
 import DeleteAccountModal from './DeleteAccountModal';
+import SetPrimarySubdomainModal from './SetPrimarySubdomainModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -17,6 +18,7 @@ interface MyProfileProps {
 export default function MyProfile({ email, isVerified, subdomain, createdAt, fullName, ownedSubdomainCount = 0 }: MyProfileProps) {
   const { isAdmin, userProfile, refreshProfile } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showPrimarySubdomainModal, setShowPrimarySubdomainModal] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   // Email editing
@@ -210,6 +212,17 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
   };
 
   const passwordStrength = getPasswordStrength(newPassword);
+
+  const handleManageSubdomainsClick = () => {
+    const subdomainDashboard = document.getElementById('subdomain-dashboard');
+    if (subdomainDashboard) {
+      subdomainDashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handlePrimarySubdomainChanged = () => {
+    refreshProfile();
+  };
 
   return (
     <>
@@ -432,10 +445,46 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
                 <div>
                   <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
                     <Globe className="w-4 h-4 text-gray-600" />
-                    Subdomain
+                    Primary Subdomain
                   </label>
-                  {subdomain ? (
-                    <p className="text-gray-900 font-mono text-sm">{subdomain}.sentport.com</p>
+                  {userProfile?.primary_subdomain ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                        <p className="text-gray-900 font-mono text-sm">
+                          {userProfile.primary_subdomain.subdomain}.sentport.com
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        {ownedSubdomainCount > 1 && (
+                          <button
+                            onClick={() => setShowPrimarySubdomainModal(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            Change Primary
+                          </button>
+                        )}
+                        <button
+                          onClick={handleManageSubdomainsClick}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          Manage Subdomains
+                        </button>
+                      </div>
+                    </div>
+                  ) : ownedSubdomainCount > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-gray-600 text-sm">No primary subdomain set</p>
+                      <button
+                        onClick={handleManageSubdomainsClick}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold"
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        Manage Subdomains
+                      </button>
+                    </div>
                   ) : (
                     <Link
                       to="/make-your-own-site"
@@ -671,6 +720,13 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         subdomainCount={ownedSubdomainCount}
+      />
+
+      <SetPrimarySubdomainModal
+        isOpen={showPrimarySubdomainModal}
+        onClose={() => setShowPrimarySubdomainModal(false)}
+        currentPrimaryId={userProfile?.primary_subdomain_id}
+        onPrimaryChanged={handlePrimarySubdomainChanged}
       />
     </>
   );
