@@ -718,6 +718,24 @@ function WebsiteBuilderV2() {
 
       if (pageUpdateError) throw pageUpdateError;
 
+      const { data: subdomainData } = await supabase
+        .from('subdomains')
+        .select('status')
+        .eq('id', subdomainId)
+        .single();
+
+      if (subdomainData?.status === 'inactive') {
+        const { error: subdomainUpdateError } = await supabase
+          .from('subdomains')
+          .update({
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', subdomainId);
+
+        if (subdomainUpdateError) console.error('Error activating subdomain:', subdomainUpdateError);
+      }
+
       const { error: eventError } = await supabase
         .from('subdomain_publish_events')
         .insert({

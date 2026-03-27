@@ -449,11 +449,20 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
                   </label>
                   {userProfile?.primary_subdomain ? (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Star className="w-4 h-4 text-yellow-500 fill-current" />
                         <p className="text-gray-900 font-mono text-sm">
                           {userProfile.primary_subdomain.subdomain}.sentport.com
                         </p>
+                        {userProfile.primary_subdomain.status === 'inactive' ? (
+                          <span className="text-xs font-semibold text-red-600">
+                            (Draft Status)
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-green-600">
+                            (Published & Live)
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         {ownedSubdomainCount > 1 && (

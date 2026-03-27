@@ -18,6 +18,7 @@ interface UserProfile {
   primary_subdomain?: {
     id: string;
     subdomain: string;
+    status: string;
   } | null;
   search_preferences?: {
     includeExternalContent: boolean;
@@ -135,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from('user_profiles')
         .select(`
           *,
-          primary_subdomain:subdomains!primary_subdomain_id(id, subdomain)
+          primary_subdomain:subdomains!primary_subdomain_id(id, subdomain, status)
         `)
         .eq('id', userId)
         .maybeSingle();
@@ -178,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .from('user_profiles')
               .select(`
                 *,
-                primary_subdomain:subdomains!primary_subdomain_id(id, subdomain)
+                primary_subdomain:subdomains!primary_subdomain_id(id, subdomain, status)
               `)
               .eq('id', userId)
               .maybeSingle();
