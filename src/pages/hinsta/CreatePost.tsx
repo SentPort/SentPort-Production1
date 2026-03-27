@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, MapPin, Loader2 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useHinstaNotification } from '../../contexts/HinstaNotificationContext';
@@ -15,11 +16,14 @@ const STORAGE_KEY = 'hinsta_draft_post';
 
 export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) {
   const { user } = useAuth();
+  const location = useLocation();
   const { showSuccess, showError } = useHinstaNotification();
   const [caption, setCaption] = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [location, setLocation] = useState('');
+  const [locationText, setLocationText] = useState('');
   const [loading, setLoading] = useState(false);
+  const hadContentRef = useRef(false);
+  const mountPathRef = useRef(location.pathname);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -28,18 +32,31 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
         const data = JSON.parse(saved);
         setCaption(data.caption || '');
         setMediaUrls(data.mediaUrls || []);
-        setLocation(data.location || '');
+        setLocationText(data.location || '');
+        if (data.caption || data.mediaUrls?.length > 0 || data.location) {
+          hadContentRef.current = true;
+        }
       } catch (e) {
         console.error('Error restoring draft:', e);
       }
     }
-  }, []);
+
+    return () => {
+      if (location.pathname !== mountPathRef.current) {
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
-    if (caption || mediaUrls.length > 0 || location) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ caption, mediaUrls, location }));
+    if (caption || mediaUrls.length > 0 || locationText) {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ caption, mediaUrls, location: locationText }));
+      hadContentRef.current = true;
+    } else if (hadContentRef.current && !caption && mediaUrls.length === 0 && !locationText) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      hadContentRef.current = false;
     }
-  }, [caption, mediaUrls, location]);
+  }, [caption, mediaUrls, locationText]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +83,7 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
           caption: caption.trim(),
           media_url: mediaUrls[0],
           media_urls: mediaUrls,
-          location: location.trim() || null,
+          location: locationText.trim() || null,
           media_type: 'image'
         })
         .select()
@@ -90,9 +107,6 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
   };
 
   const handleClose = () => {
-    if (caption || mediaUrls.length > 0 || location) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ caption, mediaUrls, location }));
-    }
     onClose();
   };
 
@@ -139,8 +153,8 @@ export default function CreatePost({ onClose, onPostCreated }: CreatePostProps) 
             </label>
             <input
               type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              value={locationText}
+              onChange={(e) => setLocationText(e.target.value)}
               placeholder="Add location..."
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
               maxLength={100}

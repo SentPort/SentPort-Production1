@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon, Globe, Users as FriendsIcon, Lock } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import MediaUploader from './MediaUploader';
@@ -15,11 +16,14 @@ const STORAGE_KEY = 'hubook_draft_post';
 
 export default function PostComposer({ onPostCreated, placeholder }: PostComposerProps) {
   const { hubookProfile } = useHuBook();
+  const location = useLocation();
   const [content, setContent] = useState('');
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [showMediaUploader, setShowMediaUploader] = useState(false);
+  const hadContentRef = useRef(false);
+  const mountPathRef = useRef(location.pathname);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -32,15 +36,28 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
         if (data.mediaUrls && data.mediaUrls.length > 0) {
           setShowMediaUploader(true);
         }
+        if (data.content || data.mediaUrls?.length > 0) {
+          hadContentRef.current = true;
+        }
       } catch (e) {
         console.error('Error restoring draft:', e);
       }
     }
-  }, []);
+
+    return () => {
+      if (location.pathname !== mountPathRef.current) {
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     if (content || mediaUrls.length > 0) {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ content, privacy, mediaUrls }));
+      hadContentRef.current = true;
+    } else if (hadContentRef.current && !content && mediaUrls.length === 0) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      hadContentRef.current = false;
     }
   }, [content, privacy, mediaUrls]);
 

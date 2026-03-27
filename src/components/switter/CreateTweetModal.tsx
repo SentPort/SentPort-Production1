@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Image as ImageIcon, Loader2, BarChart2 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { compressImage } from '../../lib/imageCompression';
@@ -15,6 +16,7 @@ const STORAGE_KEY = 'switter_draft_tweet';
 
 export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModalProps) {
   const { user } = useAuth();
+  const location = useLocation();
   const [content, setContent] = useState('');
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
@@ -23,6 +25,8 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [pollDuration, setPollDuration] = useState(1440);
+  const hadContentRef = useRef(false);
+  const mountPathRef = useRef(location.pathname);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -34,11 +38,20 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
         setShowPoll(data.showPoll || false);
         setPollOptions(data.pollOptions || ['', '']);
         setPollDuration(data.pollDuration || 1440);
+        if (data.content || data.mediaUrls?.length > 0 || data.showPoll) {
+          hadContentRef.current = true;
+        }
       } catch (e) {
         console.error('Error restoring draft:', e);
       }
     }
-  }, []);
+
+    return () => {
+      if (location.pathname !== mountPathRef.current) {
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     if (content || mediaUrls.length > 0 || showPoll) {
@@ -49,6 +62,10 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
         pollOptions,
         pollDuration
       }));
+      hadContentRef.current = true;
+    } else if (hadContentRef.current && !content && mediaUrls.length === 0 && !showPoll) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      hadContentRef.current = false;
     }
   }, [content, mediaUrls, showPoll, pollOptions, pollDuration]);
 
@@ -164,15 +181,6 @@ export default function CreateTweetModal({ onClose, onSuccess }: CreateTweetModa
   };
 
   const handleClose = () => {
-    if (content || mediaUrls.length > 0 || showPoll) {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-        content,
-        mediaUrls,
-        showPoll,
-        pollOptions,
-        pollDuration
-      }));
-    }
     onClose();
   };
 
