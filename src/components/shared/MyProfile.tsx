@@ -8,16 +8,19 @@ import { supabase } from '../../lib/supabase';
 interface MyProfileProps {
   email: string;
   isVerified: boolean;
-  subdomain?: string | null;
   createdAt: string;
   fullName?: string | null;
-  ownedSubdomainCount?: number;
 }
 
-export default function MyProfile({ email, isVerified, subdomain, createdAt, fullName, ownedSubdomainCount = 0 }: MyProfileProps) {
-  const { isAdmin, userProfile, refreshProfile } = useAuth();
+export default function MyProfile({ email, isVerified, createdAt, fullName }: MyProfileProps) {
+  const { isAdmin, userProfile, refreshProfile, user } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  // Subdomain state
+  const [primarySubdomain, setPrimarySubdomain] = useState<string | null>(null);
+  const [totalSubdomains, setTotalSubdomains] = useState(0);
+  const [subdomainsLoading, setSubdomainsLoading] = useState(true);
 
   // Email editing
   const [editingEmail, setEditingEmail] = useState(false);
@@ -55,6 +58,55 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
       setLastPasswordChange(userProfile.last_password_change || null);
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    if (user) {
+      fetchSubdomainInfo();
+    }
+  }, [user]);
+
+  const fetchSubdomainInfo = async () => {
+    if (!user) return;
+
+    try {
+      setSubdomainsLoading(true);
+
+      const { data: subdomainsData, error: subdomainsError } = await supabase
+        .from('subdomains')
+        .select('id, subdomain')
+        .eq('owner_id', user.id)
+        .in('status', ['active', 'inactive'])
+        .order('created_at', { ascending: true });
+
+      if (subdomainsError) throw subdomainsError;
+
+      const subdomains = subdomainsData || [];
+      setTotalSubdomains(subdomains.length);
+
+      if (subdomains.length > 0) {
+        const { data: preferenceData } = await supabase
+          .from('user_subdomain_preferences')
+          .select('primary_subdomain_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (preferenceData?.primary_subdomain_id) {
+          const primarySub = subdomains.find(s => s.id === preferenceData.primary_subdomain_id);
+          if (primarySub) {
+            setPrimarySubdomain(primarySub.subdomain);
+          } else {
+            setPrimarySubdomain(subdomains[0].subdomain);
+          }
+        } else {
+          setPrimarySubdomain(subdomains[0].subdomain);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching subdomain info:', err);
+    } finally {
+      setSubdomainsLoading(false);
+    }
+  };
 
   const toggleSection = (section: string) => {
     setExpandedSection(expandedSection === section ? null : section);
@@ -434,8 +486,25 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
                     <Globe className="w-4 h-4 text-gray-600" />
                     Subdomain
                   </label>
-                  {subdomain ? (
-                    <p className="text-gray-900 font-mono text-sm">{subdomain}.sentport.com</p>
+                  {subdomainsLoading ? (
+                    <p className="text-gray-500 text-sm">Loading...</p>
+                  ) : totalSubdomains > 0 ? (
+                    <div className="space-y-1">
+                      <p className="text-gray-900 font-mono text-sm">
+                        {primarySubdomain}.sentport.com
+                      </p>
+                      {totalSubdomains > 1 && (
+                        <p className="text-gray-500 text-xs">
+                          (1 of {totalSubdomains} subdomains)
+                        </p>
+                      )}
+                      <Link
+                        to="/dashboard"
+                        className="inline-block text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Manage Subdomains
+                      </Link>
+                    </div>
                   ) : (
                     <Link
                       to="/make-your-own-site"

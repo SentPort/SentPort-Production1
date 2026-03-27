@@ -11,7 +11,6 @@ interface UserProfile {
   email: string;
   is_verified: boolean;
   is_admin: boolean;
-  subdomain: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,9 +71,6 @@ export default function MakeYourOwnSite() {
         setProfile(newProfile);
       } else {
         setProfile(data);
-        if (data.subdomain) {
-          setSubdomain(data.subdomain);
-        }
       }
 
       const { data: subdomainsData, error: subdomainsError } = await supabase
@@ -139,12 +135,31 @@ export default function MakeYourOwnSite() {
         return;
       }
 
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ subdomain: subdomainLower })
-        .eq('id', user.id);
+      // Automatically set as primary if this is the user's first subdomain
+      const { data: existingPreference } = await supabase
+        .from('user_subdomain_preferences')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (updateError) throw updateError;
+      if (!existingPreference) {
+        // Get the newly created subdomain ID
+        const { data: newSubdomain } = await supabase
+          .from('subdomains')
+          .select('id')
+          .eq('subdomain', subdomainLower)
+          .eq('owner_id', user.id)
+          .single();
+
+        if (newSubdomain) {
+          await supabase
+            .from('user_subdomain_preferences')
+            .insert({
+              user_id: user.id,
+              primary_subdomain_id: newSubdomain.id
+            });
+        }
+      }
 
       await fetchUserProfile();
       setShowDashboardNotification(true);

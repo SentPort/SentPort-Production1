@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  User, MessageSquare, Heart, Share2, AlertCircle, Globe, BarChart3, Eye, TrendingUp, Wrench, Trash2, RefreshCw
+  User, MessageSquare, Heart, Share2, AlertCircle, Globe, BarChart3, Eye, TrendingUp, Wrench, Trash2, RefreshCw, Star
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePageTracking } from '../hooks/usePageTracking';
@@ -10,6 +10,7 @@ import MyProfile from '../components/shared/MyProfile';
 import AdminBanner from '../components/shared/AdminBanner';
 import DeleteSubdomainModal from '../components/shared/DeleteSubdomainModal';
 import SubdomainDashboardNotification from '../components/shared/SubdomainDashboardNotification';
+import SetPrimarySubdomainModal from '../components/shared/SetPrimarySubdomainModal';
 import { getUserPlatformsWithStatus, PlatformInfo } from '../lib/platformHelpers';
 
 interface PlatformStats {
@@ -26,6 +27,7 @@ interface SubdomainData {
   created_at: string;
   total_views?: number;
   total_visitors?: number;
+  is_primary?: boolean;
 }
 
 export default function Dashboard() {
@@ -45,6 +47,8 @@ export default function Dashboard() {
   const [userPlatforms, setUserPlatforms] = useState<PlatformInfo[]>([]);
   const [loadingPlatforms, setLoadingPlatforms] = useState(true);
   const [platformRefreshTrigger, setPlatformRefreshTrigger] = useState(0);
+  const [primarySubdomainId, setPrimarySubdomainId] = useState<string | null>(null);
+  const [setPrimaryModalOpen, setSetPrimaryModalOpen] = useState(false);
 
   useEffect(() => {
     // Only redirect if we're not loading, there's no user, no session,
@@ -122,12 +126,21 @@ export default function Dashboard() {
         .select('*', { count: 'exact' })
         .eq('owner_id', userProfile?.id)
         .in('status', ['active', 'inactive'])
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error('Error fetching subdomains:', error);
       } else {
         setOwnedSubdomainCount(count || 0);
+
+        const { data: preferenceData } = await supabase
+          .from('user_subdomain_preferences')
+          .select('primary_subdomain_id')
+          .eq('user_id', userProfile?.id)
+          .maybeSingle();
+
+        const primaryId = preferenceData?.primary_subdomain_id || null;
+        setPrimarySubdomainId(primaryId);
 
         const subdomainsWithStats = await Promise.all(
           (subdomains || []).map(async (subdomain) => {
@@ -150,13 +163,34 @@ export default function Dashboard() {
               ...subdomain,
               total_views: stats.views,
               total_visitors: stats.visitors,
+              is_primary: subdomain.id === primaryId,
             };
           })
         );
 
-        setOwnedSubdomains(subdomainsWithStats);
-        if (subdomainsWithStats.length > 0 && !selectedSubdomain) {
-          setSelectedSubdomain(subdomainsWithStats[0]);
+        const sortedSubdomains = subdomainsWithStats.sort((a, b) => {
+          if (a.is_primary && !b.is_primary) return -1;
+          if (!a.is_primary && b.is_primary) return 1;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
+
+        // Auto-set primary if user has exactly one subdomain but no preference
+        if (sortedSubdomains.length === 1 && !primaryId) {
+          const firstSubdomain = sortedSubdomains[0];
+          await supabase
+            .from('user_subdomain_preferences')
+            .insert({
+              user_id: userProfile?.id,
+              primary_subdomain_id: firstSubdomain.id
+            });
+
+          sortedSubdomains[0].is_primary = true;
+          setPrimarySubdomainId(firstSubdomain.id);
+        }
+
+        setOwnedSubdomains(sortedSubdomains);
+        if (sortedSubdomains.length > 0 && !selectedSubdomain) {
+          setSelectedSubdomain(sortedSubdomains[0]);
         }
       }
     } catch (error) {
@@ -278,10 +312,8 @@ export default function Dashboard() {
           <MyProfile
             email={userProfile.email}
             isVerified={isVerified}
-            subdomain={userProfile.subdomain}
             createdAt={userProfile.created_at}
             fullName={userProfile.full_name}
-            ownedSubdomainCount={ownedSubdomainCount}
           />
         </div>
 
@@ -398,12 +430,15 @@ export default function Dashboard() {
                       <button
                         key={subdomain.id}
                         onClick={() => setSelectedSubdomain(subdomain)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
                           selectedSubdomain?.id === subdomain.id
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
+                        {subdomain.is_primary && (
+                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        )}
                         {subdomain.subdomain}.sentport.com
                       </button>
                     ))}
@@ -481,6 +516,19 @@ export default function Dashboard() {
                         <BarChart3 className="w-4 h-4" />
                         View Full Analytics
                       </Link>
+                      {ownedSubdomains.length > 1 && (
+                        <button
+                          onClick={() => setSetPrimaryModalOpen(true)}
+                          className={`flex items-center gap-2 py-2 px-6 rounded-lg transition-colors font-medium ${
+                            selectedSubdomain.is_primary
+                              ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-400'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <Star className={`w-4 h-4 ${selectedSubdomain.is_primary ? 'fill-yellow-500 text-yellow-500' : ''}`} />
+                          {selectedSubdomain.is_primary ? 'Primary' : 'Set Primary'}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteSubdomain(selectedSubdomain)}
                         className="flex items-center gap-2 bg-red-600 text-white py-2 px-6 rounded-lg hover:bg-red-700 transition-colors font-medium ml-auto"
@@ -535,6 +583,16 @@ export default function Dashboard() {
         onClose={() => setDeleteModalOpen(false)}
         subdomain={subdomainToDelete}
         onDeleted={handleSubdomainDeleted}
+      />
+
+      <SetPrimarySubdomainModal
+        isOpen={setPrimaryModalOpen}
+        onClose={() => setSetPrimaryModalOpen(false)}
+        currentPrimaryId={primarySubdomainId || undefined}
+        onSuccess={() => {
+          fetchOwnedSubdomains();
+          setSetPrimaryModalOpen(false);
+        }}
       />
     </div>
   );
