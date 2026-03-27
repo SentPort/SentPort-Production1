@@ -1,16 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Undo, Redo, Grid2x2 as Grid, Settings as SettingsIcon, Copy, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Undo, Redo, Grid2x2 as Grid, Settings as SettingsIcon, Copy, RotateCcw, Layers, Globe, GlobeLock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { BuilderSection, DeviceBreakpoint, PageBackgroundSettings, DeviceViewState } from '../../types/builder';
+import { BuilderSection, DeviceBreakpoint, PageBackgroundSettings, DeviceViewState, SubdomainPage } from '../../types/builder';
 import BuilderCanvas from '../../components/builder-v2/BuilderCanvas';
 import PropertiesPanel from '../../components/builder-v2/PropertiesPanel';
 import DevicePreviewSwitcher from '../../components/builder-v2/DevicePreviewSwitcher';
 import PageSettingsPanel from '../../components/builder-v2/PageSettingsPanel';
 import ResetViewConfirmModal from '../../components/builder-v2/ResetViewConfirmModal';
 import BuilderErrorBoundary from '../../components/builder-v2/BuilderErrorBoundary';
+import PageManagerModal from '../../components/builder/PageManagerModal';
+import PublishConfirmModal from '../../components/builder-v2/PublishConfirmModal';
+import LivePageBanner from '../../components/builder-v2/LivePageBanner';
 import { loadBuilderPreferences, saveBuilderPreferences, resetBuilderPreferences, createDebouncedSave, BuilderPreferences, DEFAULT_BUILDER_PREFERENCES } from '../../lib/builderPreferences';
+import {
+  publishHomepage,
+  publishAllPages,
+  publishSecondaryPage,
+  unpublishHomepage,
+  unpublishSecondaryPage,
+  publishPageEdits,
+  canPublishSecondaryPage,
+} from '../../lib/publishHelpers';
 
 const createEmptyDeviceView = (): DeviceViewState => ({
   sections: [],
@@ -66,6 +78,13 @@ function WebsiteBuilderV2() {
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
 
+  const [allPages, setAllPages] = useState<SubdomainPage[]>([]);
+  const [currentPageData, setCurrentPageData] = useState<SubdomainPage | null>(null);
+  const [showPageManager, setShowPageManager] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishModalVariant, setPublishModalVariant] = useState<'publishAll' | 'unpublishAll' | 'publishPage' | 'unpublishPage' | 'publishEdit'>('publishAll');
+  const [publishing, setPublishing] = useState(false);
+
   const savePreferencesRef = useRef<(preferences: BuilderPreferences) => void>();
   const isSavingRef = useRef(false);
   const lastChangeTimestampRef = useRef<number>(Date.now());
@@ -114,6 +133,29 @@ function WebsiteBuilderV2() {
     loadBuilderData();
   }, [subdomainId, pageId]);
 
+  const loadAllPages = async () => {
+    if (!subdomainId) return;
+
+    try {
+      const { data: pagesData, error: pagesError } = await supabase
+        .from('subdomain_pages')
+        .select('*')
+        .eq('subdomain_id', subdomainId)
+        .order('created_at', { ascending: true });
+
+      if (pagesError) throw pagesError;
+
+      setAllPages(pagesData || []);
+
+      if (pageId) {
+        const currentPage = pagesData?.find(p => p.id === pageId);
+        setCurrentPageData(currentPage || null);
+      }
+    } catch (err) {
+      console.error('Error loading all pages:', err);
+    }
+  };
+
   const loadBuilderData = async () => {
     if (!subdomainId || !user) return;
 
@@ -150,6 +192,8 @@ function WebsiteBuilderV2() {
 
       if (pagesError) throw pagesError;
 
+      setAllPages(pagesData || []);
+
       if (!pagesData || pagesData.length === 0) {
         await createDefaultHomepage();
         return;
@@ -162,6 +206,9 @@ function WebsiteBuilderV2() {
         navigate(`/builder/${subdomainId}/page/${targetPageId}`, { replace: true });
         return;
       }
+
+      const currentPage = pagesData.find(p => p.id === targetPageId);
+      setCurrentPageData(currentPage || null);
 
       await loadPageData(targetPageId);
       setLoading(false);
@@ -701,57 +748,153 @@ function WebsiteBuilderV2() {
     window.open(`/preview/${subdomainId}/page/${pageId}?device=${currentDevice}`, '_blank');
   };
 
-  const handlePublish = async () => {
-    if (!pageId) return;
+  const handleSwitchPage = (newPageId: string) => {
+    navigate(`/builder/${subdomainId}/page/${newPageId}`);
+  };
+
+  const handleCreatePage = async (pageData: { path: string; title: string; type: string }) => {
+    if (!subdomainId) return;
+
+    try {
+      const pathExists = allPages.some(p => p.page_path === pageData.path);
+      if (pathExists) {
+        alert('A page with this path already exists. Please choose a different path.');
+        return;
+      }
+
+      const { data: newPage, error: pageError } = await supabase
+        .from('subdomain_pages')
+        .insert({
+          subdomain_id: subdomainId,
+          page_path: pageData.path,
+          page_title: pageData.title,
+          page_type: pageData.type,
+          is_homepage: false,
+        })
+        .select()
+        .single();
+
+      if (pageError) throw pageError;
+
+      await loadAllPages();
+      setShowPageManager(false);
+      navigate(`/builder/${subdomainId}/page/${newPage.id}`);
+    } catch (err) {
+      console.error('Error creating page:', err);
+      alert('Failed to create page. Please try again.');
+    }
+  };
+
+  const handleDeletePage = async (deletePageId: string) => {
+    if (!subdomainId) return;
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('subdomain_pages')
+        .delete()
+        .eq('id', deletePageId)
+        .eq('subdomain_id', subdomainId);
+
+      if (deleteError) throw deleteError;
+
+      await loadAllPages();
+
+      if (deletePageId === pageId) {
+        const homepage = allPages.find(p => p.is_homepage);
+        if (homepage) {
+          navigate(`/builder/${subdomainId}/page/${homepage.id}`);
+        }
+      }
+
+      setShowPageManager(false);
+    } catch (err) {
+      console.error('Error deleting page:', err);
+      alert('Failed to delete page. Please try again.');
+    }
+  };
+
+  const handlePublishClick = () => {
+    if (!currentPageData || !subdomainId) return;
+
+    if (currentPageData.is_homepage && !currentPageData.is_published) {
+      setPublishModalVariant('publishAll');
+      setShowPublishModal(true);
+    } else if (currentPageData.is_homepage && currentPageData.is_published) {
+      setPublishModalVariant('unpublishAll');
+      setShowPublishModal(true);
+    } else if (!currentPageData.is_homepage && !currentPageData.is_published) {
+      setPublishModalVariant('publishPage');
+      setShowPublishModal(true);
+    } else if (!currentPageData.is_homepage && currentPageData.is_published) {
+      setPublishModalVariant('unpublishPage');
+      setShowPublishModal(true);
+    }
+  };
+
+  const handlePublishEditClick = () => {
+    setPublishModalVariant('publishEdit');
+    setShowPublishModal(true);
+  };
+
+  const handleConfirmPublish = async () => {
+    if (!subdomainId || !pageId || !currentPageData) return;
+
+    setPublishing(true);
 
     try {
       await saveAllDeviceViews();
 
-      const { error: pageUpdateError } = await supabase
-        .from('subdomain_pages')
-        .update({
-          is_published: true,
-          has_unpublished_changes: false,
-          published_at: new Date().toISOString(),
-        })
-        .eq('id', pageId);
+      let result;
 
-      if (pageUpdateError) throw pageUpdateError;
+      switch (publishModalVariant) {
+        case 'publishAll':
+          result = await publishAllPages(subdomainId);
+          break;
 
-      const { data: subdomainData } = await supabase
-        .from('subdomains')
-        .select('status')
-        .eq('id', subdomainId)
-        .single();
+        case 'unpublishAll':
+          result = await unpublishHomepage(subdomainId, pageId);
+          break;
 
-      if (subdomainData?.status === 'inactive') {
-        const { error: subdomainUpdateError } = await supabase
-          .from('subdomains')
-          .update({
-            status: 'active',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', subdomainId);
+        case 'publishPage':
+          const canPublish = await canPublishSecondaryPage(subdomainId);
+          if (!canPublish) {
+            alert('Cannot publish this page. The homepage must be published first.');
+            setPublishing(false);
+            setShowPublishModal(false);
+            return;
+          }
+          result = await publishSecondaryPage(subdomainId, pageId);
+          break;
 
-        if (subdomainUpdateError) console.error('Error activating subdomain:', subdomainUpdateError);
+        case 'unpublishPage':
+          result = await unpublishSecondaryPage(subdomainId, pageId);
+          break;
+
+        case 'publishEdit':
+          result = await publishPageEdits(subdomainId, pageId);
+          break;
+
+        default:
+          result = { success: false, message: 'Unknown publish action' };
       }
 
-      const { error: eventError } = await supabase
-        .from('subdomain_publish_events')
-        .insert({
-          subdomain_id: subdomainId,
-          page_id: pageId,
-          event_type: 'page_published',
-          metadata: { page_title: pageTitle },
-        });
+      if (result.success) {
+        await loadAllPages();
+        await loadBuilderData();
+        setShowPublishModal(false);
+        alert(result.message);
 
-      if (eventError) console.error('Error logging publish event:', eventError);
-
-      alert('Page published successfully! All device views are now live.');
-      navigate(`/make-your-own-site?subdomain=${subdomainId}`);
+        if (publishModalVariant === 'publishAll' || publishModalVariant === 'unpublishAll') {
+          navigate(`/make-your-own-site?subdomain=${subdomainId}`);
+        }
+      } else {
+        alert(result.message || 'Operation failed. Please try again.');
+      }
     } catch (err) {
-      console.error('Error publishing:', err);
-      alert('Failed to publish. Please try again.');
+      console.error('Error during publish operation:', err);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -794,7 +937,38 @@ function WebsiteBuilderV2() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-xl font-bold text-gray-900">{pageTitle || 'Untitled Page'}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-gray-900">{pageTitle || 'Untitled Page'}</h1>
+            {currentPageData?.is_homepage && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                Homepage
+              </span>
+            )}
+            {currentPageData?.is_published ? (
+              <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-1">
+                <Globe className="w-3 h-3" />
+                Live
+              </span>
+            ) : (
+              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded flex items-center gap-1">
+                <GlobeLock className="w-3 h-3" />
+                Draft
+              </span>
+            )}
+            {currentPageData?.has_unpublished_changes && (
+              <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                Changes Pending
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowPageManager(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Manage Pages"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="hidden md:inline">Pages ({allPages.length})</span>
+          </button>
           <div className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-md">
             {currentDevice.charAt(0).toUpperCase() + currentDevice.slice(1)}
           </div>
@@ -912,15 +1086,65 @@ function WebsiteBuilderV2() {
               <Save className="w-4 h-4" />
               <span>{saving ? 'Saving...' : 'Save All'}</span>
             </button>
-            <button
-              onClick={handlePublish}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <span>Publish</span>
-            </button>
+
+            {currentPageData?.is_published && currentPageData?.has_unpublished_changes && (
+              <button
+                onClick={handlePublishEditClick}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <span>Publish Edits</span>
+              </button>
+            )}
+
+            {currentPageData?.is_homepage && !currentPageData?.is_published && (
+              <button
+                onClick={handlePublishClick}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Globe className="w-4 h-4" />
+                <span>Publish All Pages</span>
+              </button>
+            )}
+
+            {currentPageData?.is_homepage && currentPageData?.is_published && (
+              <button
+                onClick={handlePublishClick}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <GlobeLock className="w-4 h-4" />
+                <span>Unpublish All</span>
+              </button>
+            )}
+
+            {!currentPageData?.is_homepage && !currentPageData?.is_published && (
+              <button
+                onClick={handlePublishClick}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Globe className="w-4 h-4" />
+                <span>Publish Page</span>
+              </button>
+            )}
+
+            {!currentPageData?.is_homepage && currentPageData?.is_published && (
+              <button
+                onClick={handlePublishClick}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <GlobeLock className="w-4 h-4" />
+                <span>Unpublish Page</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {currentPageData?.is_published && currentPageData?.has_unpublished_changes && (
+        <LivePageBanner
+          pageTitle={pageTitle}
+          onPublishEdit={handlePublishEditClick}
+        />
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         <BuilderCanvas
@@ -1025,6 +1249,28 @@ function WebsiteBuilderV2() {
         onClose={() => setShowResetConfirmModal(false)}
         onConfirm={handleConfirmReset}
         deviceName={currentDevice}
+      />
+
+      {showPageManager && (
+        <PageManagerModal
+          pages={allPages}
+          currentPageId={pageId || ''}
+          subdomainId={subdomainId || ''}
+          onClose={() => setShowPageManager(false)}
+          onSwitchPage={handleSwitchPage}
+          onCreatePage={handleCreatePage}
+          onDeletePage={handleDeletePage}
+        />
+      )}
+
+      <PublishConfirmModal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        onConfirm={handleConfirmPublish}
+        variant={publishModalVariant}
+        pageTitle={pageTitle}
+        pageCount={allPages.length}
+        loading={publishing}
       />
     </div>
     </BuilderErrorBoundary>
