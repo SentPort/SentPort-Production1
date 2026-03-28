@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const callbackUrl = `${appUrl}/verification-callback`;
+    const callbackUrl = `${appUrl}/didit-webhook`;
 
     const diditResponse = await fetch("https://verification.didit.me/v3/session/", {
       method: "POST",
