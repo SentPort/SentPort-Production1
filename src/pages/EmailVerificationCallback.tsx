@@ -18,7 +18,12 @@ export default function EmailVerificationCallback() {
 
       if (!tokenHash || type !== 'email') {
         setStatus('error');
-        setErrorMessage('Invalid verification link');
+        const currentUrl = window.location.href;
+        if (currentUrl.includes('%20')) {
+          setErrorMessage('The verification link appears to be malformed. Please request a new verification email.');
+        } else {
+          setErrorMessage('Invalid verification link');
+        }
         return;
       }
 
