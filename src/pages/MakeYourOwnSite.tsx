@@ -118,6 +118,20 @@ export default function MakeYourOwnSite() {
     try {
       const subdomainLower = subdomain.toLowerCase();
 
+      // Check subdomain count before attempting to insert
+      const { data: existingSubdomains, error: countError } = await supabase
+        .from('subdomains')
+        .select('id')
+        .eq('owner_id', user.id)
+        .in('status', ['active', 'inactive']);
+
+      if (countError) throw countError;
+
+      if (existingSubdomains && existingSubdomains.length >= 3) {
+        setError('You have reached the maximum limit of 3 subdomains per account');
+        return;
+      }
+
       const { error: subdomainError } = await supabase
         .from('subdomains')
         .insert([
@@ -133,20 +147,16 @@ export default function MakeYourOwnSite() {
       if (subdomainError) {
         if (subdomainError.code === '23505') {
           setError('This subdomain is already taken');
+        } else if (subdomainError.message?.includes('maximum limit of 3 subdomains')) {
+          setError('You have reached the maximum limit of 3 subdomains per account');
         } else {
           throw subdomainError;
         }
         return;
       }
 
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ subdomain: subdomainLower })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
       await fetchUserProfile();
+      setSubdomain('');
       setShowDashboardNotification(true);
     } catch (err) {
       console.error('Error claiming subdomain:', err);
