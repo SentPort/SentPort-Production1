@@ -103,7 +103,8 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${diditApiKey}`,
+        "accept": "application/json",
+        "x-api-key": diditApiKey,
       },
       body: JSON.stringify({
         workflow_id: diditWorkflowId,
