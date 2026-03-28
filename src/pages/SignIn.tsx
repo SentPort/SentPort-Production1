@@ -21,6 +21,7 @@ export default function SignIn() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [autoSentEmail, setAutoSentEmail] = useState(false);
 
   useEffect(() => {
     if (shouldRedirect && user) {
@@ -40,6 +41,7 @@ export default function SignIn() {
     setLoading(true);
     setError('');
     setShowEmailUnverified(false);
+    setAutoSentEmail(false);
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -51,35 +53,46 @@ export default function SignIn() {
           error.message.toLowerCase().includes('email confirmation')) {
         setShowEmailUnverified(true);
         setUnverifiedEmail(email);
-        setResendCooldown(60);
+        setLoading(false);
+
+        await sendVerificationEmail(email);
       } else {
         setError(error.message);
+        setLoading(false);
       }
-      setLoading(false);
     } else {
       setShouldRedirect(true);
     }
   };
 
-  const handleResendEmail = async () => {
+  const sendVerificationEmail = async (emailAddress: string) => {
     setResendLoading(true);
     setResendSuccess(false);
+    setAutoSentEmail(false);
     setError('');
 
     const { error } = await supabase.auth.resend({
       type: 'signup',
-      email: unverifiedEmail,
+      email: emailAddress,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`
+      }
     });
 
     if (error) {
       setError(error.message);
     } else {
       setResendSuccess(true);
+      setAutoSentEmail(true);
       setResendCooldown(60);
       setTimeout(() => setResendSuccess(false), 5000);
     }
 
     setResendLoading(false);
+  };
+
+  const handleResendEmail = async () => {
+    await sendVerificationEmail(unverifiedEmail);
   };
 
   return (
@@ -124,7 +137,11 @@ export default function SignIn() {
                     Email Not Verified
                   </p>
                   <p className="text-sm text-orange-800 mb-3">
-                    Your email address has not been verified yet. Please check your inbox for the verification link we sent to <strong>{unverifiedEmail}</strong>
+                    {autoSentEmail ? (
+                      <>We just sent a new verification email to <strong>{unverifiedEmail}</strong>. Please check your inbox and click the link to verify your account.</>
+                    ) : (
+                      <>Your email address has not been verified yet. Please check your inbox for the verification link we sent to <strong>{unverifiedEmail}</strong></>
+                    )}
                   </p>
 
                   {resendSuccess && (
