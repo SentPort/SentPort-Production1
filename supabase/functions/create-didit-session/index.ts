@@ -92,18 +92,25 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (existingPending) {
-      const ageMinutes = (Date.now() - new Date(existingPending.created_at).getTime()) / 60000;
-      if (ageMinutes < 30) {
+      const ageHours = (Date.now() - new Date(existingPending.created_at).getTime()) / (60000 * 60);
+      if (ageHours < 72) {
         return new Response(
           JSON.stringify({
-            error: "You already have a pending verification session. Please complete or wait 30 minutes before creating a new one.",
-            session_id: existingPending.session_id
+            error: "You already have a verification under review. Manual reviews can take 24-48 hours. Please wait for your current verification to complete before starting a new one.",
+            session_id: existingPending.session_id,
+            age_hours: Math.floor(ageHours),
           }),
           {
             status: 409,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
+      } else {
+        console.log("Existing pending session older than 72 hours, marking as abandoned:", existingPending.session_id);
+        await supabase
+          .from("didit_verification_sessions")
+          .update({ status: "abandoned", completed_at: new Date().toISOString() })
+          .eq("id", existingPending.id);
       }
     }
 

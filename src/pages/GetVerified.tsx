@@ -111,24 +111,40 @@ export default function GetVerified() {
     if (!recentSession) return null;
 
     const ageMinutes = (Date.now() - new Date(recentSession.created_at).getTime()) / 60000;
+    const ageHours = ageMinutes / 60;
 
     switch (recentSession.status) {
       case 'pending':
-        return {
-          color: 'yellow',
-          text: ageMinutes < 60
-            ? 'You have a verification in progress. Click below to continue or start a new one.'
-            : 'Your previous verification session expired. Start a new verification.',
-        };
+        if (ageHours < 24) {
+          return {
+            color: 'blue',
+            text: 'Your verification is under review. This typically takes 24-48 hours. We will notify you when complete.',
+            disableNewSession: true,
+          };
+        } else if (ageHours < 72) {
+          return {
+            color: 'yellow',
+            text: 'Your verification is still under review. This is taking longer than usual. We appreciate your patience.',
+            disableNewSession: true,
+          };
+        } else {
+          return {
+            color: 'gray',
+            text: 'Your previous verification session has expired after 72 hours. Please start a new verification.',
+            disableNewSession: false,
+          };
+        }
       case 'declined':
         return {
           color: 'red',
-          text: 'Your previous verification was not approved. You can try again.',
+          text: 'Your previous verification was not approved. Please ensure you provide valid government-issued ID and try again.',
+          disableNewSession: false,
         };
       case 'abandoned':
         return {
           color: 'gray',
-          text: 'Your previous verification was not completed. You can try again.',
+          text: 'Your previous verification was not completed. You can start a new verification anytime.',
+          disableNewSession: false,
         };
       default:
         return null;
@@ -156,11 +172,13 @@ export default function GetVerified() {
 
           {statusInfo && (
             <div className={`mb-6 p-4 rounded-lg ${
+              statusInfo.color === 'blue' ? 'bg-blue-50 border border-blue-200' :
               statusInfo.color === 'yellow' ? 'bg-yellow-50 border border-yellow-200' :
               statusInfo.color === 'red' ? 'bg-red-50 border border-red-200' :
               'bg-gray-50 border border-gray-200'
             }`}>
               <p className={`text-sm ${
+                statusInfo.color === 'blue' ? 'text-blue-800' :
                 statusInfo.color === 'yellow' ? 'text-yellow-800' :
                 statusInfo.color === 'red' ? 'text-red-800' :
                 'text-gray-800'
@@ -188,7 +206,7 @@ export default function GetVerified() {
           ) : (
             <button
               onClick={handleStartVerification}
-              disabled={loading}
+              disabled={loading || (statusInfo?.disableNewSession ?? false)}
               className="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {loading ? (
@@ -196,6 +214,8 @@ export default function GetVerified() {
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Starting Verification...
                 </>
+              ) : statusInfo?.disableNewSession ? (
+                'Verification Under Review'
               ) : (
                 'Start Free Verification Process'
               )}

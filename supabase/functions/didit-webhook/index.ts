@@ -145,10 +145,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const normalizedStatus = payload.status.toLowerCase();
-    const finalStatus = ["approved", "declined", "abandoned"].includes(normalizedStatus)
-      ? normalizedStatus
-      : "pending";
+    const normalizedStatus = payload.status.toLowerCase().replace(/\s+/g, '_');
+
+    let finalStatus: string;
+    if (normalizedStatus === "approved" || normalizedStatus === "verified") {
+      finalStatus = "approved";
+    } else if (normalizedStatus === "declined" || normalizedStatus === "rejected") {
+      finalStatus = "declined";
+    } else if (normalizedStatus === "abandoned" || normalizedStatus === "cancelled") {
+      finalStatus = "abandoned";
+    } else if (normalizedStatus === "in_review" || normalizedStatus === "pending" || normalizedStatus.includes("review")) {
+      finalStatus = "pending";
+    } else {
+      console.log("Unknown status received:", payload.status, "- defaulting to pending");
+      finalStatus = "pending";
+    }
 
     const updateData: Record<string, unknown> = {
       status: finalStatus,

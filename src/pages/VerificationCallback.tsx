@@ -16,6 +16,22 @@ export default function VerificationCallback() {
   const maxPolls = 15;
 
   useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const sessionIdParam = searchParams.get('verificationSessionId');
+
+    if (statusParam) {
+      console.log('Didit redirect with status:', statusParam, 'sessionId:', sessionIdParam);
+
+      const normalizedStatus = statusParam.toLowerCase().replace(/\+/g, ' ');
+
+      if (normalizedStatus === 'in review' || normalizedStatus.includes('review')) {
+        setStatus('pending');
+        setMessage('Your verification has been submitted for manual review. This typically takes 24-48 hours. We will notify you when the review is complete.');
+        setTimeout(() => navigate('/dashboard'), 5000);
+        return;
+      }
+    }
+
     checkVerificationStatus();
   }, []);
 
