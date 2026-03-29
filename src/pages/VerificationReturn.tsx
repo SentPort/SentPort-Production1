@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Clock, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -15,19 +15,40 @@ interface VerificationSession {
 export default function VerificationReturn() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const sessionIdFromUrl = searchParams.get('session_id');
   const [countdown, setCountdown] = useState(5);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       checkVerificationStatus();
+      const pollInterval = setInterval(() => {
+        setPollCount((prev) => {
+          if (prev >= 20) {
+            clearInterval(pollInterval);
+            return prev;
+          }
+          checkVerificationStatus();
+          return prev + 1;
+        });
+      }, 2000);
+
+      return () => clearInterval(pollInterval);
     } else {
       setError('not_signed_in');
       setLoading(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!loading && status && ['approved', 'declined', 'abandoned'].includes(status)) {
+      setPollCount(999);
+    }
+  }, [status, loading]);
 
   useEffect(() => {
     if (!loading) {
