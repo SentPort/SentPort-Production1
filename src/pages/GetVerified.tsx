@@ -57,42 +57,22 @@ export default function GetVerified() {
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        setError('Unable to get authentication token. Please sign in again.');
-        setLoading(false);
-        return;
-      }
-
       console.log('Starting verification for user:', authUser.id);
 
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-didit-session`;
-      console.log('Calling Edge Function:', apiUrl);
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ initiated_by: 'user' }),
+      const { data, error } = await supabase.functions.invoke('create-didit-session', {
+        body: { initiated_by: 'user' }
       });
 
-      console.log('Edge Function response status:', response.status);
+      console.log('Edge Function response:', { data, error });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Edge Function error:', errorData);
-        throw new Error(errorData.error || 'Failed to create verification session');
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw new Error(error.message || 'Failed to create verification session');
       }
 
-      const responseData = await response.json();
-      console.log('Edge Function response:', responseData);
-
-      const verificationUrl = responseData.verification_url || responseData.url;
+      const verificationUrl = data?.verification_url || data?.url;
       if (!verificationUrl) {
-        console.error('No verification URL in response:', responseData);
+        console.error('No verification URL in response:', data);
         throw new Error('No verification URL received from server');
       }
 
