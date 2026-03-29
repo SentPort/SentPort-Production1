@@ -10,7 +10,7 @@ const corsHeaders = {
 interface DiditSessionResponse {
   session_id: string;
   session_token: string;
-  verification_url: string;
+  url: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         session_id: diditData.session_id,
-        verification_url: diditData.verification_url,
+        verification_url: diditData.url,
       }),
       {
         status: 200,
