@@ -45,12 +45,19 @@ export default function VerificationReturn() {
   }, [user]);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && status) {
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            navigate('/get-verified');
+
+            if (status === 'approved') {
+              navigate('/dashboard');
+            } else if (status === 'declined' || status === 'abandoned') {
+              navigate('/get-verified');
+            } else {
+              navigate('/dashboard');
+            }
             return 0;
           }
           return prev - 1;
@@ -59,7 +66,7 @@ export default function VerificationReturn() {
 
       return () => clearInterval(timer);
     }
-  }, [loading, navigate]);
+  }, [loading, status, navigate]);
 
   const checkVerificationStatus = async () => {
     if (!user) return;
@@ -142,15 +149,26 @@ export default function VerificationReturn() {
     if (status === 'approved') {
       return (
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-6 animate-bounce">
             <CheckCircle className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Verification Complete!
+            Verification Approved!
           </h1>
-          <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-            Your identity has been successfully verified. You'll receive a confirmation shortly once our system processes your verification.
+          <p className="text-lg text-gray-600 mb-4 max-w-2xl mx-auto">
+            Congratulations! Your identity has been successfully verified.
           </p>
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 max-w-2xl mx-auto mb-6">
+            <p className="text-gray-700">
+              You now have full access to all platform features including HuBook, Heddit, HuTube, Hinsta, Switter, and HuBlog. Your verified badge will appear on your profile shortly.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Go to Dashboard
+          </button>
         </div>
       );
     }
@@ -247,17 +265,31 @@ export default function VerificationReturn() {
       <div className="max-w-4xl w-full">
         {renderContent()}
 
-        {!loading && (
+        {!loading && status && status !== 'approved' && (
           <div className="text-center mt-8">
             <p className="text-gray-500 mb-4">
-              Redirecting to verification page in {countdown} second{countdown !== 1 ? 's' : ''}...
+              Redirecting in {countdown} second{countdown !== 1 ? 's' : ''}...
             </p>
             <button
-              onClick={() => navigate('/get-verified')}
+              onClick={() => {
+                if (status === 'declined' || status === 'abandoned') {
+                  navigate('/get-verified');
+                } else {
+                  navigate('/dashboard');
+                }
+              }}
               className="text-blue-600 hover:text-blue-700 font-medium underline"
             >
-              Return now
+              Skip wait
             </button>
+          </div>
+        )}
+
+        {!loading && status === 'approved' && (
+          <div className="text-center mt-8">
+            <p className="text-gray-500 mb-2">
+              Redirecting to dashboard in {countdown} second{countdown !== 1 ? 's' : ''}...
+            </p>
           </div>
         )}
       </div>
