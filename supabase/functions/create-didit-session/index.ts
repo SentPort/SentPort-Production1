@@ -39,14 +39,19 @@ Deno.serve(async (req: Request) => {
 
     const token = authHeader.replace("Bearer ", "");
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userError } = await anonClient.auth.getUser();
 
     if (userError || !user) {
       console.error("Authentication error:", userError);
@@ -67,6 +72,13 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     const { initiated_by } = await req.json().catch(() => ({ initiated_by: "user" }));
 
