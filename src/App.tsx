@@ -63,6 +63,7 @@ import Preview from './pages/builder/Preview';
 import PublicSite from './pages/PublicSite';
 import GetVerified from './pages/GetVerified';
 import VerificationCallback from './pages/VerificationCallback';
+import VerificationReturn from './pages/VerificationReturn';
 import JuryCaseReview from './pages/jury/JuryCaseReview';
 import TermsOfService from './pages/TermsOfService';
 
@@ -81,6 +82,7 @@ function App() {
               <Route path="/email-not-verified" element={<EmailNotVerified />} />
               <Route path="/get-verified" element={<GetVerified />} />
               <Route path="/verification-callback" element={<VerificationCallback />} />
+              <Route path="/verification-return" element={<VerificationReturn />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/make-your-own-site" element={<MakeYourOwnSite />} />
 

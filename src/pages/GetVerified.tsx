@@ -118,13 +118,13 @@ export default function GetVerified() {
         if (ageHours < 24) {
           return {
             color: 'blue',
-            text: 'Your verification is under review. This typically takes 24-48 hours. We will notify you when complete.',
+            text: 'Your verification is currently under review by Didit\'s verification team. Manual reviews typically take 24-48 hours. You\'ll be notified automatically when complete. No action needed from you.',
             disableNewSession: true,
           };
         } else if (ageHours < 72) {
           return {
             color: 'yellow',
-            text: 'Your verification is still under review. This is taking longer than usual. We appreciate your patience.',
+            text: 'Your verification is still under review by Didit\'s team. This is taking longer than usual, but rest assured it\'s being processed. We appreciate your patience.',
             disableNewSession: true,
           };
         } else {
@@ -137,7 +137,7 @@ export default function GetVerified() {
       case 'declined':
         return {
           color: 'red',
-          text: 'Your previous verification was not approved. Please ensure you provide valid government-issued ID and try again.',
+          text: 'Your previous verification was not approved by Didit\'s review team. Please ensure you provide valid government-issued ID and try again.',
           disableNewSession: false,
         };
       case 'abandoned':
