@@ -76,6 +76,7 @@ export default function VerificationCallback() {
         const response = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
         });
 

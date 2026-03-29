@@ -1308,6 +1308,7 @@ export default function WebCrawlerDashboard() {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-crawler-queue`;
       const headers = {
         'Authorization': `Bearer ${session.access_token}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
       };
 
