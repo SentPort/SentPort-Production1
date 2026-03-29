@@ -48,19 +48,22 @@ export default function GetVerified() {
     setError(null);
 
     try {
-      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-      if (userError || !authUser) {
-        console.error('Auth error:', userError);
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError);
         setError('Your session has expired. Please sign in again.');
         setLoading(false);
         return;
       }
 
-      console.log('Starting verification for user:', authUser.id);
+      console.log('Starting verification for user:', session.user.id);
 
       const { data, error } = await supabase.functions.invoke('create-didit-session', {
-        body: { initiated_by: 'user' }
+        body: { initiated_by: 'user' },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       console.log('Edge Function response:', { data, error });
