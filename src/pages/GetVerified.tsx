@@ -78,9 +78,6 @@ export default function GetVerified() {
 
       const { data, error } = await supabase.functions.invoke('create-didit-session', {
         body: { initiated_by: 'user' },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
       });
 
       console.log('Edge Function response:', { data, error });
