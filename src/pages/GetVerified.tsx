@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -12,9 +13,11 @@ interface VerificationSession {
 }
 
 export default function GetVerified() {
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, signOut } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState(false);
   const [recentSession, setRecentSession] = useState<VerificationSession | null>(null);
 
   useEffect(() => {
@@ -46,18 +49,32 @@ export default function GetVerified() {
   const handleStartVerification = async () => {
     setLoading(true);
     setError(null);
+    setSessionError(false);
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log('Attempting to refresh session before verification...');
 
-      if (sessionError || !session) {
-        console.error('Session error:', sessionError);
-        setError('Your session has expired. Please sign in again.');
+      const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+      if (refreshError) {
+        console.error('Session refresh error:', refreshError);
+        setError('Your session has expired. Please sign in again to continue.');
+        setSessionError(true);
         setLoading(false);
         return;
       }
 
-      console.log('Starting verification for user:', session.user.id);
+      const session = refreshData.session;
+
+      if (!session) {
+        console.error('No session after refresh');
+        setError('Unable to establish a valid session. Please sign out and sign in again.');
+        setSessionError(true);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Session refreshed successfully. Starting verification for user:', session.user.id);
 
       const { data, error } = await supabase.functions.invoke('create-didit-session', {
         body: { initiated_by: 'user' },
@@ -86,6 +103,11 @@ export default function GetVerified() {
       setError(err instanceof Error ? err.message : 'Failed to start verification. Please try again.');
       setLoading(false);
     }
+  };
+
+  const handleSignInAgain = async () => {
+    await signOut();
+    navigate('/signin');
   };
 
   const getSessionStatusInfo = () => {
@@ -158,20 +180,30 @@ export default function GetVerified() {
             </div>
           )}
 
-          <button
-            onClick={handleStartVerification}
-            disabled={loading}
-            className="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Starting Verification...
-              </>
-            ) : (
-              'Start Free Verification Process'
-            )}
-          </button>
+          {sessionError ? (
+            <button
+              onClick={handleSignInAgain}
+              className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+            >
+              <LogIn className="w-5 h-5 mr-2" />
+              Sign In Again
+            </button>
+          ) : (
+            <button
+              onClick={handleStartVerification}
+              disabled={loading}
+              className="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Starting Verification...
+                </>
+              ) : (
+                'Start Free Verification Process'
+              )}
+            </button>
+          )}
 
           {userProfile?.last_verification_at && (
             <p className="mt-4 text-sm text-gray-500">
