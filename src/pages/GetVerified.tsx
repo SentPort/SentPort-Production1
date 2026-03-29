@@ -48,14 +48,27 @@ export default function GetVerified() {
     setError(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('Please sign in to start verification');
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !authUser) {
+        console.error('Auth error:', userError);
+        setError('Your session has expired. Please sign in again.');
         setLoading(false);
         return;
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setError('Unable to get authentication token. Please sign in again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Starting verification for user:', authUser.id);
+
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-didit-session`;
+      console.log('Calling Edge Function:', apiUrl);
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -66,13 +79,25 @@ export default function GetVerified() {
         body: JSON.stringify({ initiated_by: 'user' }),
       });
 
+      console.log('Edge Function response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Edge Function error:', errorData);
         throw new Error(errorData.error || 'Failed to create verification session');
       }
 
-      const { verification_url } = await response.json();
-      window.location.href = verification_url;
+      const responseData = await response.json();
+      console.log('Edge Function response:', responseData);
+
+      const verificationUrl = responseData.verification_url || responseData.url;
+      if (!verificationUrl) {
+        console.error('No verification URL in response:', responseData);
+        throw new Error('No verification URL received from server');
+      }
+
+      console.log('Redirecting to:', verificationUrl);
+      window.location.href = verificationUrl;
     } catch (err) {
       console.error('Error starting verification:', err);
       setError(err instanceof Error ? err.message : 'Failed to start verification. Please try again.');

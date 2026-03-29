@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     const diditApiKey = Deno.env.get("DIDIT_API_KEY");
     const diditWorkflowId = Deno.env.get("DIDIT_WORKFLOW_ID");
-    const appUrl = Deno.env.get("APP_URL") || supabaseUrl.replace("supabase.co", "vercel.app");
+    const appUrl = Deno.env.get("APP_URL") || "https://sentport.com";
 
     if (!diditApiKey || !diditWorkflowId) {
       console.error("Missing Didit configuration");
@@ -108,7 +108,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const callbackUrl = `${appUrl}/didit-webhook`;
+    const callbackUrl = `${appUrl}/verification-callback`;
+
+    console.log("Creating Didit session for user:", user.id);
+    console.log("Callback URL:", callbackUrl);
 
     const diditResponse = await fetch("https://verification.didit.me/v3/session/", {
       method: "POST",
@@ -126,9 +129,12 @@ Deno.serve(async (req: Request) => {
 
     if (!diditResponse.ok) {
       const errorText = await diditResponse.text();
-      console.error("Didit API error:", errorText);
+      console.error("Didit API error:", diditResponse.status, errorText);
       return new Response(
-        JSON.stringify({ error: "Failed to create verification session" }),
+        JSON.stringify({
+          error: "Failed to create verification session",
+          details: `Didit API returned status ${diditResponse.status}`
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -137,6 +143,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const diditData: DiditSessionResponse = await diditResponse.json();
+    console.log("Didit session created:", diditData.session_id);
 
     const { error: upsertError } = await supabase
       .from("didit_verification_sessions")
