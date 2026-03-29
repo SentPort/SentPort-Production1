@@ -129,7 +129,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const callbackUrl = `${supabaseUrl}/functions/v1/verification-callback`;
+    const callbackUrl = `${appUrl}/verification-return`;
 
     console.log("Creating Didit session for user:", user.id);
     console.log("Callback URL:", callbackUrl);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, Clock, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -15,14 +15,29 @@ interface VerificationSession {
 export default function VerificationReturn() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [countdown, setCountdown] = useState(5);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pollCount, setPollCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       checkVerificationStatus();
+
+      const pollInterval = setInterval(() => {
+        setPollCount(prev => {
+          if (prev >= 15) {
+            clearInterval(pollInterval);
+            return prev;
+          }
+          checkVerificationStatus();
+          return prev + 1;
+        });
+      }, 2000);
+
+      return () => clearInterval(pollInterval);
     } else {
       setError('not_signed_in');
       setLoading(false);
@@ -50,13 +65,20 @@ export default function VerificationReturn() {
     if (!user) return;
 
     try {
-      const { data, error: fetchError } = await supabase
+      const sessionIdFromUrl = searchParams.get('session_id');
+
+      let query = supabase
         .from('didit_verification_sessions')
         .select('id, session_id, status, created_at, webhook_received_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq('user_id', user.id);
+
+      if (sessionIdFromUrl) {
+        query = query.eq('session_id', sessionIdFromUrl);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+
+      const { data, error: fetchError } = await query.maybeSingle();
 
       if (fetchError) {
         console.error('Error fetching verification session:', fetchError);
@@ -71,6 +93,7 @@ export default function VerificationReturn() {
         return;
       }
 
+      console.log('Verification status:', data.status, 'Webhook received:', data.webhook_received_at);
       setStatus(data.status);
       setLoading(false);
     } catch (err) {
