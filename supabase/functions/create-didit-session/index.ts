@@ -39,21 +39,27 @@ Deno.serve(async (req: Request) => {
 
     const token = authHeader.replace("Bearer ", "");
 
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
     if (userError || !user) {
       console.error("Authentication error:", userError);
+      console.error("Token (first 20 chars):", token.substring(0, 20));
+      console.error("Full error details:", JSON.stringify(userError, null, 2));
       return new Response(
         JSON.stringify({
           error: "Invalid authentication token",
-          details: userError?.message || "User not found"
+          details: userError?.message || "User not found",
+          debug: {
+            errorName: userError?.name,
+            errorStatus: userError?.status,
+          }
         }),
         {
           status: 401,
@@ -61,13 +67,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
 
     const { initiated_by } = await req.json().catch(() => ({ initiated_by: "user" }));
 
