@@ -138,18 +138,23 @@ Deno.serve(async (req: Request) => {
 
     const diditData: DiditSessionResponse = await diditResponse.json();
 
-    const { error: insertError } = await supabase
+    const { error: upsertError } = await supabase
       .from("didit_verification_sessions")
-      .insert({
+      .upsert({
         user_id: user.id,
         session_id: diditData.session_id,
         workflow_id: diditWorkflowId,
         status: "pending",
         initiated_by: initiated_by || "user",
+        completed_at: null,
+        webhook_received_at: null,
+      }, {
+        onConflict: 'session_id',
+        ignoreDuplicates: false,
       });
 
-    if (insertError) {
-      console.error("Failed to save session:", insertError);
+    if (upsertError) {
+      console.error("Failed to save session:", upsertError);
       return new Response(
         JSON.stringify({ error: "Failed to save verification session" }),
         {
