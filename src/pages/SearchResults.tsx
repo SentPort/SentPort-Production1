@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { Globe, CheckCircle, FileText, Image, Video, Newspaper, Users, Sparkles, TrendingUp, Shield, Search } from 'lucide-react';
+import { Globe, CheckCircle, FileText, Image, Video, Newspaper, Users, Sparkles, TrendingUp, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePageTracking } from '../hooks/usePageTracking';
 import { trackSearch } from '../lib/analytics';
@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SearchWithHistory } from '../components/shared/SearchWithHistory';
 import { safeGetHostname } from '../lib/urlHelpers';
 import { useSearchPreferences } from '../hooks/useSearchPreferences';
+import { deduplicateSearchResults, getDomainStats } from '../lib/searchDeduplication';
 
 interface SearchResult {
   id: string;
@@ -34,6 +35,13 @@ interface SearchResult {
   calculatedScore?: number;
 }
 
+interface DedupedResult extends SearchResult {
+  duplicateCount: number;
+  domain: string;
+  canonicalUrl: string;
+  hiddenUrls?: string[];
+}
+
 export default function SearchResults() {
   usePageTracking('search');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,6 +50,8 @@ export default function SearchResults() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [showAllDuplicates, setShowAllDuplicates] = useState(false);
+  const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -162,6 +172,27 @@ export default function SearchResults() {
 
   const filteredResults = getFilteredResults();
 
+  // Apply deduplication for better UX
+  const dedupedResults = deduplicateSearchResults(filteredResults, {
+    maxPerDomain: 5,
+    showDuplicates: showAllDuplicates,
+  });
+
+  const domainStats = getDomainStats(dedupedResults);
+  const totalHiddenDuplicates = dedupedResults.reduce((sum, r) => sum + (r.duplicateCount - 1), 0);
+
+  const toggleDuplicateExpansion = (resultId: string) => {
+    setExpandedDuplicates(prev => {
+      const next = new Set(prev);
+      if (next.has(resultId)) {
+        next.delete(resultId);
+      } else {
+        next.add(resultId);
+      }
+      return next;
+    });
+  };
+
   const handleSearch = (searchQuery: string) => {
     if (searchQuery.trim()) {
       setSearchParams({ q: searchQuery });
@@ -261,10 +292,43 @@ export default function SearchResults() {
 
         {query && (
           <div className="mb-6">
-            <p className="text-sm text-gray-600">
-              Found <span className="font-semibold text-gray-900">{filteredResults.length}</span> human-verified results for{' '}
-              <span className="font-semibold text-gray-900">"{query}"</span>
-            </p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-600">
+                Found <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
+                <span className="font-semibold text-gray-900">"{query}"</span>
+                {totalHiddenDuplicates > 0 && !showAllDuplicates && (
+                  <span className="ml-2 text-xs text-gray-500">
+                    ({totalHiddenDuplicates} duplicate{totalHiddenDuplicates !== 1 ? 's' : ''} hidden)
+                  </span>
+                )}
+              </p>
+              {totalHiddenDuplicates > 0 && (
+                <button
+                  onClick={() => setShowAllDuplicates(!showAllDuplicates)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  {showAllDuplicates ? 'Hide Duplicates' : 'Show All Variations'}
+                </button>
+              )}
+            </div>
+            {domainStats.length > 1 && !showAllDuplicates && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {domainStats.slice(0, 5).map(stat => (
+                  <span
+                    key={stat.domain}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                  >
+                    <Globe className="w-3 h-3" />
+                    {stat.domain}: {stat.count} result{stat.count !== 1 ? 's' : ''}
+                    {stat.totalDuplicates > 0 && (
+                      <span className="text-gray-500">
+                        (+{stat.totalDuplicates} hidden)
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -274,7 +338,7 @@ export default function SearchResults() {
           </div>
         ) : (
           <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3' : 'space-y-6'}>
-            {filteredResults.map((result) => {
+            {dedupedResults.map((result) => {
               const getBadgeConfig = () => {
                 if (result.is_internal) {
                   return {
@@ -448,49 +512,90 @@ export default function SearchResults() {
 
               // Default web page result card
               return (
-                <div key={result.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-start gap-3 mb-2">
-                    <BadgeIcon className={`w-5 h-5 ${badgeConfig.iconColor} flex-shrink-0 mt-1`} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
-                          <BadgeIcon className="w-3 h-3" />
-                          {badgeConfig.label}
-                        </span>
-                        <span className="text-sm text-gray-600">
-                          {safeGetHostname(result.url, 'Unknown domain')}
-                        </span>
-                      </div>
-                    <a
-                      href={result.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xl font-medium text-blue-600 hover:underline"
-                    >
-                      {result.title || 'Untitled Page'}
-                    </a>
-                    <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                      {result.description || result.content_snippet}
-                    </p>
-                    <div className="flex items-center gap-4 mt-3">
+                <div key={result.id}>
+                  <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-start gap-3 mb-2">
+                      <BadgeIcon className={`w-5 h-5 ${badgeConfig.iconColor} flex-shrink-0 mt-1`} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
+                            <BadgeIcon className="w-3 h-3" />
+                            {badgeConfig.label}
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            {result.domain || safeGetHostname(result.url, 'Unknown domain')}
+                          </span>
+                          {result.duplicateCount > 1 && !showAllDuplicates && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                              +{result.duplicateCount - 1} variation{result.duplicateCount - 1 !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
                       <a
                         href={result.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline truncate"
+                        className="text-xl font-medium text-blue-600 hover:underline"
                       >
-                        {result.url}
+                        {result.title || 'Untitled Page'}
                       </a>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        {new Date(result.last_indexed_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </span>
+                      <p className="text-sm text-gray-700 mt-2 line-clamp-2">
+                        {result.description || result.content_snippet}
+                      </p>
+                      <div className="flex items-center gap-4 mt-3">
+                        <a
+                          href={result.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline truncate"
+                        >
+                          {result.url}
+                        </a>
+                        <span className="text-xs text-gray-500 flex-shrink-0">
+                          {new Date(result.last_indexed_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                        </div>
+                        {result.duplicateCount > 1 && result.hiddenUrls && !showAllDuplicates && (
+                          <button
+                            onClick={() => toggleDuplicateExpansion(result.id)}
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-3"
+                          >
+                            {expandedDuplicates.has(result.id) ? (
+                              <>
+                                <ChevronUp className="w-3 h-3" />
+                                Hide {result.duplicateCount - 1} duplicate{result.duplicateCount - 1 !== 1 ? 's' : ''}
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-3 h-3" />
+                                Show {result.duplicateCount - 1} more URL{result.duplicateCount - 1 !== 1 ? 's' : ''}
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
+                  {expandedDuplicates.has(result.id) && result.hiddenUrls && (
+                    <div className="mt-2 ml-12 space-y-1">
+                      {result.hiddenUrls.map((hiddenUrl, idx) => (
+                        <div key={idx} className="bg-gray-50 rounded p-3 border border-gray-200">
+                          <a
+                            href={hiddenUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:underline break-all"
+                          >
+                            {hiddenUrl}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
