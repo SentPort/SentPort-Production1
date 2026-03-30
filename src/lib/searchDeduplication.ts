@@ -42,10 +42,31 @@ export function extractDomain(url: string): string {
 
 export function generateCanonicalUrl(url: string): string {
   try {
+    const urlObj = new URL(url);
     let canonical = url;
+
+    // Remove anchor fragments
     canonical = canonical.replace(/#.*$/, '');
-    canonical = canonical.replace(/[?&](utm_[^&]+|redirect=[^&]+|oldid=[^&]+)/g, '');
+
+    // For Wikipedia redirect URLs, they all point to the same page
+    // Extract the actual canonical form by removing the redirect wrapper
+    if (urlObj.hostname.includes('wikipedia.org') && urlObj.pathname.includes('/w/index.php')) {
+      const titleParam = urlObj.searchParams.get('title');
+      const redirectParam = urlObj.searchParams.get('redirect');
+
+      // If it's a redirect URL, use just the domain + title parameter as canonical
+      if (titleParam && redirectParam === 'no') {
+        // All redirects to the same page should share the same canonical form
+        // We'll normalize by removing the title parameter entirely and using the path
+        canonical = `${urlObj.protocol}//${urlObj.hostname}/w/index.php`;
+      }
+    }
+
+    // Remove tracking and version parameters
+    canonical = canonical.replace(/[?&](utm_[^&]+|redirect=[^&]+|oldid=[^&]+|title=[^&]+)/g, '');
     canonical = canonical.replace(/[?&]$/, '');
+    canonical = canonical.replace(/\?$/, '');
+
     return canonical;
   } catch {
     return url;
