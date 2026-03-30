@@ -213,9 +213,39 @@ Deno.serve(async (req: Request) => {
         console.error("Failed to update user profile:", profileError);
       } else {
         console.log("User verified successfully:", session.user_id);
+
+        try {
+          const { error: emailError } = await supabase.functions.invoke("send-verification-email", {
+            body: { user_id: session.user_id, status: "approved" },
+          });
+
+          if (emailError) {
+            console.error("Failed to send approval email:", emailError);
+          } else {
+            console.log("Approval email sent successfully to user:", session.user_id);
+          }
+        } catch (emailErr) {
+          console.error("Exception sending approval email:", emailErr);
+        }
       }
-    } else if (finalStatus === "declined" || finalStatus === "abandoned") {
-      console.log("Verification not approved:", { status: finalStatus, user_id: session.user_id });
+    } else if (finalStatus === "declined") {
+      console.log("Verification declined:", { status: finalStatus, user_id: session.user_id });
+
+      try {
+        const { error: emailError } = await supabase.functions.invoke("send-verification-email", {
+          body: { user_id: session.user_id, status: "declined" },
+        });
+
+        if (emailError) {
+          console.error("Failed to send declined email:", emailError);
+        } else {
+          console.log("Declined email sent successfully to user:", session.user_id);
+        }
+      } catch (emailErr) {
+        console.error("Exception sending declined email:", emailErr);
+      }
+    } else if (finalStatus === "abandoned") {
+      console.log("Verification abandoned:", { status: finalStatus, user_id: session.user_id });
     }
 
     return new Response(

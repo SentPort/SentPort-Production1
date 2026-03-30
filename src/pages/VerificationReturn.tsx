@@ -53,10 +53,10 @@ export default function VerificationReturn() {
 
             if (status === 'approved') {
               navigate('/dashboard');
-            } else if (status === 'declined' || status === 'abandoned') {
+            } else if (status === 'declined' || status === 'abandoned' || status === 'in_review' || status === 'pending') {
               navigate('/get-verified');
             } else {
-              navigate('/dashboard');
+              navigate('/get-verified');
             }
             return 0;
           }
@@ -271,13 +271,7 @@ export default function VerificationReturn() {
               Redirecting in {countdown} second{countdown !== 1 ? 's' : ''}...
             </p>
             <button
-              onClick={() => {
-                if (status === 'declined' || status === 'abandoned') {
-                  navigate('/get-verified');
-                } else {
-                  navigate('/dashboard');
-                }
-              }}
+              onClick={() => navigate('/get-verified')}
               className="text-blue-600 hover:text-blue-700 font-medium underline"
             >
               Skip wait

@@ -12,6 +12,13 @@ interface VerificationSession {
   created_at: string;
 }
 
+interface StatusInfo {
+  color: string;
+  text: string;
+  disableNewSession: boolean;
+  redirect?: string;
+}
+
 export default function GetVerified() {
   const { user, userProfile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -114,17 +121,25 @@ export default function GetVerified() {
     const ageHours = ageMinutes / 60;
 
     switch (recentSession.status) {
+      case 'approved':
+        return {
+          color: 'green',
+          text: 'Your verification has been approved! You now have full access to all platform features. Redirecting to dashboard...',
+          disableNewSession: true,
+          redirect: '/dashboard',
+        };
       case 'pending':
+      case 'in_review':
         if (ageHours < 24) {
           return {
             color: 'blue',
-            text: 'Your verification is currently under review by Didit\'s verification team. Manual reviews typically take 24-48 hours. You\'ll be notified automatically when complete. No action needed from you.',
+            text: 'Your verification is currently under review by Didit\'s verification team. Manual reviews typically take 24-48 hours. You\'ll receive an email notification once the review is complete. No action needed from you.',
             disableNewSession: true,
           };
         } else if (ageHours < 72) {
           return {
             color: 'yellow',
-            text: 'Your verification is still under review by Didit\'s team. This is taking longer than usual, but rest assured it\'s being processed. We appreciate your patience.',
+            text: 'Your verification is still under review by Didit\'s team. This is taking longer than usual, but rest assured it\'s being processed. You\'ll receive an email notification once complete. We appreciate your patience.',
             disableNewSession: true,
           };
         } else {
@@ -137,7 +152,7 @@ export default function GetVerified() {
       case 'declined':
         return {
           color: 'red',
-          text: 'Your previous verification was not approved by Didit\'s review team. Please ensure you provide valid government-issued ID and try again.',
+          text: 'Your previous verification was not approved by Didit\'s review team. Please ensure you provide valid government-issued ID and try again. You should have received an email with more details.',
           disableNewSession: false,
         };
       case 'abandoned':
@@ -153,6 +168,15 @@ export default function GetVerified() {
 
   const statusInfo = getSessionStatusInfo();
 
+  useEffect(() => {
+    if (statusInfo?.redirect) {
+      const timer = setTimeout(() => {
+        navigate(statusInfo.redirect!);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [statusInfo, navigate]);
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
@@ -163,7 +187,7 @@ export default function GetVerified() {
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            Verification Required
+            {statusInfo?.color === 'green' ? 'Verification Approved!' : 'Verification Required'}
           </h1>
 
           <p className="text-gray-600 mb-8 leading-relaxed">
@@ -172,12 +196,14 @@ export default function GetVerified() {
 
           {statusInfo && (
             <div className={`mb-6 p-4 rounded-lg ${
+              statusInfo.color === 'green' ? 'bg-green-50 border border-green-200' :
               statusInfo.color === 'blue' ? 'bg-blue-50 border border-blue-200' :
               statusInfo.color === 'yellow' ? 'bg-yellow-50 border border-yellow-200' :
               statusInfo.color === 'red' ? 'bg-red-50 border border-red-200' :
               'bg-gray-50 border border-gray-200'
             }`}>
               <p className={`text-sm ${
+                statusInfo.color === 'green' ? 'text-green-800' :
                 statusInfo.color === 'blue' ? 'text-blue-800' :
                 statusInfo.color === 'yellow' ? 'text-yellow-800' :
                 statusInfo.color === 'red' ? 'text-red-800' :

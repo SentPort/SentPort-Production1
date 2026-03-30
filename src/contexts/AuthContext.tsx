@@ -52,6 +52,8 @@ interface AuthContextType {
   adminModeEnabled: boolean;
   toggleAdminMode: () => void;
   isAuthTransitioning: boolean;
+  verificationStatusChanged: { status: 'approved' | 'declined' } | null;
+  clearVerificationNotification: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -79,6 +81,8 @@ const AuthContext = createContext<AuthContextType>({
   adminModeEnabled: true,
   toggleAdminMode: () => {},
   isAuthTransitioning: false,
+  verificationStatusChanged: null,
+  clearVerificationNotification: () => {},
 });
 
 export const useAuth = () => {
@@ -107,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
   const [isPlatformAccountsLoading, setIsPlatformAccountsLoading] = useState(false);
+  const [verificationStatusChanged, setVerificationStatusChanged] = useState<{ status: 'approved' | 'declined' } | null>(null);
 
   const stableAdminRef = useRef<boolean>(false);
   const transitionTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -116,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authSubscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
   const isAuthInitializedRef = useRef(false);
   const hasCompletedInitialLoadRef = useRef(false);
+  const verificationSubscriptionRef = useRef<any>(null);
 
   const fetchUserProfile = async (userId: string, retainOnError = false) => {
     console.log('[AuthContext] fetchUserProfile called with userId:', userId, 'retainOnError:', retainOnError);
@@ -524,10 +530,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authSubscriptionRef.current.unsubscribe();
         authSubscriptionRef.current = null;
       }
+      if (verificationSubscriptionRef.current) {
+        verificationSubscriptionRef.current.unsubscribe();
+        verificationSubscriptionRef.current = null;
+      }
       // Don't reset isAuthInitializedRef - keep it initialized for the app lifetime
       // This prevents re-initialization on component remounts
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      if (verificationSubscriptionRef.current) {
+        verificationSubscriptionRef.current.unsubscribe();
+        verificationSubscriptionRef.current = null;
+      }
+      return;
+    }
+
+    if (verificationSubscriptionRef.current) {
+      console.log('[AuthContext] Verification subscription already exists, skipping');
+      return;
+    }
+
+    console.log('[AuthContext] Setting up verification status subscription for user:', user.id);
+
+    const subscription = supabase
+      .channel(`verification-status-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'didit_verification_sessions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          console.log('[AuthContext] Verification status changed:', payload);
+          const newStatus = payload.new?.status;
+          const oldStatus = payload.old?.status;
+
+          if (newStatus !== oldStatus && (newStatus === 'approved' || newStatus === 'declined')) {
+            console.log('[AuthContext] Verification status changed to:', newStatus);
+            setVerificationStatusChanged({ status: newStatus });
+
+            if (newStatus === 'approved') {
+              refreshProfile();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    verificationSubscriptionRef.current = subscription;
+
+    return () => {
+      if (verificationSubscriptionRef.current) {
+        verificationSubscriptionRef.current.unsubscribe();
+        verificationSubscriptionRef.current = null;
+      }
+    };
+  }, [user]);
 
 
   const isAdmin = Boolean((userProfile?.is_admin || stableAdminRef.current) && adminModeEnabled);
@@ -561,6 +624,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [isVerified, userProfile?.is_verified, userProfile?.is_admin, adminModeEnabled, user?.id]);
 
+  const clearVerificationNotification = () => {
+    setVerificationStatusChanged(null);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -579,7 +646,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isRefreshingSession,
       adminModeEnabled,
       toggleAdminMode,
-      isAuthTransitioning
+      isAuthTransitioning,
+      verificationStatusChanged,
+      clearVerificationNotification
     }}>
       {children}
     </AuthContext.Provider>

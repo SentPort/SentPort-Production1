@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { HuBookProvider } from './contexts/HuBookContext';
 import Header from './components/Header';
 import TestingModeBanner from './components/shared/TestingModeBanner';
 import ErrorBoundary from './components/shared/ErrorBoundary';
+import VerificationStatusModal from './components/shared/VerificationStatusModal';
 import Home from './pages/Home';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
@@ -67,14 +68,14 @@ import VerificationReturn from './pages/VerificationReturn';
 import JuryCaseReview from './pages/jury/JuryCaseReview';
 import TermsOfService from './pages/TermsOfService';
 
-function App() {
+function AppContent() {
+  const { verificationStatusChanged, clearVerificationNotification } = useAuth();
+
   return (
-    <AuthProvider>
-      <HuBookProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-white">
-            <TestingModeBanner />
-            <Routes>
+    <>
+      <div className="min-h-screen bg-white">
+        <TestingModeBanner />
+        <Routes>
               <Route path="/signin" element={<SignIn />} />
               <Route path="/signup" element={<SignUp />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -391,6 +392,23 @@ function App() {
               />
             </Routes>
           </div>
+
+          {verificationStatusChanged && (
+            <VerificationStatusModal
+              status={verificationStatusChanged.status}
+              onClose={clearVerificationNotification}
+            />
+          )}
+        </>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <HuBookProvider>
+        <BrowserRouter>
+          <AppContent />
         </BrowserRouter>
       </HuBookProvider>
     </AuthProvider>
