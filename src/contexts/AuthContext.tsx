@@ -566,7 +566,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload: any) => {
-          console.log('[AuthContext] Verification status changed:', payload);
+          console.log('[AuthContext] Verification session status changed:', payload);
           const newStatus = payload.new?.status;
           const oldStatus = payload.old?.status;
 
@@ -577,6 +577,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (newStatus === 'approved') {
               refreshProfile();
             }
+          }
+
+          // Also refresh profile when status changes from approved to abandoned/pending
+          if (oldStatus === 'approved' && newStatus !== 'approved') {
+            console.log('[AuthContext] Verification revoked (status changed from approved to:', newStatus, ')');
+            setVerificationStatusChanged({ status: 'declined' });
+            refreshProfile();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_profiles',
+          filter: `id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          console.log('[AuthContext] User profile changed:', payload);
+          const oldVerified = payload.old?.is_verified;
+          const newVerified = payload.new?.is_verified;
+
+          // Detect verification status changes
+          if (oldVerified !== newVerified) {
+            console.log('[AuthContext] Verification status changed in profile:', { oldVerified, newVerified });
+
+            if (newVerified) {
+              // Verification granted
+              setVerificationStatusChanged({ status: 'approved' });
+            } else if (oldVerified && !newVerified) {
+              // Verification revoked
+              console.log('[AuthContext] Verification REVOKED - user is no longer verified');
+              setVerificationStatusChanged({ status: 'declined' });
+            }
+
+            // Refresh profile to get latest state
+            refreshProfile();
           }
         }
       )

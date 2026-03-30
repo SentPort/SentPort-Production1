@@ -246,6 +246,20 @@ Deno.serve(async (req: Request) => {
       }
     } else if (finalStatus === "abandoned") {
       console.log("Verification abandoned:", { status: finalStatus, user_id: session.user_id });
+
+      const { error: profileError } = await supabase
+        .from("user_profiles")
+        .update({
+          is_verified: false,
+          last_verification_at: null,
+        })
+        .eq("id", session.user_id);
+
+      if (profileError) {
+        console.error("Failed to revoke verification for abandoned session:", profileError);
+      } else {
+        console.log("Verification revoked for abandoned session:", session.user_id);
+      }
     }
 
     return new Response(
