@@ -47,72 +47,23 @@ Deno.serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check for admin bypass (temporary for backfill completion)
+    // Check for admin bypass key authorization
     const bypassKey = req.headers.get('X-Admin-Bypass-Key');
     const bypassUserId = req.headers.get('X-Admin-User-ID');
-    const adminBypassSecret = Deno.env.get('ADMIN_BYPASS_KEY');
+    const adminBypassSecret = Deno.env.get('VITE_ADMIN_BYPASS_KEY');
 
-    if (bypassKey && bypassUserId === ADMIN_USER_ID && bypassKey === adminBypassSecret) {
-      // Bypass authentication - proceed directly to action handling
-    } else {
-      // Normal authentication flow
-      const authHeader = req.headers.get('Authorization');
-
-      if (!authHeader?.startsWith('Bearer ')) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized' }),
-          {
-            status: 401,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
-
-      const token = authHeader.replace('Bearer ', '');
-      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
+    // Only allow bypass key authorization
+    if (!bypassKey || !bypassUserId || bypassUserId !== ADMIN_USER_ID || bypassKey !== adminBypassSecret) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Invalid bypass credentials' }),
+        {
+          status: 401,
           headers: {
-            Authorization: authHeader
-          }
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
         }
-      });
-
-      const { data: { user }, error: authError } = await userClient.auth.getUser();
-
-      if (!user || authError) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized' }),
-          {
-            status: 401,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
-
-      const { data: profileData } = await supabase
-        .from('user_profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!profileData?.is_admin) {
-        return new Response(
-          JSON.stringify({ error: 'Admin access required' }),
-          {
-            status: 403,
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
+      );
     }
 
     const { action = 'process' } = await req.json();
