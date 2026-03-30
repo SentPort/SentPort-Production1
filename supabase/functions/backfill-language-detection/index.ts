@@ -174,9 +174,9 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      if (progress.status !== 'paused') {
+      if (progress.status !== 'paused' && progress.status !== 'completed') {
         return new Response(
-          JSON.stringify({ error: 'Can only resume a paused backfill' }),
+          JSON.stringify({ error: 'Can only resume a paused or completed backfill' }),
           {
             status: 400,
             headers: {
@@ -187,13 +187,38 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      // Recalculate total URLs and processed count from database
+      const { count: totalUrls } = await supabase
+        .from('search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_internal', false);
+
+      const { count: processedUrls } = await supabase
+        .from('search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_internal', false)
+        .eq('language_backfill_processed', true);
+
       await supabase
         .from('language_backfill_progress')
-        .update({ status: 'running', updated_at: new Date().toISOString() })
+        .update({
+          status: 'running',
+          total_urls: totalUrls || 0,
+          processed_count: processedUrls || 0,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', progress.id);
 
       return new Response(
-        JSON.stringify({ message: 'Backfill resumed', progress: { ...progress, status: 'running' } }),
+        JSON.stringify({
+          message: 'Backfill resumed',
+          progress: {
+            ...progress,
+            status: 'running',
+            total_urls: totalUrls || 0,
+            processed_count: processedUrls || 0
+          }
+        }),
         {
           headers: {
             ...corsHeaders,
@@ -222,6 +247,12 @@ Deno.serve(async (req: Request) => {
           .delete()
           .eq('id', progress.id);
       }
+
+      // Reset the tracking column for all URLs
+      await supabase
+        .from('search_index')
+        .update({ language_backfill_processed: false })
+        .eq('is_internal', false);
 
       return new Response(
         JSON.stringify({ message: 'Backfill reset complete' }),
@@ -259,38 +290,63 @@ Deno.serve(async (req: Request) => {
       const batchStartTime = Date.now();
       const batchSize = progress.batch_size;
 
+      // Query only unprocessed URLs using the tracking column
       const { data: urlsToProcess } = await supabase
         .from('search_index')
         .select('id, url, title, description, content_snippet, language, language_confidence')
         .eq('is_internal', false)
+        .eq('language_backfill_processed', false)
         .order('created_at', { ascending: true })
-        .range(progress.processed_count, progress.processed_count + batchSize - 1);
+        .limit(batchSize);
 
       if (!urlsToProcess || urlsToProcess.length === 0) {
-        await supabase
-          .from('language_backfill_progress')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', progress.id);
+        // Double-check completion by counting remaining unprocessed URLs
+        const { count: remainingUrls } = await supabase
+          .from('search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_internal', false)
+          .eq('language_backfill_processed', false);
 
-        return new Response(
-          JSON.stringify({
-            message: 'Backfill completed',
-            progress: {
-              ...progress,
-              status: 'completed'
+        if (remainingUrls === 0 || !remainingUrls) {
+          await supabase
+            .from('language_backfill_progress')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', progress.id);
+
+          return new Response(
+            JSON.stringify({
+              message: 'Backfill completed',
+              progress: {
+                ...progress,
+                status: 'completed'
+              }
+            }),
+            {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+              }
             }
-          }),
-          {
-            headers: {
-              ...corsHeaders,
-              'Content-Type': 'application/json',
+          );
+        } else {
+          return new Response(
+            JSON.stringify({
+              error: `No URLs returned in batch, but ${remainingUrls} unprocessed URLs remain. Please retry.`,
+              remaining_urls: remainingUrls
+            }),
+            {
+              status: 500,
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+              }
             }
-          }
-        );
+          );
+        }
       }
 
       let successCount = 0;
@@ -302,6 +358,15 @@ Deno.serve(async (req: Request) => {
           const combinedText = `${entry.title || ''} ${entry.description || ''} ${entry.content_snippet || ''}`.trim();
 
           if (combinedText.length < 10) {
+            await supabase
+              .from('search_index')
+              .update({
+                language: 'en',
+                language_confidence: 0.5,
+                language_backfill_processed: true
+              })
+              .eq('id', entry.id);
+
             successCount++;
             continue;
           }
@@ -315,7 +380,8 @@ Deno.serve(async (req: Request) => {
               .from('search_index')
               .update({
                 language: langResult.language || 'en',
-                language_confidence: langResult.confidence || 0.7
+                language_confidence: langResult.confidence || 0.7,
+                language_backfill_processed: true
               })
               .eq('id', entry.id);
 
@@ -325,13 +391,24 @@ Deno.serve(async (req: Request) => {
               .from('search_index')
               .update({
                 language: 'en',
-                language_confidence: 0.5
+                language_confidence: 0.5,
+                language_backfill_processed: true
               })
               .eq('id', entry.id);
 
             successCount++;
           }
         } catch (error) {
+          // Mark as processed even on error to avoid infinite loops
+          await supabase
+            .from('search_index')
+            .update({
+              language: 'en',
+              language_confidence: 0.3,
+              language_backfill_processed: true
+            })
+            .eq('id', entry.url);
+
           failCount++;
           errors.push({
             url: entry.url,
