@@ -202,6 +202,56 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (action === 'resume') {
+      const { data: progress } = await supabase
+        .from('language_backfill_progress')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!progress) {
+        return new Response(
+          JSON.stringify({ error: 'No backfill found to resume' }),
+          {
+            status: 400,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+
+      if (progress.status !== 'paused') {
+        return new Response(
+          JSON.stringify({ error: 'Can only resume a paused backfill' }),
+          {
+            status: 400,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+
+      await supabase
+        .from('language_backfill_progress')
+        .update({ status: 'running', updated_at: new Date().toISOString() })
+        .eq('id', progress.id);
+
+      return new Response(
+        JSON.stringify({ message: 'Backfill resumed', progress: { ...progress, status: 'running' } }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+    }
+
     if (action === 'reset') {
       const { data: progress } = await supabase
         .from('language_backfill_progress')

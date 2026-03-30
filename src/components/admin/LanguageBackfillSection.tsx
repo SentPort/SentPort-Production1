@@ -151,6 +151,23 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
     }
   };
 
+  const handleResume = async () => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await callBackfillFunction('resume');
+      setSuccess('Backfill resumed');
+      await fetchProgress();
+      startProcessingLoop();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resume backfill');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReset = async () => {
     if (!confirm('Are you sure you want to reset the backfill? This will delete all progress and logs.')) {
       return;
@@ -264,7 +281,27 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
               {loading ? 'Pausing...' : 'Pause'}
             </button>
           )}
-          {(progress.status === 'paused' || progress.status === 'completed') && (
+          {progress.status === 'paused' && (
+            <>
+              <button
+                onClick={handleResume}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Play className="w-4 h-4" />
+                {loading ? 'Resuming...' : 'Resume'}
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {loading ? 'Resetting...' : 'Reset'}
+              </button>
+            </>
+          )}
+          {progress.status === 'completed' && (
             <button
               onClick={handleReset}
               disabled={loading}
