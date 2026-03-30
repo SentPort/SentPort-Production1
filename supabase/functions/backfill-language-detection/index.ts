@@ -357,12 +357,22 @@ Deno.serve(async (req: Request) => {
         try {
           const combinedText = `${entry.title || ''} ${entry.description || ''} ${entry.content_snippet || ''}`.trim();
 
-          if (combinedText.length < 10) {
+          // Check if content has sufficient SEO quality
+          const { data: hasSufficientContent } = await supabase
+            .rpc('has_sufficient_seo_content', {
+              title: entry.title,
+              description: entry.description,
+              snippet: entry.content_snippet
+            })
+            .maybeSingle();
+
+          if (!hasSufficientContent) {
+            // Mark as unknown - will be excluded from search
             await supabase
               .from('search_index')
               .update({
-                language: 'en',
-                language_confidence: 0.5,
+                language: 'unknown',
+                language_confidence: 0.3,
                 language_backfill_processed: true
               })
               .eq('id', entry.id);
@@ -371,27 +381,32 @@ Deno.serve(async (req: Request) => {
             continue;
           }
 
+          // Use enhanced detection with URL-based fallback
           const { data: langResult } = await supabase
-            .rpc('detect_language_simple', { input_text: combinedText })
+            .rpc('detect_language_enhanced', {
+              content: combinedText,
+              url: entry.url
+            })
             .maybeSingle();
 
           if (langResult) {
             await supabase
               .from('search_index')
               .update({
-                language: langResult.language || 'en',
-                language_confidence: langResult.confidence || 0.7,
+                language: langResult.language || 'unknown',
+                language_confidence: langResult.confidence || 0.3,
                 language_backfill_processed: true
               })
               .eq('id', entry.id);
 
             successCount++;
           } else {
+            // Fallback to unknown if detection fails
             await supabase
               .from('search_index')
               .update({
-                language: 'en',
-                language_confidence: 0.5,
+                language: 'unknown',
+                language_confidence: 0.3,
                 language_backfill_processed: true
               })
               .eq('id', entry.id);
@@ -399,15 +414,15 @@ Deno.serve(async (req: Request) => {
             successCount++;
           }
         } catch (error) {
-          // Mark as processed even on error to avoid infinite loops
+          // Mark as unknown on error to exclude from search
           await supabase
             .from('search_index')
             .update({
-              language: 'en',
-              language_confidence: 0.3,
+              language: 'unknown',
+              language_confidence: 0.2,
               language_backfill_processed: true
             })
-            .eq('id', entry.url);
+            .eq('id', entry.id);
 
           failCount++;
           errors.push({
