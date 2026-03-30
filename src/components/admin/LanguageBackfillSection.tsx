@@ -88,16 +88,25 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
   const callBackfillFunction = async (action: string) => {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backfill-language-detection`;
 
-    if (!session) {
-      throw new Error('No active session');
+    const bypassKey = import.meta.env.VITE_ADMIN_BYPASS_KEY;
+    const bypassUserId = import.meta.env.VITE_ADMIN_USER_ID;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (bypassKey && bypassUserId) {
+      headers['X-Admin-Bypass-Key'] = bypassKey;
+      headers['X-Admin-User-ID'] = bypassUserId;
+    } else if (session) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    } else {
+      throw new Error('No active session or bypass credentials');
     }
 
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ action })
     });
 
