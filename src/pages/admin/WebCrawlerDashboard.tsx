@@ -8,6 +8,7 @@ import { withRetry, isPermanentSessionError } from '../../lib/databaseRetry';
 import Header from '../../components/Header';
 import SessionExpiredModal from '../../components/shared/SessionExpiredModal';
 import ContentTypeRulesManager from '../../components/admin/ContentTypeRulesManager';
+import LanguageBackfillSection from '../../components/admin/LanguageBackfillSection';
 
 interface CrawlerStats {
   total_crawled: number;
@@ -2156,6 +2157,8 @@ export default function WebCrawlerDashboard() {
             <div className="text-sm text-yellow-300">In Queue</div>
           </div>
         </div>
+
+        <LanguageBackfillSection />
 
         {processingStatus.show && (
           <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6 mb-6">

@@ -616,6 +616,28 @@ Deno.serve(async (req: Request) => {
         // Detect content type and extract metadata (pass supabase client for domain rules lookup)
         const contentTypeData = await detectContentType(normalizedUrl, html, bodyHtml, supabase);
 
+        // Detect language for external content
+        let detectedLanguage = 'en';
+        let languageConfidence = 0.8;
+
+        if (!isInternal) {
+          try {
+            const combinedText = `${title} ${metaDesc} ${bodyText}`.trim();
+            if (combinedText.length >= 10) {
+              const { data: langResult } = await supabase
+                .rpc('detect_language_simple', { input_text: combinedText })
+                .maybeSingle();
+
+              if (langResult) {
+                detectedLanguage = langResult.language || 'en';
+                languageConfidence = langResult.confidence || 0.7;
+              }
+            }
+          } catch (langError) {
+            console.error('Language detection error:', langError);
+          }
+        }
+
         await supabase.from('crawled_pages').upsert({
           url: normalizedUrl,
           title,
@@ -643,6 +665,8 @@ Deno.serve(async (req: Request) => {
           publication_date: contentTypeData.publicationDate,
           author_name: contentTypeData.authorName,
           view_count: contentTypeData.viewCount,
+          language: detectedLanguage,
+          language_confidence: languageConfidence,
           last_indexed_at: new Date().toISOString()
         });
 
@@ -650,6 +674,7 @@ Deno.serve(async (req: Request) => {
         if (contentTypeData.contentType !== 'image') {
           const images = extractImages(normalizedUrl, html, bodyHtml, isInternal);
           for (const image of images) {
+            // Use the same language as the parent page for images
             await supabase.from('search_index').upsert({
               url: image.url,
               title: image.title,
@@ -664,6 +689,8 @@ Deno.serve(async (req: Request) => {
               image_height: image.height,
               alt_text: image.altText,
               parent_page_url: normalizedUrl,
+              language: detectedLanguage,
+              language_confidence: languageConfidence,
               last_indexed_at: new Date().toISOString()
             });
           }
