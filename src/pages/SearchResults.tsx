@@ -312,7 +312,7 @@ export default function SearchResults() {
               {actualTotalDuplicates > 0 && (
                 <button
                   onClick={() => setShowAllDuplicates(!showAllDuplicates)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-sm text-green-600 hover:text-green-700 font-medium"
                 >
                   {showAllDuplicates ? 'Group Results' : 'Show All Variations'}
                 </button>
@@ -569,7 +569,7 @@ export default function SearchResults() {
                         {result.duplicateCount > 1 && result.hiddenUrls && !showAllDuplicates && (
                           <button
                             onClick={() => toggleDuplicateExpansion(result.id)}
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-3"
+                            className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 mt-3"
                           >
                             {expandedDuplicates.has(result.id) ? (
                               <>
