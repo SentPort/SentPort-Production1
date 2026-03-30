@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Globe, Languages, Play, Pause, RotateCcw, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 interface BackfillProgress {
   id: string;
@@ -31,7 +32,11 @@ interface BackfillLog {
   created_at: string;
 }
 
-export default function LanguageBackfillSection() {
+interface LanguageBackfillSectionProps {
+  session: Session | null;
+}
+
+export default function LanguageBackfillSection({ session }: LanguageBackfillSectionProps) {
   const [progress, setProgress] = useState<BackfillProgress | null>(null);
   const [logs, setLogs] = useState<BackfillLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,7 +87,6 @@ export default function LanguageBackfillSection() {
 
   const callBackfillFunction = async (action: string) => {
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/backfill-language-detection`;
-    const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
       throw new Error('No active session');
@@ -411,7 +415,7 @@ export default function LanguageBackfillSection() {
               to detect their language. Only English content will appear in search results.
             </p>
             <p className="text-purple-300 text-sm mt-2">
-              Estimated time: {Math.round(progress.total_urls / 50 / 20)} - {Math.round(progress.total_urls / 50 / 10)} hours
+              Estimated time: {Math.round((progress.total_urls / 50) * 3 / 3600 * 10) / 10} - {Math.round((progress.total_urls / 50) * 4 / 3600 * 10) / 10} hours
             </p>
           </div>
         )}

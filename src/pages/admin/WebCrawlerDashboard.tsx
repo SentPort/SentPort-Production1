@@ -49,7 +49,7 @@ interface CrawlerHistoryRecord {
 }
 
 export default function WebCrawlerDashboard() {
-  const { user, isAdmin, sessionExpired, isAuthTransitioning } = useAuth();
+  const { user, session, isAdmin, sessionExpired, isAuthTransitioning } = useAuth();
   const [stats, setStats] = useState<CrawlerStats>({
     total_crawled: 0,
     successful: 0,
@@ -2158,7 +2158,7 @@ export default function WebCrawlerDashboard() {
           </div>
         </div>
 
-        <LanguageBackfillSection />
+        <LanguageBackfillSection session={session} />
 
         {processingStatus.show && (
           <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6 mb-6">
