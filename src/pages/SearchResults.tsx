@@ -172,6 +172,13 @@ export default function SearchResults() {
 
   const filteredResults = getFilteredResults();
 
+  // Calculate the actual duplicates to determine if toggle button should show
+  const groupedResults = deduplicateSearchResults(filteredResults, {
+    maxPerDomain: 5,
+    showDuplicates: false,
+  });
+  const actualTotalDuplicates = groupedResults.reduce((sum, r) => sum + (r.duplicateCount - 1), 0);
+
   // Apply deduplication for better UX
   const dedupedResults = deduplicateSearchResults(filteredResults, {
     maxPerDomain: 5,
@@ -296,18 +303,18 @@ export default function SearchResults() {
               <p className="text-sm text-gray-600">
                 Found <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
                 <span className="font-semibold text-gray-900">"{query}"</span>
-                {totalHiddenDuplicates > 0 && !showAllDuplicates && (
+                {actualTotalDuplicates > 0 && !showAllDuplicates && (
                   <span className="ml-2 text-xs text-gray-500">
-                    ({totalHiddenDuplicates} duplicate{totalHiddenDuplicates !== 1 ? 's' : ''} hidden)
+                    ({actualTotalDuplicates} duplicate{actualTotalDuplicates !== 1 ? 's' : ''} hidden)
                   </span>
                 )}
               </p>
-              {totalHiddenDuplicates > 0 && (
+              {actualTotalDuplicates > 0 && (
                 <button
                   onClick={() => setShowAllDuplicates(!showAllDuplicates)}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  {showAllDuplicates ? 'Hide Duplicates' : 'Show All Variations'}
+                  {showAllDuplicates ? 'Group Results' : 'Show All Variations'}
                 </button>
               )}
             </div>
