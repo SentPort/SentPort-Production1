@@ -32,15 +32,28 @@ export function SentPortPagination({
         <button
           key={pageNum}
           onClick={() => onPageChange(pageNum)}
-          className={`transition-all duration-200 ${
-            isActive
-              ? 'text-blue-600 font-bold text-2xl scale-110'
-              : 'text-gray-400 hover:text-blue-500 text-xl'
-          }`}
+          className="flex flex-col items-center justify-center gap-0.5 group"
           aria-label={`Go to page ${pageNum}`}
           aria-current={isActive ? 'page' : undefined}
         >
-          o
+          <span
+            className={`transition-all duration-200 ${
+              isActive
+                ? 'text-blue-600 font-bold text-2xl scale-110'
+                : 'text-gray-400 group-hover:text-blue-500 text-xl'
+            }`}
+          >
+            o
+          </span>
+          <span
+            className={`transition-all duration-200 leading-none ${
+              isActive
+                ? 'text-blue-600 font-bold text-sm'
+                : 'text-gray-500 text-xs'
+            }`}
+          >
+            {pageNum}
+          </span>
         </button>
       );
     });
@@ -59,11 +72,11 @@ export function SentPortPagination({
         </button>
       )}
 
-      <div className="flex items-center text-2xl mx-4">
-        <span className="text-blue-600 font-bold">Sent</span>
-        <span className="text-blue-600 font-bold">P</span>
+      <div className="flex items-start text-2xl mx-4">
+        <span className="text-blue-600 font-bold leading-none pt-1">Sent</span>
+        <span className="text-blue-600 font-bold leading-none pt-1">P</span>
         {renderOs()}
-        <span className="text-blue-600 font-bold">rt</span>
+        <span className="text-blue-600 font-bold leading-none pt-1">rt</span>
       </div>
 
       {currentPage < totalPages && (
