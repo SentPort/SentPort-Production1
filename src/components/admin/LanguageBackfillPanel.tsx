@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Languages, RefreshCw, TrendingUp, Play, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Languages, RefreshCw, TrendingUp, Play, CheckCircle, AlertCircle, ChevronDown, ChevronUp, Pause, Square } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -31,6 +31,11 @@ export default function LanguageBackfillPanel() {
   const [distributionExpanded, setDistributionExpanded] = useState(false);
   const [lastBackfillTime, setLastBackfillTime] = useState<number>(0);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [autoRunEnabled, setAutoRunEnabled] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [batchesProcessed, setBatchesProcessed] = useState(0);
+
+  const autoRunTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const COOLDOWN_MS = 2000;
 
@@ -116,18 +121,64 @@ export default function LanguageBackfillPanel() {
 
       if (response.status === 401) {
         setLastBackfillResult(`✗ Authentication failed: ${result.error}`);
+        if (autoRunEnabled) {
+          stopAutoRun();
+        }
       } else if (result.success) {
         setLastBackfillResult(
           `✓ Processed ${result.processed} records. ${result.totalRemaining} remaining.`
         );
-        fetchLanguageStats();
+        if (autoRunEnabled) {
+          setBatchesProcessed(prev => prev + 1);
+        }
+        await fetchLanguageStats();
+
+        if (autoRunEnabled && result.totalRemaining === 0) {
+          stopAutoRun();
+          setLastBackfillResult('✓ Auto-run complete! All records processed.');
+        }
       } else {
         setLastBackfillResult(`✗ Error: ${result.error}`);
+        if (autoRunEnabled) {
+          stopAutoRun();
+        }
       }
     } catch (error: any) {
       setLastBackfillResult(`✗ Error: ${error.message}`);
+      if (autoRunEnabled) {
+        stopAutoRun();
+      }
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const startAutoRun = () => {
+    setAutoRunEnabled(true);
+    setIsPaused(false);
+    setBatchesProcessed(0);
+    runBackfill();
+  };
+
+  const pauseAutoRun = () => {
+    setIsPaused(true);
+    if (autoRunTimeoutRef.current) {
+      clearTimeout(autoRunTimeoutRef.current);
+      autoRunTimeoutRef.current = null;
+    }
+  };
+
+  const resumeAutoRun = () => {
+    setIsPaused(false);
+  };
+
+  const stopAutoRun = () => {
+    setAutoRunEnabled(false);
+    setIsPaused(false);
+    setBatchesProcessed(0);
+    if (autoRunTimeoutRef.current) {
+      clearTimeout(autoRunTimeoutRef.current);
+      autoRunTimeoutRef.current = null;
     }
   };
 
@@ -150,6 +201,35 @@ export default function LanguageBackfillPanel() {
 
     return () => clearInterval(interval);
   }, [lastBackfillTime, processing, cooldownRemaining]);
+
+  useEffect(() => {
+    if (!autoRunEnabled || isPaused || processing) return;
+
+    if (!processing && backfillStatus.unprocessedRecords > 0) {
+      const now = Date.now();
+      const timeSinceLastRun = now - lastBackfillTime;
+      const delay = Math.max(0, COOLDOWN_MS - timeSinceLastRun);
+
+      autoRunTimeoutRef.current = setTimeout(() => {
+        runBackfill();
+      }, delay);
+    }
+
+    return () => {
+      if (autoRunTimeoutRef.current) {
+        clearTimeout(autoRunTimeoutRef.current);
+        autoRunTimeoutRef.current = null;
+      }
+    };
+  }, [autoRunEnabled, isPaused, processing, backfillStatus.unprocessedRecords, lastBackfillTime]);
+
+  useEffect(() => {
+    return () => {
+      if (autoRunTimeoutRef.current) {
+        clearTimeout(autoRunTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!isAdmin) {
     return (
@@ -254,19 +334,69 @@ export default function LanguageBackfillPanel() {
         </div>
       )}
 
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={runBackfill}
-          disabled={processing || backfillStatus.unprocessedRecords === 0 || cooldownRemaining > 0}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Play className={`w-4 h-4 ${processing ? 'animate-pulse' : ''}`} />
-          {processing
-            ? 'Processing...'
-            : cooldownRemaining > 0
-            ? `Cooldown (${(cooldownRemaining / 1000).toFixed(1)}s)`
-            : 'Run Backfill (500 records)'}
-        </button>
+      {autoRunEnabled && (
+        <div className="mb-6 p-4 bg-slate-900/70 border border-blue-500/30 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-yellow-400' : 'bg-green-400 animate-pulse'}`} />
+                <span className="text-sm font-medium text-white">
+                  {isPaused ? 'Paused' : processing ? 'Processing...' : 'Running'}
+                </span>
+              </div>
+              <div className="h-4 w-px bg-slate-600" />
+              <span className="text-sm text-gray-300">
+                {batchesProcessed} {batchesProcessed === 1 ? 'batch' : 'batches'} processed
+              </span>
+            </div>
+            {!isPaused && backfillStatus.unprocessedRecords > 0 && (
+              <div className="text-sm text-gray-400">
+                ~{Math.ceil(backfillStatus.unprocessedRecords / 500)} batches remaining
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        {!autoRunEnabled ? (
+          <button
+            onClick={startAutoRun}
+            disabled={backfillStatus.unprocessedRecords === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Play className="w-4 h-4" />
+            Start Auto-Run
+          </button>
+        ) : (
+          <>
+            {!isPaused ? (
+              <button
+                onClick={pauseAutoRun}
+                disabled={processing}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Pause className="w-4 h-4" />
+                Pause
+              </button>
+            ) : (
+              <button
+                onClick={resumeAutoRun}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Resume
+              </button>
+            )}
+            <button
+              onClick={stopAutoRun}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <Square className="w-4 h-4" />
+              Stop
+            </button>
+          </>
+        )}
 
         {lastBackfillResult && (
           <div className={`flex items-center gap-2 text-sm ${lastBackfillResult.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
