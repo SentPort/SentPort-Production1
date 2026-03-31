@@ -102,8 +102,6 @@ export default function SearchResults() {
         dbQuery = dbQuery.eq('is_internal', true);
       }
 
-      dbQuery = dbQuery.eq('language', 'en');
-
       const searchTermLower = searchTerm.toLowerCase();
       dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
 
