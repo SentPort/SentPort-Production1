@@ -36,13 +36,149 @@ interface ExtractedImage {
   sourcePlatform: string | null;
 }
 
-// Extract base domain from URL (for domain rules lookup)
+interface LanguageDetectionResult {
+  language: string;
+  confidence: number;
+}
+
+const LANGUAGE_PATTERNS = {
+  cjk: /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/g,
+  cyrillic: /[\u0400-\u04FF]/g,
+  arabic: /[\u0600-\u06FF\u0750-\u077F]/g,
+  thai: /[\u0E00-\u0E7F]/g,
+  hebrew: /[\u0590-\u05FF]/g,
+  devanagari: /[\u0900-\u097F]/g,
+  greek: /[\u0370-\u03FF]/g,
+};
+
+const URL_LANGUAGE_CODES = [
+  { pattern: /\/ja[\/\-_]|\.jp$/i, lang: 'ja' },
+  { pattern: /\/zh[\/\-_]|\/cn[\/\-_]|\.cn$/i, lang: 'zh' },
+  { pattern: /\/ko[\/\-_]|\.kr$/i, lang: 'ko' },
+  { pattern: /\/ru[\/\-_]|\.ru$/i, lang: 'ru' },
+  { pattern: /\/fr[\/\-_]|\.fr$/i, lang: 'fr' },
+  { pattern: /\/de[\/\-_]|\.de$/i, lang: 'de' },
+  { pattern: /\/es[\/\-_]|\.es$/i, lang: 'es' },
+  { pattern: /\/pt[\/\-_]|\.pt$/i, lang: 'pt' },
+  { pattern: /\/it[\/\-_]|\.it$/i, lang: 'it' },
+  { pattern: /\/ar[\/\-_]|\.sa$|\.ae$/i, lang: 'ar' },
+  { pattern: /\/nl[\/\-_]|\.nl$/i, lang: 'nl' },
+  { pattern: /\/pl[\/\-_]|\.pl$/i, lang: 'pl' },
+  { pattern: /\/tr[\/\-_]|\.tr$/i, lang: 'tr' },
+  { pattern: /\/th[\/\-_]|\.th$/i, lang: 'th' },
+  { pattern: /\/vi[\/\-_]|\.vn$/i, lang: 'vi' },
+  { pattern: /\/he[\/\-_]|\.il$/i, lang: 'he' },
+  { pattern: /\/hi[\/\-_]|\.in$/i, lang: 'hi' },
+  { pattern: /\/en[\/\-_]/i, lang: 'en' },
+];
+
+const WIKIPEDIA_PATTERN = /^([a-z]{2,3})\.wikipedia\.org/i;
+
+function detectLanguageFromHtml(url: string, html: string, title: string, description: string): LanguageDetectionResult {
+  const signals: { lang: string; confidence: number }[] = [];
+
+  const langAttrMatch = html.match(/<html[^>]+lang=["']([^"']+)["']/i);
+  if (langAttrMatch) {
+    const htmlLang = langAttrMatch[1].toLowerCase().split('-')[0];
+    signals.push({ lang: htmlLang, confidence: 0.9 });
+  }
+
+  const metaLangMatch = html.match(/<meta\s+(?:property|name)=["'](?:og:locale|language)["']\s+content=["']([^"']+)["']/i);
+  if (metaLangMatch) {
+    const metaLang = metaLangMatch[1].toLowerCase().split(/[-_]/)[0];
+    signals.push({ lang: metaLang, confidence: 0.8 });
+  }
+
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.toLowerCase();
+
+    const wikipediaMatch = domain.match(WIKIPEDIA_PATTERN);
+    if (wikipediaMatch) {
+      const langCode = wikipediaMatch[1].toLowerCase();
+      if (langCode !== 'en' && langCode !== 'www') {
+        signals.push({ lang: langCode, confidence: 0.95 });
+      }
+    }
+
+    for (const { pattern, lang } of URL_LANGUAGE_CODES) {
+      if (pattern.test(url) || pattern.test(domain)) {
+        const confidence = lang === 'en' ? 0.3 : 0.7;
+        signals.push({ lang, confidence });
+        break;
+      }
+    }
+  } catch (e) {
+  }
+
+  const combinedText = `${title} ${description}`.trim();
+  if (combinedText.length > 10) {
+    const totalChars = combinedText.replace(/[\s\d\p{P}]/gu, '').length;
+
+    if (totalChars > 0) {
+      const langMap: { [key: string]: string } = {
+        cjk: 'ja',
+        cyrillic: 'ru',
+        arabic: 'ar',
+        thai: 'th',
+        hebrew: 'he',
+        devanagari: 'hi',
+        greek: 'el',
+      };
+
+      for (const [scriptName, pattern] of Object.entries(LANGUAGE_PATTERNS)) {
+        const matches = combinedText.match(pattern);
+        if (matches && matches.length > 0) {
+          const percentage = (matches.length / totalChars) * 100;
+          if (percentage > 10) {
+            const lang = langMap[scriptName] || 'unknown';
+            const confidence = percentage > 70 ? 0.95 : 0.7;
+            signals.push({ lang, confidence });
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  if (signals.length === 0) {
+    return { language: 'en', confidence: 0.6 };
+  }
+
+  const langCounts: { [key: string]: { count: number; totalConf: number } } = {};
+  for (const signal of signals) {
+    if (!langCounts[signal.lang]) {
+      langCounts[signal.lang] = { count: 0, totalConf: 0 };
+    }
+    langCounts[signal.lang].count++;
+    langCounts[signal.lang].totalConf += signal.confidence;
+  }
+
+  let bestLang = 'en';
+  let bestScore = 0;
+
+  for (const [lang, data] of Object.entries(langCounts)) {
+    const avgConfidence = data.totalConf / data.count;
+    const score = avgConfidence * data.count;
+    if (score > bestScore) {
+      bestScore = score;
+      bestLang = lang;
+    }
+  }
+
+  const avgConfidence = langCounts[bestLang].totalConf / langCounts[bestLang].count;
+
+  return {
+    language: bestLang,
+    confidence: Math.min(avgConfidence, 1.0)
+  };
+}
+
 function extractBaseDomain(url: string): string {
   try {
     const urlObj = new URL(url);
     let domain = urlObj.hostname;
 
-    // Remove www. prefix
     domain = domain.replace(/^www\./i, '');
 
     return domain.toLowerCase();
@@ -616,6 +752,9 @@ Deno.serve(async (req: Request) => {
         // Detect content type and extract metadata (pass supabase client for domain rules lookup)
         const contentTypeData = await detectContentType(normalizedUrl, html, bodyHtml, supabase);
 
+        // Detect language
+        const languageDetection = detectLanguageFromHtml(normalizedUrl, html, title, metaDesc);
+
         await supabase.from('crawled_pages').upsert({
           url: normalizedUrl,
           title,
@@ -643,6 +782,9 @@ Deno.serve(async (req: Request) => {
           publication_date: contentTypeData.publicationDate,
           author_name: contentTypeData.authorName,
           view_count: contentTypeData.viewCount,
+          language: languageDetection.language,
+          language_confidence: languageDetection.confidence,
+          language_backfill_processed: true,
           last_indexed_at: new Date().toISOString()
         });
 
@@ -664,6 +806,9 @@ Deno.serve(async (req: Request) => {
               image_height: image.height,
               alt_text: image.altText,
               parent_page_url: normalizedUrl,
+              language: languageDetection.language,
+              language_confidence: languageDetection.confidence,
+              language_backfill_processed: true,
               last_indexed_at: new Date().toISOString()
             });
           }

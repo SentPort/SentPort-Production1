@@ -8,6 +8,7 @@ import { withRetry, isPermanentSessionError } from '../../lib/databaseRetry';
 import Header from '../../components/Header';
 import SessionExpiredModal from '../../components/shared/SessionExpiredModal';
 import ContentTypeRulesManager from '../../components/admin/ContentTypeRulesManager';
+import LanguageBackfillPanel from '../../components/admin/LanguageBackfillPanel';
 
 interface CrawlerStats {
   total_crawled: number;
@@ -2121,6 +2122,10 @@ export default function WebCrawlerDashboard() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mb-6">
+          <LanguageBackfillPanel />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

@@ -13,6 +13,7 @@ import { deduplicateSearchResults, getDomainStats } from '../lib/searchDeduplica
 import { SentPortPagination } from '../components/shared/SentPortPagination';
 import { PeopleAlsoSearchFor } from '../components/shared/PeopleAlsoSearchFor';
 import { calculatePagination, paginateResults, getPageFromUrl, updatePageInUrl } from '../lib/searchPaginationHelpers';
+import { shouldIncludeInEnglishSearch } from '../lib/languageDetection';
 
 interface SearchResult {
   id: string;
@@ -36,6 +37,9 @@ interface SearchResult {
   alt_text?: string;
   parent_page_url?: string;
   calculatedScore?: number;
+  language?: string | null;
+  language_confidence?: number | null;
+  language_backfill_processed?: boolean;
 }
 
 interface DedupedResult extends SearchResult {
@@ -56,6 +60,7 @@ export default function SearchResults() {
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [filteredByLanguageCount, setFilteredByLanguageCount] = useState(0);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -117,6 +122,8 @@ export default function SearchResults() {
         dbQuery = dbQuery.eq('is_internal', true);
       }
 
+      dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+
       const searchTermLower = searchTerm.toLowerCase();
       dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
 
@@ -127,7 +134,24 @@ export default function SearchResults() {
       }
 
       if (data && !error) {
-        const scoredResults = data.map(result => {
+        const initialResultCount = data.length;
+
+        const englishResults = data.filter(result =>
+          shouldIncludeInEnglishSearch({
+            title: result.title || '',
+            description: result.description || '',
+            url: result.url,
+            language: result.language,
+            language_backfill_processed: result.language_backfill_processed,
+          })
+        );
+
+        const filteredCount = initialResultCount - englishResults.length;
+        if (isMountedRef.current) {
+          setFilteredByLanguageCount(filteredCount);
+        }
+
+        const scoredResults = englishResults.map(result => {
           let score = result.relevance_score || 0;
 
           const titleMatch = result.title?.toLowerCase().includes(searchTermLower);
@@ -331,16 +355,23 @@ export default function SearchResults() {
         {query && (
           <div ref={resultsTopRef} className="mb-6">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{paginationInfo.startIndex + 1}-{paginationInfo.endIndex}</span> of{' '}
-                <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
-                <span className="font-semibold text-gray-900">"{query}"</span>
-                {actualTotalDuplicates > 0 && !showAllDuplicates && (
-                  <span className="ml-2 text-xs text-gray-500">
-                    ({actualTotalDuplicates} duplicate{actualTotalDuplicates !== 1 ? 's' : ''} hidden)
-                  </span>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-semibold text-gray-900">{paginationInfo.startIndex + 1}-{paginationInfo.endIndex}</span> of{' '}
+                  <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
+                  <span className="font-semibold text-gray-900">"{query}"</span>
+                  {actualTotalDuplicates > 0 && !showAllDuplicates && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      ({actualTotalDuplicates} duplicate{actualTotalDuplicates !== 1 ? 's' : ''} hidden)
+                    </span>
+                  )}
+                </p>
+                {filteredByLanguageCount > 0 && (
+                  <p className="text-xs text-blue-600">
+                    {filteredByLanguageCount} non-English result{filteredByLanguageCount !== 1 ? 's' : ''} filtered
+                  </p>
                 )}
-              </p>
+              </div>
               {actualTotalDuplicates > 0 && (
                 <button
                   onClick={() => setShowAllDuplicates(!showAllDuplicates)}
