@@ -37,30 +37,26 @@ export default function LanguageBackfillPanel() {
   const fetchLanguageStats = async () => {
     setLoading(true);
     try {
-      const { data: totalCount } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true });
+      const { data: statusData, error: statusError } = await supabase.rpc('get_backfill_status');
 
-      const { data: processedCount } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true })
-        .eq('language_backfill_processed', true);
+      if (statusError) {
+        console.error('Error fetching backfill status:', statusError);
+        setBackfillStatus({
+          totalRecords: 0,
+          processedRecords: 0,
+          unprocessedRecords: 0,
+          percentageComplete: 0,
+        });
+      } else if (statusData) {
+        setBackfillStatus({
+          totalRecords: statusData.totalRecords || 0,
+          processedRecords: statusData.processedRecords || 0,
+          unprocessedRecords: statusData.unprocessedRecords || 0,
+          percentageComplete: statusData.percentageComplete || 0,
+        });
+      }
 
-      const { data: unprocessedCount } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true })
-        .or('language_backfill_processed.eq.false,language_backfill_processed.is.null');
-
-      const total = totalCount?.count || 0;
-      const processed = processedCount?.count || 0;
-      const unprocessed = unprocessedCount?.count || 0;
-
-      setBackfillStatus({
-        totalRecords: total,
-        processedRecords: processed,
-        unprocessedRecords: unprocessed,
-        percentageComplete: total > 0 ? (processed / total) * 100 : 0,
-      });
+      const total = statusData?.totalRecords || 0;
 
       const { data: languageData, error } = await supabase.rpc('get_language_distribution');
 
