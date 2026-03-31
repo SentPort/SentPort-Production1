@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { Globe, CheckCircle, FileText, Image, Video, Newspaper, Users, Sparkles, TrendingUp, Shield, Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Globe, CheckCircle, FileText, Image, Video, Newspaper, Users, Sparkles, TrendingUp, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { usePageTracking } from '../hooks/usePageTracking';
 import { trackSearch } from '../lib/analytics';
@@ -10,8 +10,6 @@ import { SearchWithHistory } from '../components/shared/SearchWithHistory';
 import { safeGetHostname } from '../lib/urlHelpers';
 import { useSearchPreferences } from '../hooks/useSearchPreferences';
 import { deduplicateSearchResults, getDomainStats } from '../lib/searchDeduplication';
-
-const RESULTS_PER_PAGE = 10;
 
 interface SearchResult {
   id: string;
@@ -54,12 +52,10 @@ export default function SearchResults() {
   const [activeTab, setActiveTab] = useState('all');
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
-  const resultsContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -76,11 +72,6 @@ export default function SearchResults() {
       performSearch(query);
     }
   }, [query, includeExternalContent]);
-
-  // Reset to page 1 when query, tab, or showAllDuplicates changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [query, activeTab, showAllDuplicates]);
 
   const performSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
@@ -199,46 +190,6 @@ export default function SearchResults() {
   const domainStats = getDomainStats(dedupedResults);
   const totalHiddenDuplicates = dedupedResults.reduce((sum, r) => sum + (r.duplicateCount - 1), 0);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(dedupedResults.length / RESULTS_PER_PAGE);
-  const startIndex = (currentPage - 1) * RESULTS_PER_PAGE;
-  const endIndex = startIndex + RESULTS_PER_PAGE;
-  const paginatedResults = dedupedResults.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    resultsContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const showEllipsisThreshold = 7;
-
-    if (totalPages <= showEllipsisThreshold) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        pages.push('...');
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
-        pages.push('...');
-        pages.push(totalPages);
-      }
-    }
-
-    return pages;
-  };
-
   const toggleDuplicateExpansion = (resultId: string) => {
     setExpandedDuplicates(prev => {
       const next = new Set(prev);
@@ -349,21 +300,11 @@ export default function SearchResults() {
         </div>
 
         {query && (
-          <div className="mb-6" ref={resultsContainerRef}>
+          <div className="mb-6">
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm text-gray-600">
-                {dedupedResults.length > RESULTS_PER_PAGE ? (
-                  <>
-                    Showing <span className="font-semibold text-gray-900">{startIndex + 1}-{Math.min(endIndex, dedupedResults.length)}</span> of{' '}
-                    <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
-                    <span className="font-semibold text-gray-900">"{query}"</span>
-                  </>
-                ) : (
-                  <>
-                    Found <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
-                    <span className="font-semibold text-gray-900">"{query}"</span>
-                  </>
-                )}
+                Found <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
+                <span className="font-semibold text-gray-900">"{query}"</span>
                 {actualTotalDuplicates > 0 && !showAllDuplicates && (
                   <span className="ml-2 text-xs text-gray-500">
                     ({actualTotalDuplicates} duplicate{actualTotalDuplicates !== 1 ? 's' : ''} hidden)
@@ -406,7 +347,7 @@ export default function SearchResults() {
           </div>
         ) : (
           <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3' : 'space-y-6'}>
-            {paginatedResults.map((result) => {
+            {dedupedResults.map((result) => {
               const getBadgeConfig = () => {
                 if (result.is_internal) {
                   return {
@@ -667,58 +608,6 @@ export default function SearchResults() {
                 </div>
               );
             })}
-
-            {/* Pagination Controls */}
-            {!loading && dedupedResults.length > RESULTS_PER_PAGE && (
-              <div className="mt-8 flex items-center justify-center gap-2">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map((pageNum, index) => {
-                    if (pageNum === '...') {
-                      return (
-                        <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-400">
-                          ...
-                        </span>
-                      );
-                    }
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum as number)}
-                        className={`px-4 py-2 rounded-lg border transition-colors ${
-                          currentPage === pageNum
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-
-                <span className="ml-4 text-sm text-gray-600">
-                  Page {currentPage} of {totalPages}
-                </span>
-              </div>
-            )}
 
             {!loading && results.length === 0 && query && (
               <div className="max-w-3xl mx-auto">

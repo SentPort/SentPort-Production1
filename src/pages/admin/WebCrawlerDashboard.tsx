@@ -8,7 +8,6 @@ import { withRetry, isPermanentSessionError } from '../../lib/databaseRetry';
 import Header from '../../components/Header';
 import SessionExpiredModal from '../../components/shared/SessionExpiredModal';
 import ContentTypeRulesManager from '../../components/admin/ContentTypeRulesManager';
-import LanguageBackfillSection from '../../components/admin/LanguageBackfillSection';
 
 interface CrawlerStats {
   total_crawled: number;
@@ -49,7 +48,7 @@ interface CrawlerHistoryRecord {
 }
 
 export default function WebCrawlerDashboard() {
-  const { user, session, isAdmin, sessionExpired, isAuthTransitioning } = useAuth();
+  const { user, isAdmin, sessionExpired, isAuthTransitioning } = useAuth();
   const [stats, setStats] = useState<CrawlerStats>({
     total_crawled: 0,
     successful: 0,
@@ -2157,8 +2156,6 @@ export default function WebCrawlerDashboard() {
             <div className="text-sm text-yellow-300">In Queue</div>
           </div>
         </div>
-
-        <LanguageBackfillSection session={session} />
 
         {processingStatus.show && (
           <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6 mb-6">
