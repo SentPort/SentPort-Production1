@@ -433,7 +433,21 @@ Deno.serve(async (req: Request) => {
       }
 
       const batchProcessingTime = Date.now() - batchStartTime;
-      const newProcessedCount = progress.processed_count + urlsToProcess.length;
+
+      // Query actual database counts instead of using unreliable counters
+      const { count: actualProcessedCount } = await supabase
+        .from('search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_internal', false)
+        .eq('language_backfill_processed', true);
+
+      const { count: actualTotalUrls } = await supabase
+        .from('search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_internal', false);
+
+      const newProcessedCount = actualProcessedCount || 0;
+      const newTotalUrls = actualTotalUrls || progress.total_urls;
       const newSuccessfulCount = progress.successful_count + successCount;
       const newFailedCount = progress.failed_count + failCount;
 
@@ -454,30 +468,30 @@ Deno.serve(async (req: Request) => {
           processing_time_ms: batchProcessingTime
         });
 
+      // Check completion by querying actual unprocessed URLs
+      const { count: remainingUrls } = await supabase
+        .from('search_index')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_internal', false)
+        .eq('language_backfill_processed', false);
+
+      const isComplete = (remainingUrls === 0 || !remainingUrls);
+
       await supabase
         .from('language_backfill_progress')
         .update({
+          total_urls: newTotalUrls,
           processed_count: newProcessedCount,
           successful_count: newSuccessfulCount,
           failed_count: newFailedCount,
           current_batch: progress.current_batch + 1,
           last_batch_at: new Date().toISOString(),
           processing_rate: processingRate,
+          status: isComplete ? 'completed' : 'running',
+          completed_at: isComplete ? new Date().toISOString() : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', progress.id);
-
-      const isComplete = newProcessedCount >= progress.total_urls;
-
-      if (isComplete) {
-        await supabase
-          .from('language_backfill_progress')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', progress.id);
-      }
 
       return new Response(
         JSON.stringify({
@@ -490,14 +504,14 @@ Deno.serve(async (req: Request) => {
             processing_time_ms: batchProcessingTime
           },
           progress: {
-            total_urls: progress.total_urls,
+            total_urls: newTotalUrls,
             processed_count: newProcessedCount,
             successful_count: newSuccessfulCount,
             failed_count: newFailedCount,
-            remaining: progress.total_urls - newProcessedCount,
+            remaining: remainingUrls || 0,
             processing_rate: processingRate,
-            estimated_minutes_remaining: processingRate > 0
-              ? (progress.total_urls - newProcessedCount) / processingRate
+            estimated_minutes_remaining: processingRate > 0 && remainingUrls
+              ? remainingUrls / processingRate
               : 0,
             is_complete: isComplete
           }
