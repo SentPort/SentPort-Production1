@@ -10,6 +10,9 @@ import { SearchWithHistory } from '../components/shared/SearchWithHistory';
 import { safeGetHostname } from '../lib/urlHelpers';
 import { useSearchPreferences } from '../hooks/useSearchPreferences';
 import { deduplicateSearchResults, getDomainStats } from '../lib/searchDeduplication';
+import { SentPortPagination } from '../components/shared/SentPortPagination';
+import { PeopleAlsoSearchFor } from '../components/shared/PeopleAlsoSearchFor';
+import { calculatePagination, paginateResults, getPageFromUrl, updatePageInUrl } from '../lib/searchPaginationHelpers';
 
 interface SearchResult {
   id: string;
@@ -52,10 +55,12 @@ export default function SearchResults() {
   const [activeTab, setActiveTab] = useState('all');
   const [showAllDuplicates, setShowAllDuplicates] = useState(false);
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
+  const resultsTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -68,10 +73,20 @@ export default function SearchResults() {
   }, []);
 
   useEffect(() => {
+    const pageFromUrl = getPageFromUrl(searchParams);
+    setCurrentPage(pageFromUrl);
+  }, [searchParams]);
+
+  useEffect(() => {
     if (query) {
       performSearch(query);
     }
   }, [query, includeExternalContent]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    updatePageInUrl(1, searchParams, setSearchParams);
+  }, [query, activeTab, showAllDuplicates, includeExternalContent]);
 
   const performSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
@@ -188,6 +203,9 @@ export default function SearchResults() {
   const domainStats = getDomainStats(dedupedResults);
   const totalHiddenDuplicates = dedupedResults.reduce((sum, r) => sum + (r.duplicateCount - 1), 0);
 
+  const paginationInfo = calculatePagination(dedupedResults, currentPage);
+  const paginatedResults = paginateResults(dedupedResults, currentPage);
+
   const toggleDuplicateExpansion = (resultId: string) => {
     setExpandedDuplicates(prev => {
       const next = new Set(prev);
@@ -208,6 +226,19 @@ export default function SearchResults() {
 
   const handleIncludeExternalChange = (checked: boolean) => {
     setIncludeExternalContent(checked);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    updatePageInUrl(page, searchParams, setSearchParams);
+
+    if (resultsTopRef.current) {
+      resultsTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleRelatedSearchClick = (relatedQuery: string) => {
+    setSearchParams({ q: relatedQuery });
   };
 
   return (
@@ -298,10 +329,11 @@ export default function SearchResults() {
         </div>
 
         {query && (
-          <div className="mb-6">
+          <div ref={resultsTopRef} className="mb-6">
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm text-gray-600">
-                Found <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
+                Showing <span className="font-semibold text-gray-900">{paginationInfo.startIndex + 1}-{paginationInfo.endIndex}</span> of{' '}
+                <span className="font-semibold text-gray-900">{dedupedResults.length}</span> human-verified results for{' '}
                 <span className="font-semibold text-gray-900">"{query}"</span>
                 {actualTotalDuplicates > 0 && !showAllDuplicates && (
                   <span className="ml-2 text-xs text-gray-500">
@@ -344,8 +376,9 @@ export default function SearchResults() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         ) : (
-          <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3' : 'space-y-6'}>
-            {dedupedResults.map((result) => {
+          <>
+            <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3' : 'space-y-6'}>
+              {paginatedResults.map((result) => {
               const getBadgeConfig = () => {
                 if (result.is_internal) {
                   return {
@@ -738,6 +771,22 @@ export default function SearchResults() {
               </div>
             )}
           </div>
+
+          {!loading && dedupedResults.length > 0 && (
+            <>
+              <PeopleAlsoSearchFor
+                currentQuery={query}
+                onSearchClick={handleRelatedSearchClick}
+              />
+
+              <SentPortPagination
+                currentPage={paginationInfo.currentPage}
+                totalPages={paginationInfo.totalPages}
+                onPageChange={handlePageChange}
+              />
+            </>
+          )}
+          </>
         )}
       </div>
       </div>
