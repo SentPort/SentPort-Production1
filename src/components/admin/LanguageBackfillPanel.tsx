@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Languages, RefreshCw, TrendingUp, Play, CheckCircle, AlertCircle } from 'lucide-react';
+import { Languages, RefreshCw, TrendingUp, Play, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface LanguageStats {
@@ -26,6 +26,7 @@ export default function LanguageBackfillPanel() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [lastBackfillResult, setLastBackfillResult] = useState<string | null>(null);
+  const [distributionExpanded, setDistributionExpanded] = useState(false);
 
   const fetchLanguageStats = async () => {
     setLoading(true);
@@ -141,46 +142,46 @@ export default function LanguageBackfillPanel() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-slate-800/50 border border-blue-500/30 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Languages className="w-6 h-6 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-900">Language Detection & Backfill</h2>
+          <Languages className="w-6 h-6 text-teal-400" />
+          <h2 className="text-xl font-semibold text-white">Language Detection & Backfill</h2>
         </div>
         <button
           onClick={fetchLanguageStats}
           disabled={loading}
-          className="text-blue-600 hover:text-blue-700 disabled:opacity-50"
+          className="text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
         >
           <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gray-50 rounded-lg p-4">
-          <div className="text-sm text-gray-600 mb-1">Total Records</div>
-          <div className="text-2xl font-bold text-gray-900">
+        <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
+          <div className="text-sm text-gray-400 mb-1">Total Records</div>
+          <div className="text-2xl font-bold text-white">
             {backfillStatus.totalRecords.toLocaleString()}
           </div>
         </div>
 
-        <div className="bg-green-50 rounded-lg p-4">
-          <div className="text-sm text-gray-600 mb-1">Processed</div>
-          <div className="text-2xl font-bold text-green-600">
+        <div className="bg-slate-900/50 border border-green-500/30 rounded-lg p-4">
+          <div className="text-sm text-green-300 mb-1">Processed</div>
+          <div className="text-2xl font-bold text-green-400">
             {backfillStatus.processedRecords.toLocaleString()}
           </div>
         </div>
 
-        <div className="bg-orange-50 rounded-lg p-4">
-          <div className="text-sm text-gray-600 mb-1">Unprocessed</div>
-          <div className="text-2xl font-bold text-orange-600">
+        <div className="bg-slate-900/50 border border-orange-500/30 rounded-lg p-4">
+          <div className="text-sm text-orange-300 mb-1">Unprocessed</div>
+          <div className="text-2xl font-bold text-orange-400">
             {backfillStatus.unprocessedRecords.toLocaleString()}
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-lg p-4">
-          <div className="text-sm text-gray-600 mb-1">Progress</div>
-          <div className="text-2xl font-bold text-blue-600">
+        <div className="bg-slate-900/50 border border-blue-500/30 rounded-lg p-4">
+          <div className="text-sm text-blue-300 mb-1">Progress</div>
+          <div className="text-2xl font-bold text-blue-400">
             {backfillStatus.percentageComplete.toFixed(1)}%
           </div>
         </div>
@@ -188,17 +189,17 @@ export default function LanguageBackfillPanel() {
 
       {backfillStatus.unprocessedRecords > 0 && (
         <div className="mb-6">
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div className="w-full bg-slate-700 rounded-full h-3 mb-2">
             <div
               className="bg-blue-600 h-3 rounded-full transition-all duration-500"
               style={{ width: `${backfillStatus.percentageComplete}%` }}
             />
           </div>
-          <div className="flex items-center justify-between text-sm text-gray-600">
+          <div className="flex items-center justify-between text-sm text-blue-200">
             <span>
               {backfillStatus.processedRecords.toLocaleString()} / {backfillStatus.totalRecords.toLocaleString()} records processed
             </span>
-            <span>
+            <span className="text-gray-400">
               {backfillStatus.unprocessedRecords.toLocaleString()} remaining
             </span>
           </div>
@@ -216,7 +217,7 @@ export default function LanguageBackfillPanel() {
         </button>
 
         {lastBackfillResult && (
-          <div className={`flex items-center gap-2 text-sm ${lastBackfillResult.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+          <div className={`flex items-center gap-2 text-sm ${lastBackfillResult.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
             {lastBackfillResult.startsWith('✓') ? (
               <CheckCircle className="w-4 h-4" />
             ) : (
@@ -227,51 +228,73 @@ export default function LanguageBackfillPanel() {
         )}
       </div>
 
-      <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-600" />
-          Language Distribution
-        </h3>
+      <div className="border-t border-slate-700 pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-teal-400" />
+            Language Distribution
+          </h3>
+          <button
+            onClick={() => setDistributionExpanded(!distributionExpanded)}
+            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            {distributionExpanded ? (
+              <>
+                <ChevronUp className="w-4 h-4" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                Expand
+              </>
+            )}
+          </button>
+        </div>
 
-        {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading statistics...</div>
-        ) : languageStats.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No data available</div>
-        ) : (
-          <div className="space-y-3">
-            {languageStats.slice(0, 15).map((stat) => (
-              <div key={stat.language} className="flex items-center gap-3">
-                <div className="w-24 text-sm font-medium text-gray-700">
-                  {getLanguageName(stat.language)}
-                </div>
-                <div className="flex-1">
-                  <div className="w-full bg-gray-200 rounded-full h-6">
-                    <div
-                      className={`h-6 rounded-full flex items-center justify-end px-2 text-xs font-medium text-white transition-all duration-500 ${
-                        stat.language === 'en' ? 'bg-green-600' : 'bg-blue-600'
-                      }`}
-                      style={{ width: `${Math.max(stat.percentage, 2)}%` }}
-                    >
-                      {stat.percentage >= 5 && `${stat.percentage.toFixed(1)}%`}
+        {distributionExpanded && (
+          <>
+            {loading ? (
+              <div className="text-center py-8 text-gray-400">Loading statistics...</div>
+            ) : languageStats.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">No data available</div>
+            ) : (
+              <div className="space-y-3">
+                {languageStats.slice(0, 15).map((stat) => (
+                  <div key={stat.language} className="flex items-center gap-3">
+                    <div className="w-24 text-sm font-medium text-gray-300">
+                      {getLanguageName(stat.language)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="w-full bg-slate-700 rounded-full h-6">
+                        <div
+                          className={`h-6 rounded-full flex items-center justify-end px-2 text-xs font-medium text-white transition-all duration-500 ${
+                            stat.language === 'en' ? 'bg-green-600 hover:bg-green-500' : 'bg-teal-600 hover:bg-teal-500'
+                          }`}
+                          style={{ width: `${Math.max(stat.percentage, 2)}%` }}
+                        >
+                          {stat.percentage >= 5 && `${stat.percentage.toFixed(1)}%`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-20 text-right text-sm text-gray-400">
+                      {stat.count.toLocaleString()}
                     </div>
                   </div>
-                </div>
-                <div className="w-20 text-right text-sm text-gray-600">
-                  {stat.count.toLocaleString()}
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
 
       {backfillStatus.unprocessedRecords > 0 && (
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-blue-400 mt-0.5" />
             <div className="flex-1">
-              <h4 className="font-semibold text-blue-900 mb-1">Backfill in Progress</h4>
-              <p className="text-sm text-blue-800">
+              <h4 className="font-semibold text-blue-200 mb-1">Backfill in Progress</h4>
+              <p className="text-sm text-blue-300">
                 {backfillStatus.unprocessedRecords.toLocaleString()} records still need language detection.
                 Run the backfill process in batches of 500 to update these records. The crawler will automatically
                 classify all new URLs going forward.
