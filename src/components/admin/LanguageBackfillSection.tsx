@@ -7,8 +7,6 @@ interface BackfillProgress {
   id: string;
   total_urls: number;
   processed_count: number;
-  successful_count: number;
-  failed_count: number;
   batch_size: number;
   status: 'idle' | 'running' | 'paused' | 'completed' | 'failed';
   current_batch: number;
@@ -16,8 +14,15 @@ interface BackfillProgress {
   completed_at: string | null;
   last_batch_at: string | null;
   processing_rate: number;
+  lock_acquired_at: string | null;
+  lock_holder_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface BackfillCounts {
+  successful_count: number;
+  failed_count: number;
 }
 
 interface BackfillLog {
@@ -38,25 +43,68 @@ interface LanguageBackfillSectionProps {
 
 export default function LanguageBackfillSection({ session }: LanguageBackfillSectionProps) {
   const [progress, setProgress] = useState<BackfillProgress | null>(null);
+  const [counts, setCounts] = useState<BackfillCounts>({ successful_count: 0, failed_count: 0 });
   const [logs, setLogs] = useState<BackfillLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isLeader, setIsLeader] = useState(false);
+  const [multiTabWarning, setMultiTabWarning] = useState(false);
   const processingIntervalRef = useRef<number | null>(null);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
+    // Initialize BroadcastChannel for tab coordination
+    const channel = new BroadcastChannel('language-backfill-coordination');
+    broadcastChannelRef.current = channel;
+
+    // Listen for messages from other tabs
+    channel.onmessage = (event) => {
+      if (event.data.type === 'leader-claim') {
+        // Another tab claimed leadership
+        setIsLeader(false);
+        setMultiTabWarning(true);
+      } else if (event.data.type === 'leader-release') {
+        // Leadership released - we can try to claim it
+        if (processing) {
+          claimLeadership();
+        }
+      }
+    };
+
+    // Try to become leader if we're the first tab
+    claimLeadership();
+
     fetchProgress();
     const interval = setInterval(fetchProgress, 5000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      if (broadcastChannelRef.current) {
+        // Release leadership on unmount
+        broadcastChannelRef.current.postMessage({ type: 'leader-release' });
+        broadcastChannelRef.current.close();
+      }
+    };
   }, []);
 
   useEffect(() => {
-    if (progress?.status === 'running' && !processing) {
+    if (progress?.status === 'running' && !processing && isLeader) {
       startProcessingLoop();
+    } else if (progress?.status !== 'running' && processing) {
+      stopProcessingLoop();
     }
-  }, [progress?.status]);
+  }, [progress?.status, isLeader]);
+
+  const claimLeadership = () => {
+    setIsLeader(true);
+    setMultiTabWarning(false);
+    if (broadcastChannelRef.current) {
+      broadcastChannelRef.current.postMessage({ type: 'leader-claim' });
+    }
+  };
 
   const fetchProgress = async () => {
     try {
@@ -71,6 +119,20 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
       setProgress(data);
 
       if (data?.id) {
+        // Fetch aggregated counts from logs using RPC functions
+        const { data: successCount } = await supabase
+          .rpc('get_backfill_success_count', { progress_id: data.id })
+          .maybeSingle();
+
+        const { data: failCount } = await supabase
+          .rpc('get_backfill_failed_count', { progress_id: data.id })
+          .maybeSingle();
+
+        setCounts({
+          successful_count: successCount || 0,
+          failed_count: failCount || 0
+        });
+
         const { data: logsData } = await supabase
           .from('language_backfill_log')
           .select('*')
@@ -126,8 +188,8 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
     try {
       const result = await callBackfillFunction('initialize');
       setSuccess('Backfill initialized successfully');
+      claimLeadership();
       await fetchProgress();
-      startProcessingLoop();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initialize backfill');
     } finally {
@@ -159,8 +221,8 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
     try {
       await callBackfillFunction('resume');
       setSuccess('Backfill resumed');
+      claimLeadership();
       await fetchProgress();
-      startProcessingLoop();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resume backfill');
     } finally {
@@ -190,6 +252,7 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
 
   const startProcessingLoop = () => {
     if (processingIntervalRef.current) return;
+    if (!isLeader) return;
 
     setProcessing(true);
     processBatch();
@@ -205,11 +268,22 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
       processingIntervalRef.current = null;
     }
     setProcessing(false);
+    if (broadcastChannelRef.current) {
+      broadcastChannelRef.current.postMessage({ type: 'leader-release' });
+    }
   };
 
   const processBatch = async () => {
     try {
       const result = await callBackfillFunction('process');
+
+      // Handle busy response (another worker is processing)
+      if (result.message === 'busy') {
+        console.log('Another worker is processing, standing by...');
+        setIsLeader(false);
+        setMultiTabWarning(true);
+        return;
+      }
 
       if (result.progress?.is_complete) {
         stopProcessingLoop();
@@ -330,6 +404,14 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
         </div>
       )}
 
+      {multiTabWarning && !isLeader && (
+        <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/50 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-yellow-400" />
+          <p className="text-yellow-300 text-sm">Multiple admin tabs detected. Processing is controlled by another tab to prevent conflicts.</p>
+          <button onClick={() => setMultiTabWarning(false)} className="ml-auto text-yellow-400 hover:text-yellow-300">×</button>
+        </div>
+      )}
+
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-gray-300">Status:</span>
@@ -381,7 +463,7 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
                   <CheckCircle className="w-4 h-4 text-green-400" />
                   <div className="text-xs text-gray-400">Successful</div>
                 </div>
-                <div className="text-xl font-bold text-green-400">{progress.successful_count.toLocaleString()}</div>
+                <div className="text-xl font-bold text-green-400">{counts.successful_count.toLocaleString()}</div>
               </div>
 
               <div className="bg-slate-900/50 rounded-lg p-3">
@@ -389,7 +471,7 @@ export default function LanguageBackfillSection({ session }: LanguageBackfillSec
                   <XCircle className="w-4 h-4 text-red-400" />
                   <div className="text-xs text-gray-400">Failed</div>
                 </div>
-                <div className="text-xl font-bold text-red-400">{progress.failed_count.toLocaleString()}</div>
+                <div className="text-xl font-bold text-red-400">{counts.failed_count.toLocaleString()}</div>
               </div>
             </div>
 

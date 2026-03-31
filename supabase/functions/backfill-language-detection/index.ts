@@ -13,14 +13,14 @@ interface BackfillProgress {
   id: string;
   total_urls: number;
   processed_count: number;
-  successful_count: number;
-  failed_count: number;
   batch_size: number;
   status: string;
   current_batch: number;
   started_at: string | null;
   last_batch_at: string | null;
   processing_rate: number;
+  lock_acquired_at: string | null;
+  lock_holder_id: string | null;
 }
 
 interface SearchIndexEntry {
@@ -31,6 +31,11 @@ interface SearchIndexEntry {
   content_snippet: string;
   language: string;
   language_confidence: number;
+}
+
+interface FailedUrl {
+  id: string;
+  retry_count: number;
 }
 
 Deno.serve(async (req: Request) => {
@@ -44,7 +49,6 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Check for admin bypass key authorization
@@ -102,8 +106,6 @@ Deno.serve(async (req: Request) => {
         .insert({
           total_urls: totalUrls || 0,
           processed_count: 0,
-          successful_count: 0,
-          failed_count: 0,
           batch_size: 50,
           status: 'running',
           current_batch: 0,
@@ -136,6 +138,9 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (progress) {
+        // Release any locks before pausing
+        await supabase.rpc('release_backfill_lock');
+
         await supabase
           .from('language_backfill_progress')
           .update({ status: 'paused', updated_at: new Date().toISOString() })
@@ -237,11 +242,22 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (progress) {
+        // Release locks before reset
+        await supabase.rpc('release_backfill_lock');
+
+        // Delete logs
         await supabase
           .from('language_backfill_log')
           .delete()
           .eq('progress_id', progress.id);
 
+        // Delete failed URLs tracking
+        await supabase
+          .from('language_backfill_failed_urls')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+
+        // Delete progress
         await supabase
           .from('language_backfill_progress')
           .delete()
@@ -266,19 +282,22 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'process') {
-      const { data: progress } = await supabase
-        .from('language_backfill_progress')
-        .select('*')
-        .eq('status', 'running')
-        .order('created_at', { ascending: false })
-        .limit(1)
+      // Generate unique worker ID for this invocation
+      const workerId = crypto.randomUUID();
+
+      // Try to acquire advisory lock to prevent concurrent processing
+      const { data: lockAcquired } = await supabase
+        .rpc('try_acquire_backfill_lock', { holder_id: workerId })
         .maybeSingle();
 
-      if (!progress) {
+      if (!lockAcquired) {
         return new Response(
-          JSON.stringify({ error: 'No active backfill found. Please initialize first.' }),
+          JSON.stringify({
+            message: 'busy',
+            reason: 'Another worker is currently processing. Only one worker can run at a time.'
+          }),
           {
-            status: 400,
+            status: 409,
             headers: {
               ...corsHeaders,
               'Content-Type': 'application/json',
@@ -287,242 +306,377 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const batchStartTime = Date.now();
-      const batchSize = progress.batch_size;
+      try {
+        // Clean up any abandoned locks (held for >2 minutes)
+        await supabase.rpc('force_release_abandoned_locks');
 
-      // Query only unprocessed URLs using the tracking column
-      const { data: urlsToProcess } = await supabase
-        .from('search_index')
-        .select('id, url, title, description, content_snippet, language, language_confidence')
-        .eq('is_internal', false)
-        .eq('language_backfill_processed', false)
-        .order('created_at', { ascending: true })
-        .limit(batchSize);
+        const { data: progress } = await supabase
+          .from('language_backfill_progress')
+          .select('*')
+          .eq('status', 'running')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!urlsToProcess || urlsToProcess.length === 0) {
-        // Double-check completion by counting remaining unprocessed URLs
+        if (!progress) {
+          await supabase.rpc('release_backfill_lock');
+          return new Response(
+            JSON.stringify({ error: 'No active backfill found. Please initialize first.' }),
+            {
+              status: 400,
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+        }
+
+        const batchStartTime = Date.now();
+        const batchSize = progress.batch_size;
+
+        // Query only unprocessed URLs, excluding those that have failed twice
+        const { data: urlsToProcess } = await supabase
+          .from('search_index')
+          .select('id, url, title, description, content_snippet, language, language_confidence')
+          .eq('is_internal', false)
+          .eq('language_backfill_processed', false)
+          .order('created_at', { ascending: true })
+          .limit(batchSize);
+
+        if (!urlsToProcess || urlsToProcess.length === 0) {
+          // Check completion
+          const { count: remainingUrls } = await supabase
+            .from('search_index')
+            .select('id', { count: 'exact', head: true })
+            .eq('is_internal', false)
+            .eq('language_backfill_processed', false);
+
+          if (remainingUrls === 0 || !remainingUrls) {
+            await supabase
+              .from('language_backfill_progress')
+              .update({
+                status: 'completed',
+                completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', progress.id);
+
+            await supabase.rpc('release_backfill_lock');
+
+            // Get final counts from log aggregation
+            const { data: successCount } = await supabase
+              .rpc('get_backfill_success_count', { progress_id: progress.id })
+              .maybeSingle();
+
+            const { data: failCount } = await supabase
+              .rpc('get_backfill_failed_count', { progress_id: progress.id })
+              .maybeSingle();
+
+            return new Response(
+              JSON.stringify({
+                message: 'Backfill completed',
+                progress: {
+                  ...progress,
+                  status: 'completed',
+                  successful_count: successCount || 0,
+                  failed_count: failCount || 0
+                }
+              }),
+              {
+                headers: {
+                  ...corsHeaders,
+                  'Content-Type': 'application/json',
+                }
+              }
+            );
+          } else {
+            await supabase.rpc('release_backfill_lock');
+            return new Response(
+              JSON.stringify({
+                error: `No URLs returned in batch, but ${remainingUrls} unprocessed URLs remain. Please retry.`,
+                remaining_urls: remainingUrls
+              }),
+              {
+                status: 500,
+                headers: {
+                  ...corsHeaders,
+                  'Content-Type': 'application/json',
+                }
+              }
+            );
+          }
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        const errors: any[] = [];
+
+        for (const entry of urlsToProcess as SearchIndexEntry[]) {
+          try {
+            // Check if this URL has failed before
+            const { data: failedEntry } = await supabase
+              .from('language_backfill_failed_urls')
+              .select('id, retry_count')
+              .eq('search_index_id', entry.id)
+              .maybeSingle();
+
+            // Skip URLs that have already failed twice
+            if (failedEntry && failedEntry.retry_count >= 2) {
+              continue;
+            }
+
+            const combinedText = `${entry.title || ''} ${entry.description || ''} ${entry.content_snippet || ''}`.trim();
+
+            // Check if content has sufficient SEO quality
+            const { data: hasSufficientContent } = await supabase
+              .rpc('has_sufficient_seo_content', {
+                title: entry.title,
+                description: entry.description,
+                snippet: entry.content_snippet
+              })
+              .maybeSingle();
+
+            if (!hasSufficientContent) {
+              // Mark as unknown - will be excluded from search
+              await supabase
+                .from('search_index')
+                .update({
+                  language: 'unknown',
+                  language_confidence: 0.3,
+                  language_backfill_processed: true
+                })
+                .eq('id', entry.id);
+
+              // Remove from failed tracking if it was there
+              if (failedEntry) {
+                await supabase
+                  .from('language_backfill_failed_urls')
+                  .delete()
+                  .eq('id', failedEntry.id);
+              }
+
+              successCount++;
+              continue;
+            }
+
+            // Use enhanced detection with URL-based fallback
+            const { data: langResult } = await supabase
+              .rpc('detect_language_enhanced', {
+                content: combinedText,
+                url: entry.url
+              })
+              .maybeSingle();
+
+            if (langResult) {
+              await supabase
+                .from('search_index')
+                .update({
+                  language: langResult.language || 'unknown',
+                  language_confidence: langResult.confidence || 0.3,
+                  language_backfill_processed: true
+                })
+                .eq('id', entry.id);
+
+              // Remove from failed tracking if it was there (recovery)
+              if (failedEntry) {
+                await supabase
+                  .from('language_backfill_failed_urls')
+                  .delete()
+                  .eq('id', failedEntry.id);
+              }
+
+              successCount++;
+            } else {
+              // Fallback to unknown if detection fails
+              await supabase
+                .from('search_index')
+                .update({
+                  language: 'unknown',
+                  language_confidence: 0.3,
+                  language_backfill_processed: true
+                })
+                .eq('id', entry.id);
+
+              // Remove from failed tracking if it was there
+              if (failedEntry) {
+                await supabase
+                  .from('language_backfill_failed_urls')
+                  .delete()
+                  .eq('id', failedEntry.id);
+              }
+
+              successCount++;
+            }
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+            // Check current retry count
+            const { data: failedEntry } = await supabase
+              .from('language_backfill_failed_urls')
+              .select('id, retry_count')
+              .eq('search_index_id', entry.id)
+              .maybeSingle();
+
+            if (!failedEntry) {
+              // First failure - track it and don't mark as processed (will retry)
+              await supabase
+                .from('language_backfill_failed_urls')
+                .insert({
+                  search_index_id: entry.id,
+                  url: entry.url,
+                  retry_count: 1,
+                  error_message: errorMessage
+                });
+
+              // Don't mark as processed yet - will be retried
+              failCount++;
+              errors.push({
+                url: entry.url,
+                error: errorMessage,
+                retry_count: 1
+              });
+            } else {
+              // Second failure - mark as unknown and processed (no more retries)
+              await supabase
+                .from('search_index')
+                .update({
+                  language: 'unknown',
+                  language_confidence: 0.2,
+                  language_backfill_processed: true
+                })
+                .eq('id', entry.id);
+
+              await supabase
+                .from('language_backfill_failed_urls')
+                .update({
+                  retry_count: 2,
+                  last_failed_at: new Date().toISOString(),
+                  error_message: errorMessage,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', failedEntry.id);
+
+              failCount++;
+              errors.push({
+                url: entry.url,
+                error: errorMessage,
+                retry_count: 2,
+                final_failure: true
+              });
+            }
+          }
+        }
+
+        const batchProcessingTime = Date.now() - batchStartTime;
+
+        // Query actual database counts
+        const { count: actualProcessedCount } = await supabase
+          .from('search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_internal', false)
+          .eq('language_backfill_processed', true);
+
+        const { count: actualTotalUrls } = await supabase
+          .from('search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_internal', false);
+
+        const newProcessedCount = actualProcessedCount || 0;
+        const newTotalUrls = actualTotalUrls || progress.total_urls;
+
+        // Get aggregated counts from logs
+        const { data: totalSuccessCount } = await supabase
+          .rpc('get_backfill_success_count', { progress_id: progress.id })
+          .maybeSingle();
+
+        const { data: totalFailCount } = await supabase
+          .rpc('get_backfill_failed_count', { progress_id: progress.id })
+          .maybeSingle();
+
+        const newSuccessfulCount = (totalSuccessCount || 0) + successCount;
+        const newFailedCount = (totalFailCount || 0) + failCount;
+
+        const timeSinceStart = progress.started_at
+          ? (Date.now() - new Date(progress.started_at).getTime()) / 1000 / 60
+          : 1;
+        const processingRate = newProcessedCount / timeSinceStart;
+
+        // Log this batch
+        await supabase
+          .from('language_backfill_log')
+          .insert({
+            progress_id: progress.id,
+            batch_number: progress.current_batch + 1,
+            urls_processed: urlsToProcess.length,
+            successful: successCount,
+            failed: failCount,
+            errors: errors,
+            processing_time_ms: batchProcessingTime
+          });
+
+        // Check completion
         const { count: remainingUrls } = await supabase
           .from('search_index')
           .select('id', { count: 'exact', head: true })
           .eq('is_internal', false)
           .eq('language_backfill_processed', false);
 
-        if (remainingUrls === 0 || !remainingUrls) {
-          await supabase
-            .from('language_backfill_progress')
-            .update({
-              status: 'completed',
-              completed_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', progress.id);
+        const isComplete = (remainingUrls === 0 || !remainingUrls);
 
-          return new Response(
-            JSON.stringify({
-              message: 'Backfill completed',
-              progress: {
-                ...progress,
-                status: 'completed'
-              }
-            }),
-            {
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-        } else {
-          return new Response(
-            JSON.stringify({
-              error: `No URLs returned in batch, but ${remainingUrls} unprocessed URLs remain. Please retry.`,
-              remaining_urls: remainingUrls
-            }),
-            {
-              status: 500,
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-        }
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors: any[] = [];
-
-      for (const entry of urlsToProcess as SearchIndexEntry[]) {
-        try {
-          const combinedText = `${entry.title || ''} ${entry.description || ''} ${entry.content_snippet || ''}`.trim();
-
-          // Check if content has sufficient SEO quality
-          const { data: hasSufficientContent } = await supabase
-            .rpc('has_sufficient_seo_content', {
-              title: entry.title,
-              description: entry.description,
-              snippet: entry.content_snippet
-            })
-            .maybeSingle();
-
-          if (!hasSufficientContent) {
-            // Mark as unknown - will be excluded from search
-            await supabase
-              .from('search_index')
-              .update({
-                language: 'unknown',
-                language_confidence: 0.3,
-                language_backfill_processed: true
-              })
-              .eq('id', entry.id);
-
-            successCount++;
-            continue;
-          }
-
-          // Use enhanced detection with URL-based fallback
-          const { data: langResult } = await supabase
-            .rpc('detect_language_enhanced', {
-              content: combinedText,
-              url: entry.url
-            })
-            .maybeSingle();
-
-          if (langResult) {
-            await supabase
-              .from('search_index')
-              .update({
-                language: langResult.language || 'unknown',
-                language_confidence: langResult.confidence || 0.3,
-                language_backfill_processed: true
-              })
-              .eq('id', entry.id);
-
-            successCount++;
-          } else {
-            // Fallback to unknown if detection fails
-            await supabase
-              .from('search_index')
-              .update({
-                language: 'unknown',
-                language_confidence: 0.3,
-                language_backfill_processed: true
-              })
-              .eq('id', entry.id);
-
-            successCount++;
-          }
-        } catch (error) {
-          // Mark as unknown on error to exclude from search
-          await supabase
-            .from('search_index')
-            .update({
-              language: 'unknown',
-              language_confidence: 0.2,
-              language_backfill_processed: true
-            })
-            .eq('id', entry.id);
-
-          failCount++;
-          errors.push({
-            url: entry.url,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-
-      const batchProcessingTime = Date.now() - batchStartTime;
-
-      // Query actual database counts instead of using unreliable counters
-      const { count: actualProcessedCount } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_internal', false)
-        .eq('language_backfill_processed', true);
-
-      const { count: actualTotalUrls } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_internal', false);
-
-      const newProcessedCount = actualProcessedCount || 0;
-      const newTotalUrls = actualTotalUrls || progress.total_urls;
-      const newSuccessfulCount = progress.successful_count + successCount;
-      const newFailedCount = progress.failed_count + failCount;
-
-      const timeSinceStart = progress.started_at
-        ? (Date.now() - new Date(progress.started_at).getTime()) / 1000 / 60
-        : 1;
-      const processingRate = newProcessedCount / timeSinceStart;
-
-      await supabase
-        .from('language_backfill_log')
-        .insert({
-          progress_id: progress.id,
-          batch_number: progress.current_batch + 1,
-          urls_processed: urlsToProcess.length,
-          successful: successCount,
-          failed: failCount,
-          errors: errors,
-          processing_time_ms: batchProcessingTime
-        });
-
-      // Check completion by querying actual unprocessed URLs
-      const { count: remainingUrls } = await supabase
-        .from('search_index')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_internal', false)
-        .eq('language_backfill_processed', false);
-
-      const isComplete = (remainingUrls === 0 || !remainingUrls);
-
-      await supabase
-        .from('language_backfill_progress')
-        .update({
-          total_urls: newTotalUrls,
-          processed_count: newProcessedCount,
-          successful_count: newSuccessfulCount,
-          failed_count: newFailedCount,
-          current_batch: progress.current_batch + 1,
-          last_batch_at: new Date().toISOString(),
-          processing_rate: processingRate,
-          status: isComplete ? 'completed' : 'running',
-          completed_at: isComplete ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', progress.id);
-
-      return new Response(
-        JSON.stringify({
-          message: isComplete ? 'Backfill completed' : 'Batch processed successfully',
-          batch: {
-            number: progress.current_batch + 1,
-            processed: urlsToProcess.length,
-            successful: successCount,
-            failed: failCount,
-            processing_time_ms: batchProcessingTime
-          },
-          progress: {
+        // Update progress
+        await supabase
+          .from('language_backfill_progress')
+          .update({
             total_urls: newTotalUrls,
             processed_count: newProcessedCount,
-            successful_count: newSuccessfulCount,
-            failed_count: newFailedCount,
-            remaining: remainingUrls || 0,
+            current_batch: progress.current_batch + 1,
+            last_batch_at: new Date().toISOString(),
             processing_rate: processingRate,
-            estimated_minutes_remaining: processingRate > 0 && remainingUrls
-              ? remainingUrls / processingRate
-              : 0,
-            is_complete: isComplete
+            status: isComplete ? 'completed' : 'running',
+            completed_at: isComplete ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', progress.id);
+
+        // Release lock
+        await supabase.rpc('release_backfill_lock');
+
+        return new Response(
+          JSON.stringify({
+            message: isComplete ? 'Backfill completed' : 'Batch processed successfully',
+            batch: {
+              number: progress.current_batch + 1,
+              processed: urlsToProcess.length,
+              successful: successCount,
+              failed: failCount,
+              processing_time_ms: batchProcessingTime
+            },
+            progress: {
+              total_urls: newTotalUrls,
+              processed_count: newProcessedCount,
+              successful_count: newSuccessfulCount,
+              failed_count: newFailedCount,
+              remaining: remainingUrls || 0,
+              processing_rate: processingRate,
+              estimated_minutes_remaining: processingRate > 0 && remainingUrls
+                ? remainingUrls / processingRate
+                : 0,
+              is_complete: isComplete
+            }
+          }),
+          {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+            }
           }
-        }),
-        {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          }
-        }
-      );
+        );
+      } catch (processingError) {
+        // Ensure lock is released on error
+        await supabase.rpc('release_backfill_lock');
+        throw processingError;
+      }
     }
 
     return new Response(
