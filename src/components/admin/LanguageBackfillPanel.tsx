@@ -17,7 +17,7 @@ interface BackfillStatus {
 }
 
 export default function LanguageBackfillPanel() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [languageStats, setLanguageStats] = useState<LanguageStats[]>([]);
   const [backfillStatus, setBackfillStatus] = useState<BackfillStatus>({
     totalRecords: 0,
@@ -155,7 +155,7 @@ export default function LanguageBackfillPanel() {
     return () => clearInterval(interval);
   }, [lastBackfillTime, processing, cooldownRemaining]);
 
-  if (!user?.is_admin) {
+  if (!isAdmin) {
     return (
       <div className="bg-slate-800/50 border border-red-500/30 rounded-xl p-6">
         <div className="flex items-center gap-3 text-red-400">
