@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-admin-bypass-key, x-admin-user-id",
 };
 
 interface LanguageDetectionResult {
@@ -142,6 +142,47 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const adminBypassKey = req.headers.get('x-admin-bypass-key');
+    const adminUserId = req.headers.get('x-admin-user-id');
+    const expectedBypassKey = Deno.env.get('VITE_ADMIN_BYPASS_KEY');
+    const expectedUserId = Deno.env.get('VITE_ADMIN_USER_ID');
+
+    if (!adminBypassKey || !adminUserId) {
+      console.error('Backfill authentication failed: Missing admin headers');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Authentication failed - Admin credentials required'
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
+    if (adminBypassKey !== expectedBypassKey || adminUserId !== expectedUserId) {
+      console.error('Backfill authentication failed: Invalid admin credentials');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Authentication failed - Invalid admin credentials'
+        }),
+        {
+          status: 401,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+
+    console.log(`Backfill initiated by admin user: ${adminUserId} at ${new Date().toISOString()}`);
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

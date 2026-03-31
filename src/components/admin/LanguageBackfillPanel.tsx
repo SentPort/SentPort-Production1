@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Languages, RefreshCw, TrendingUp, Play, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LanguageStats {
   language: string;
@@ -16,6 +17,7 @@ interface BackfillStatus {
 }
 
 export default function LanguageBackfillPanel() {
+  const { user } = useAuth();
   const [languageStats, setLanguageStats] = useState<LanguageStats[]>([]);
   const [backfillStatus, setBackfillStatus] = useState<BackfillStatus>({
     totalRecords: 0,
@@ -27,6 +29,10 @@ export default function LanguageBackfillPanel() {
   const [processing, setProcessing] = useState(false);
   const [lastBackfillResult, setLastBackfillResult] = useState<string | null>(null);
   const [distributionExpanded, setDistributionExpanded] = useState(false);
+  const [lastBackfillTime, setLastBackfillTime] = useState<number>(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
+  const COOLDOWN_MS = 2000;
 
   const fetchLanguageStats = async () => {
     setLoading(true);
@@ -78,8 +84,22 @@ export default function LanguageBackfillPanel() {
   const runBackfill = async () => {
     if (processing) return;
 
+    const adminBypassKey = import.meta.env.VITE_ADMIN_BYPASS_KEY;
+    const adminUserId = import.meta.env.VITE_ADMIN_USER_ID;
+
+    if (!adminBypassKey || !adminUserId) {
+      setLastBackfillResult('✗ Error: Admin credentials not configured');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastBackfillTime < COOLDOWN_MS) {
+      return;
+    }
+
     setProcessing(true);
     setLastBackfillResult(null);
+    setLastBackfillTime(now);
 
     try {
       const response = await fetch(
@@ -89,6 +109,8 @@ export default function LanguageBackfillPanel() {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
+            'x-admin-bypass-key': adminBypassKey,
+            'x-admin-user-id': adminUserId,
           },
           body: JSON.stringify({ batchSize: 500 }),
         }
@@ -96,7 +118,9 @@ export default function LanguageBackfillPanel() {
 
       const result = await response.json();
 
-      if (result.success) {
+      if (response.status === 401) {
+        setLastBackfillResult(`✗ Authentication failed: ${result.error}`);
+      } else if (result.success) {
         setLastBackfillResult(
           `✓ Processed ${result.processed} records. ${result.totalRemaining} remaining.`
         );
@@ -114,6 +138,34 @@ export default function LanguageBackfillPanel() {
   useEffect(() => {
     fetchLanguageStats();
   }, []);
+
+  useEffect(() => {
+    if (processing || cooldownRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, COOLDOWN_MS - (now - lastBackfillTime));
+      setCooldownRemaining(remaining);
+
+      if (remaining === 0) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [lastBackfillTime, processing, cooldownRemaining]);
+
+  if (!user?.is_admin) {
+    return (
+      <div className="bg-slate-800/50 border border-red-500/30 rounded-xl p-6">
+        <div className="flex items-center gap-3 text-red-400">
+          <AlertCircle className="w-6 h-6" />
+          <h2 className="text-xl font-semibold">Access Denied</h2>
+        </div>
+        <p className="text-gray-400 mt-2">Admin privileges required to access language backfill controls.</p>
+      </div>
+    );
+  }
 
   const getLanguageName = (code: string): string => {
     const languageNames: { [key: string]: string } = {
@@ -209,11 +261,15 @@ export default function LanguageBackfillPanel() {
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={runBackfill}
-          disabled={processing || backfillStatus.unprocessedRecords === 0}
+          disabled={processing || backfillStatus.unprocessedRecords === 0 || cooldownRemaining > 0}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Play className={`w-4 h-4 ${processing ? 'animate-pulse' : ''}`} />
-          {processing ? 'Processing...' : 'Run Backfill (500 records)'}
+          {processing
+            ? 'Processing...'
+            : cooldownRemaining > 0
+            ? `Cooldown (${(cooldownRemaining / 1000).toFixed(1)}s)`
+            : 'Run Backfill (500 records)'}
         </button>
 
         {lastBackfillResult && (
