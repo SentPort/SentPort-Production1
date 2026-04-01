@@ -270,7 +270,7 @@ export default function SearchResults() {
     setSearchParams({ q: relatedQuery });
   };
 
-  const analysis = query ? analyzeQuery(query) : null;
+  const analysis = query ? analyzeQuery(query, results) : null;
   const showCalculator = analysis?.showCalculator || false;
   const showWikipedia = analysis?.showWikipedia && includeExternalContent || false;
   const showUnitConverter = analysis?.showUnitConverter || false;

@@ -3,6 +3,12 @@ import { parseConversionQuery, containsConversionQuery, ConversionRequest } from
 
 export type QueryIntent = 'computational' | 'informational' | 'navigational' | 'general';
 
+export interface SearchResult {
+  url: string;
+  title?: string;
+  [key: string]: any;
+}
+
 export interface QueryAnalysis {
   intent: QueryIntent;
   showCalculator: boolean;
@@ -144,6 +150,13 @@ const COMMON_ENCYCLOPEDIA_TOPICS = [
   'climate'
 ];
 
+const COMMON_STOPWORDS = [
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+  'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+  'should', 'could', 'may', 'might', 'must', 'can', 'about'
+];
+
 function containsMathSymbols(query: string): boolean {
   return MATH_SYMBOLS.test(query);
 }
@@ -164,6 +177,45 @@ function containsCalculatorKeywords(query: string): boolean {
 function containsWikipediaIndicators(query: string): boolean {
   const lowerQuery = query.toLowerCase();
   return WIKIPEDIA_INDICATORS.some(indicator => lowerQuery.startsWith(indicator));
+}
+
+function hasWikipediaInResults(results: SearchResult[]): boolean {
+  if (!results || results.length === 0) {
+    return false;
+  }
+
+  return results.some(result => {
+    const url = result.url?.toLowerCase() || '';
+    return url.includes('wikipedia.org') || url.includes('simple.wikipedia.org');
+  });
+}
+
+function looksLikeProperNoun(query: string): boolean {
+  const trimmed = query.trim();
+  const words = trimmed.split(/\s+/);
+
+  if (words.length < 2 || words.length > 4) {
+    return false;
+  }
+
+  const validWords = words.filter(word => {
+    const lowerWord = word.toLowerCase();
+    if (COMMON_STOPWORDS.includes(lowerWord)) {
+      return false;
+    }
+    return /^[a-zA-Z]+$/.test(word) && word.length >= 2;
+  });
+
+  if (validWords.length < 2) {
+    return false;
+  }
+
+  const allWordsReasonableLength = validWords.every(word => word.length >= 2 && word.length <= 20);
+  if (!allWordsReasonableLength) {
+    return false;
+  }
+
+  return true;
 }
 
 function isProperNoun(query: string): boolean {
@@ -190,15 +242,23 @@ function isProperNoun(query: string): boolean {
   return false;
 }
 
-function isEncyclopediaTopic(query: string): boolean {
+function isEncyclopediaTopic(query: string, searchResults?: SearchResult[]): boolean {
   const lowerQuery = query.toLowerCase().trim();
   const trimmedQuery = query.trim();
+
+  if (searchResults && hasWikipediaInResults(searchResults)) {
+    return true;
+  }
 
   if (COMMON_ENCYCLOPEDIA_TOPICS.includes(lowerQuery)) {
     return true;
   }
 
   if (isProperNoun(trimmedQuery)) {
+    return true;
+  }
+
+  if (looksLikeProperNoun(trimmedQuery)) {
     return true;
   }
 
@@ -269,10 +329,11 @@ function normalizeQueryForWikipedia(query: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-export function analyzeQuery(query: string): QueryAnalysis {
+export function analyzeQuery(query: string, searchResults?: SearchResult[]): QueryAnalysis {
   const trimmed = query.trim();
 
   console.log('[QueryAnalyzer] Analyzing query:', trimmed);
+  console.log('[QueryAnalyzer] Search results provided:', !!searchResults, 'count:', searchResults?.length || 0);
 
   if (trimmed.length === 0) {
     return {
@@ -291,7 +352,7 @@ export function analyzeQuery(query: string): QueryAnalysis {
   const hasMathSymbols = containsMathSymbols(trimmed);
   const isNumeric = isNumericExpression(trimmed);
   const hasWikiIndicators = containsWikipediaIndicators(trimmed);
-  const isEncyclopedia = isEncyclopediaTopic(trimmed);
+  const isEncyclopedia = isEncyclopediaTopic(trimmed, searchResults);
   const hasMathWords = containsMathWords(trimmed);
 
   console.log('[QueryAnalyzer] hasConversion:', hasConversion);
@@ -344,12 +405,12 @@ export function analyzeQuery(query: string): QueryAnalysis {
   };
 }
 
-export function shouldShowCalculator(query: string): boolean {
-  const analysis = analyzeQuery(query);
+export function shouldShowCalculator(query: string, searchResults?: SearchResult[]): boolean {
+  const analysis = analyzeQuery(query, searchResults);
   return analysis.showCalculator;
 }
 
-export function shouldShowWikipedia(query: string): boolean {
-  const analysis = analyzeQuery(query);
+export function shouldShowWikipedia(query: string, searchResults?: SearchResult[]): boolean {
+  const analysis = analyzeQuery(query, searchResults);
   return analysis.showWikipedia;
 }
