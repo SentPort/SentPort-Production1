@@ -162,7 +162,7 @@ function containsMathSymbols(query: string): boolean {
 }
 
 function isNumericExpression(query: string): boolean {
-  const trimmed = query.trim();
+  const trimmed = query.trim().replace(/[?!=]+$/, '');
   return NUMERIC_EXPRESSION.test(trimmed) && trimmed.length > 0;
 }
 
@@ -277,9 +277,10 @@ function isEncyclopediaTopic(query: string, searchResults?: SearchResult[]): boo
 
 function extractMathExpression(query: string): string | undefined {
   const trimmed = query.trim();
+  const cleaned = trimmed.replace(/[?!=]+$/, '');
 
   if (isNumericExpression(trimmed)) {
-    return trimmed;
+    return cleaned;
   }
 
   const match = trimmed.match(/^(?:solve|calculate|compute|what\s+is)\s+(.+)$/i);
