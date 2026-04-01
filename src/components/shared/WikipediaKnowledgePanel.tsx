@@ -17,25 +17,32 @@ export function WikipediaKnowledgePanel({ query, onClose }: WikipediaKnowledgePa
     let mounted = true;
 
     const fetchWikipediaData = async () => {
+      console.log('[WikipediaPanel] Starting fetch for query:', query);
       setLoading(true);
       setError(null);
 
       try {
         const data = await findExactWikipediaMatch(query);
 
-        if (!mounted) return;
+        if (!mounted) {
+          console.log('[WikipediaPanel] Component unmounted, aborting');
+          return;
+        }
 
         if (data) {
+          console.log('[WikipediaPanel] Successfully loaded data:', data.title);
           setSummary(data);
         } else {
+          console.log('[WikipediaPanel] No Wikipedia article found for:', query);
           setError('No Wikipedia article found');
         }
       } catch (err) {
         if (!mounted) return;
-        console.error('Error fetching Wikipedia data:', err);
+        console.error('[WikipediaPanel] Error fetching Wikipedia data:', err);
         setError('Failed to load Wikipedia data');
       } finally {
         if (mounted) {
+          console.log('[WikipediaPanel] Fetch complete, loading:', false);
           setLoading(false);
         }
       }

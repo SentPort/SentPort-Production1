@@ -15,6 +15,9 @@ import { PeopleAlsoSearchFor } from '../components/shared/PeopleAlsoSearchFor';
 import { calculatePagination, paginateResults, getPageFromUrl, updatePageInUrl } from '../lib/searchPaginationHelpers';
 import { shouldIncludeInEnglishSearch } from '../lib/languageDetection';
 import { SearchWidgetContainer } from '../components/shared/SearchWidgetContainer';
+import { analyzeQuery } from '../lib/queryAnalyzer';
+import { Calculator } from '../components/shared/Calculator';
+import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 
 interface SearchResult {
   id: string;
@@ -266,6 +269,20 @@ export default function SearchResults() {
     setSearchParams({ q: relatedQuery });
   };
 
+  const analysis = query ? analyzeQuery(query) : null;
+  const showCalculator = analysis?.showCalculator || false;
+  const showWikipedia = analysis?.showWikipedia && includeExternalContent || false;
+
+  useEffect(() => {
+    if (query && analysis) {
+      console.log('[SearchResults] Query:', query);
+      console.log('[SearchResults] Analysis:', analysis);
+      console.log('[SearchResults] Show Calculator:', showCalculator);
+      console.log('[SearchResults] Show Wikipedia:', showWikipedia);
+      console.log('[SearchResults] Include External Content:', includeExternalContent);
+    }
+  }, [query, analysis, showCalculator, showWikipedia, includeExternalContent]);
+
   return (
     <>
       <Header />
@@ -400,6 +417,12 @@ export default function SearchResults() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {showCalculator && (
+          <div className="mb-6">
+            <Calculator initialExpression={analysis?.extractedExpression} />
           </div>
         )}
 
@@ -824,13 +847,10 @@ export default function SearchResults() {
             )}
           </div>
 
-          {query && (
+          {query && showWikipedia && (
             <div className="lg:col-span-1">
               <div className="sticky top-24">
-                <SearchWidgetContainer
-                  query={query}
-                  includeExternalContent={includeExternalContent}
-                />
+                <WikipediaKnowledgePanel query={analysis?.normalizedQuery || query} />
               </div>
             </div>
           )}

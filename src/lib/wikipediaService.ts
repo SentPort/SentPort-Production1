@@ -130,31 +130,36 @@ export async function searchWikipediaTitles(query: string): Promise<WikipediaSea
 export async function getWikipediaSummary(title: string): Promise<WikipediaSummary | null> {
   const cacheKey = `summary:${title.toLowerCase()}`;
   const cached = getCachedData<WikipediaSummary>(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log('[Wikipedia] Using cached summary for:', title);
+    return cached;
+  }
 
   try {
-    const response = await fetch(
-      `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(title)}`,
-      {
-        headers: {
-          'Accept': 'application/json'
-        }
+    const url = `${WIKIPEDIA_API_BASE}/page/summary/${encodeURIComponent(title)}`;
+    console.log('[Wikipedia] Fetching summary from:', url);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json'
       }
-    );
+    });
 
     if (!response.ok) {
       if (response.status === 404) {
+        console.log('[Wikipedia] Summary not found (404):', title);
         return null;
       }
       throw new Error(`Wikipedia API error: ${response.status}`);
     }
 
     const data: WikipediaSummary = await response.json();
+    console.log('[Wikipedia] Successfully fetched summary for:', data.title);
 
     setCachedData(cacheKey, data);
     return data;
   } catch (error) {
-    console.error('Error fetching Wikipedia summary:', error);
+    console.error('[Wikipedia] Error fetching summary:', error);
     return null;
   }
 }
@@ -162,34 +167,45 @@ export async function getWikipediaSummary(title: string): Promise<WikipediaSumma
 export async function findExactWikipediaMatch(query: string): Promise<WikipediaSummary | null> {
   const normalizedQuery = query.trim();
 
+  console.log('[Wikipedia] Searching for:', normalizedQuery);
+
   if (normalizedQuery.length < 2) {
+    console.log('[Wikipedia] Query too short, skipping');
     return null;
   }
 
   const summary = await getWikipediaSummary(normalizedQuery);
 
   if (summary && summary.type !== 'disambiguation') {
+    console.log('[Wikipedia] Found direct match:', summary.title);
     return summary;
   }
 
+  console.log('[Wikipedia] No direct match, searching titles...');
   const searchResults = await searchWikipediaTitles(normalizedQuery);
 
   if (searchResults.length === 0) {
+    console.log('[Wikipedia] No search results found');
     return null;
   }
+
+  console.log('[Wikipedia] Found', searchResults.length, 'search results');
 
   const exactMatch = searchResults.find(
     result => result.title.toLowerCase() === normalizedQuery.toLowerCase()
   );
 
   if (exactMatch) {
+    console.log('[Wikipedia] Found exact match from search:', exactMatch.title);
     return await getWikipediaSummary(exactMatch.title);
   }
 
   const firstResult = searchResults[0];
   if (firstResult && firstResult.title.toLowerCase().includes(normalizedQuery.toLowerCase())) {
+    console.log('[Wikipedia] Using first result:', firstResult.title);
     return await getWikipediaSummary(firstResult.title);
   }
 
+  console.log('[Wikipedia] No suitable match found');
   return null;
 }

@@ -72,6 +72,73 @@ const WIKIPEDIA_INDICATORS = [
   'biography'
 ];
 
+const COMMON_ENCYCLOPEDIA_TOPICS = [
+  'mathematics',
+  'physics',
+  'chemistry',
+  'biology',
+  'astronomy',
+  'geography',
+  'history',
+  'philosophy',
+  'psychology',
+  'economics',
+  'sociology',
+  'anthropology',
+  'archaeology',
+  'literature',
+  'art',
+  'music',
+  'architecture',
+  'engineering',
+  'computer science',
+  'medicine',
+  'anatomy',
+  'genetics',
+  'ecology',
+  'geology',
+  'meteorology',
+  'oceanography',
+  'paleontology',
+  'zoology',
+  'botany',
+  'mythology',
+  'religion',
+  'theology',
+  'ethics',
+  'logic',
+  'linguistics',
+  'political science',
+  'democracy',
+  'capitalism',
+  'socialism',
+  'renaissance',
+  'enlightenment',
+  'revolution',
+  'evolution',
+  'photosynthesis',
+  'quantum',
+  'relativity',
+  'thermodynamics',
+  'electromagnetism',
+  'gravity',
+  'universe',
+  'galaxy',
+  'planet',
+  'atom',
+  'molecule',
+  'element',
+  'compound',
+  'protein',
+  'dna',
+  'rna',
+  'cell',
+  'organism',
+  'species',
+  'ecosystem',
+  'climate'
+];
+
 function containsMathSymbols(query: string): boolean {
   return MATH_SYMBOLS.test(query);
 }
@@ -92,6 +159,26 @@ function containsCalculatorKeywords(query: string): boolean {
 function containsWikipediaIndicators(query: string): boolean {
   const lowerQuery = query.toLowerCase();
   return WIKIPEDIA_INDICATORS.some(indicator => lowerQuery.startsWith(indicator));
+}
+
+function isEncyclopediaTopic(query: string): boolean {
+  const lowerQuery = query.toLowerCase().trim();
+
+  if (COMMON_ENCYCLOPEDIA_TOPICS.includes(lowerQuery)) {
+    return true;
+  }
+
+  if (lowerQuery.split(/\s+/).length === 1 && lowerQuery.length >= 3) {
+    if (/^[A-Z][a-z]+$/.test(query.trim())) {
+      return true;
+    }
+  }
+
+  if (/^[a-z]+$/.test(lowerQuery) && lowerQuery.length >= 4) {
+    return true;
+  }
+
+  return false;
 }
 
 function extractMathExpression(query: string): string | undefined {
@@ -146,6 +233,8 @@ function normalizeQueryForWikipedia(query: string): string {
 export function analyzeQuery(query: string): QueryAnalysis {
   const trimmed = query.trim();
 
+  console.log('[QueryAnalyzer] Analyzing query:', trimmed);
+
   if (trimmed.length === 0) {
     return {
       intent: 'general',
@@ -159,6 +248,13 @@ export function analyzeQuery(query: string): QueryAnalysis {
   const hasMathSymbols = containsMathSymbols(trimmed);
   const isNumeric = isNumericExpression(trimmed);
   const hasWikiIndicators = containsWikipediaIndicators(trimmed);
+  const isEncyclopedia = isEncyclopediaTopic(trimmed);
+
+  console.log('[QueryAnalyzer] hasCalcKeywords:', hasCalcKeywords);
+  console.log('[QueryAnalyzer] hasMathSymbols:', hasMathSymbols);
+  console.log('[QueryAnalyzer] isNumeric:', isNumeric);
+  console.log('[QueryAnalyzer] hasWikiIndicators:', hasWikiIndicators);
+  console.log('[QueryAnalyzer] isEncyclopediaTopic:', isEncyclopedia);
 
   const extractedExpression = extractMathExpression(trimmed);
 
@@ -169,7 +265,7 @@ export function analyzeQuery(query: string): QueryAnalysis {
   if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols) {
     intent = 'computational';
     showCalculator = true;
-  } else if (hasWikiIndicators || /^[A-Z][a-z]+(\s[A-Z][a-z]+)*$/.test(trimmed)) {
+  } else if (hasWikiIndicators || isEncyclopedia) {
     intent = 'informational';
     showWikipedia = true;
   }
@@ -179,6 +275,8 @@ export function analyzeQuery(query: string): QueryAnalysis {
   }
 
   const normalizedQuery = showWikipedia ? normalizeQueryForWikipedia(trimmed) : trimmed;
+
+  console.log('[QueryAnalyzer] Result - intent:', intent, 'showCalculator:', showCalculator, 'showWikipedia:', showWikipedia, 'normalizedQuery:', normalizedQuery);
 
   return {
     intent,
