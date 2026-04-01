@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-admin-bypass-key, x-admin-user-id",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
 interface LanguageDetectionResult {
@@ -21,6 +21,12 @@ const LANGUAGE_PATTERNS = {
   devanagari: /[\u0900-\u097F]/g,
   greek: /[\u0370-\u03FF]/g,
 };
+
+const ALLOWED_LANGUAGES = new Set([
+  'en', 'ja', 'zh', 'ko', 'ar', 'ru', 'es', 'fr', 'de', 'pt', 'it',
+  'th', 'he', 'hi', 'el', 'nl', 'pl', 'tr', 'vi',
+  'unknown', 'other'
+]);
 
 const URL_LANGUAGE_CODES = [
   { pattern: /\/ja[\/\-_]|\.jp$/i, lang: 'ja' },
@@ -40,6 +46,7 @@ const URL_LANGUAGE_CODES = [
   { pattern: /\/vi[\/\-_]|\.vn$/i, lang: 'vi' },
   { pattern: /\/he[\/\-_]|\.il$/i, lang: 'he' },
   { pattern: /\/hi[\/\-_]|\.in$/i, lang: 'hi' },
+  { pattern: /\/el[\/\-_]|\.gr$/i, lang: 'el' },
   { pattern: /\/en[\/\-_]/i, lang: 'en' },
 ];
 
@@ -56,7 +63,8 @@ function detectLanguage(url: string, title: string, description: string): Langua
     if (wikipediaMatch) {
       const langCode = wikipediaMatch[1].toLowerCase();
       if (langCode !== 'en' && langCode !== 'www') {
-        return { language: langCode, confidence: 0.95 };
+        const validatedLang = ALLOWED_LANGUAGES.has(langCode) ? langCode : 'other';
+        return { language: validatedLang, confidence: 0.95 };
       }
     }
 
@@ -127,8 +135,10 @@ function detectLanguage(url: string, title: string, description: string): Langua
 
   const avgConfidence = langCounts[bestLang].totalConf / langCounts[bestLang].count;
 
+  const validatedLang = ALLOWED_LANGUAGES.has(bestLang) ? bestLang : 'other';
+
   return {
-    language: bestLang,
+    language: validatedLang,
     confidence: Math.min(avgConfidence, 1.0)
   };
 }
@@ -142,17 +152,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const adminBypassKey = req.headers.get('x-admin-bypass-key');
-    const adminUserId = req.headers.get('x-admin-user-id');
-    const expectedBypassKey = Deno.env.get('VITE_ADMIN_BYPASS_KEY');
-    const expectedUserId = Deno.env.get('VITE_ADMIN_USER_ID');
-
-    if (!adminBypassKey || !adminUserId) {
-      console.error('Backfill authentication failed: Missing admin headers');
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Authentication failed - Admin credentials required'
+          error: 'Authentication required'
         }),
         {
           status: 401,
@@ -164,24 +169,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (adminBypassKey !== expectedBypassKey || adminUserId !== expectedUserId) {
-      console.error('Backfill authentication failed: Invalid admin credentials');
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Authentication failed - Invalid admin credentials'
-        }),
-        {
-          status: 401,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-    }
-
-    console.log(`Backfill initiated by admin user: ${adminUserId} at ${new Date().toISOString()}`);
+    console.log(`Backfill initiated at ${new Date().toISOString()}`);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,

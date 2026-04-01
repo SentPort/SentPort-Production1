@@ -91,14 +91,6 @@ export default function LanguageBackfillPanel() {
   const runBackfill = async () => {
     if (processing) return;
 
-    const adminBypassKey = import.meta.env.VITE_ADMIN_BYPASS_KEY;
-    const adminUserId = import.meta.env.VITE_ADMIN_USER_ID;
-
-    if (!adminBypassKey || !adminUserId) {
-      setLastBackfillResult('✗ Error: Admin credentials not configured');
-      return;
-    }
-
     const now = Date.now();
     if (now - lastBackfillTime < COOLDOWN_MS) {
       return;
@@ -116,8 +108,6 @@ export default function LanguageBackfillPanel() {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
-            'x-admin-bypass-key': adminBypassKey,
-            'x-admin-user-id': adminUserId,
           },
           body: JSON.stringify({ batchSize: 500 }),
         }
