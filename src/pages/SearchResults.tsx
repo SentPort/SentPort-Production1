@@ -14,6 +14,7 @@ import { SentPortPagination } from '../components/shared/SentPortPagination';
 import { PeopleAlsoSearchFor } from '../components/shared/PeopleAlsoSearchFor';
 import { calculatePagination, paginateResults, getPageFromUrl, updatePageInUrl } from '../lib/searchPaginationHelpers';
 import { shouldIncludeInEnglishSearch } from '../lib/languageDetection';
+import { SearchWidgetContainer } from '../components/shared/SearchWidgetContainer';
 
 interface SearchResult {
   id: string;
@@ -304,7 +305,7 @@ export default function SearchResults() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center gap-6 mb-6 border-b">
           <button
             onClick={() => setActiveTab('all')}
@@ -402,13 +403,15 @@ export default function SearchResults() {
           </div>
         )}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <>
-            <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3' : 'space-y-6'}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <>
+                <div className={activeTab === 'images' || activeTab === 'videos' ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3' : 'space-y-6'}>
               {paginatedResults.map((result) => {
               const getBadgeConfig = () => {
                 if (result.is_internal) {
@@ -801,24 +804,37 @@ export default function SearchResults() {
                 </p>
               </div>
             )}
+                </div>
+
+                {dedupedResults.length > 0 && (
+                  <>
+                    <PeopleAlsoSearchFor
+                      currentQuery={query}
+                      onSearchClick={handleRelatedSearchClick}
+                    />
+
+                    <SentPortPagination
+                      currentPage={paginationInfo.currentPage}
+                      totalPages={paginationInfo.totalPages}
+                      onPageChange={handlePageChange}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </div>
 
-          {!loading && dedupedResults.length > 0 && (
-            <>
-              <PeopleAlsoSearchFor
-                currentQuery={query}
-                onSearchClick={handleRelatedSearchClick}
-              />
-
-              <SentPortPagination
-                currentPage={paginationInfo.currentPage}
-                totalPages={paginationInfo.totalPages}
-                onPageChange={handlePageChange}
-              />
-            </>
+          {query && (
+            <div className="lg:col-span-1">
+              <div className="sticky top-24">
+                <SearchWidgetContainer
+                  query={query}
+                  includeExternalContent={includeExternalContent}
+                />
+              </div>
+            </div>
           )}
-          </>
-        )}
+        </div>
       </div>
       </div>
     </>
