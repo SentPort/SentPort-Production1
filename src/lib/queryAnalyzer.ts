@@ -166,15 +166,44 @@ function containsWikipediaIndicators(query: string): boolean {
   return WIKIPEDIA_INDICATORS.some(indicator => lowerQuery.startsWith(indicator));
 }
 
+function isProperNoun(query: string): boolean {
+  const trimmed = query.trim();
+  const words = trimmed.split(/\s+/);
+
+  if (words.length === 1) {
+    return /^[A-Z][a-z]+$/.test(trimmed);
+  }
+
+  if (words.length >= 2 && words.length <= 4) {
+    const allCapitalized = words.every(word => /^[A-Z][a-z]+$/.test(word));
+    if (allCapitalized) {
+      return true;
+    }
+
+    const firstCapitalized = /^[A-Z][a-z]+$/.test(words[0]);
+    const restLowercase = words.slice(1).every(word => /^[a-z]+$/.test(word));
+    if (firstCapitalized && restLowercase) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function isEncyclopediaTopic(query: string): boolean {
   const lowerQuery = query.toLowerCase().trim();
+  const trimmedQuery = query.trim();
 
   if (COMMON_ENCYCLOPEDIA_TOPICS.includes(lowerQuery)) {
     return true;
   }
 
+  if (isProperNoun(trimmedQuery)) {
+    return true;
+  }
+
   if (lowerQuery.split(/\s+/).length === 1 && lowerQuery.length >= 3) {
-    if (/^[A-Z][a-z]+$/.test(query.trim())) {
+    if (/^[A-Z][a-z]+$/.test(trimmedQuery)) {
       return true;
     }
   }
