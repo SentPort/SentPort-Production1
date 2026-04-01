@@ -42,7 +42,10 @@ export default function LanguageBackfillPanel() {
   const fetchLanguageStats = async () => {
     setLoading(true);
     try {
-      const { data: statusData, error: statusError } = await supabase.rpc('get_backfill_status');
+      const { data: statusData, error: statusError } = await supabase.rpc('get_backfill_status', {}, {
+        head: false,
+        count: null,
+      });
 
       if (statusError) {
         console.error('Error fetching backfill status:', statusError);
@@ -63,7 +66,10 @@ export default function LanguageBackfillPanel() {
 
       const total = statusData?.totalRecords || 0;
 
-      const { data: languageData, error } = await supabase.rpc('get_language_distribution');
+      const { data: languageData, error } = await supabase.rpc('get_language_distribution', {}, {
+        head: false,
+        count: null,
+      });
 
       if (error) {
         console.error('Error fetching language stats:', error);
