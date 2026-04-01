@@ -1,3 +1,5 @@
+import { parseWordBasedMathExpression, containsMathWords } from './mathExpressionParser';
+
 export type QueryIntent = 'computational' | 'informational' | 'navigational' | 'general';
 
 export interface QueryAnalysis {
@@ -196,6 +198,11 @@ function extractMathExpression(query: string): string | undefined {
     }
   }
 
+  const wordBasedExpression = parseWordBasedMathExpression(trimmed);
+  if (wordBasedExpression) {
+    return wordBasedExpression;
+  }
+
   return undefined;
 }
 
@@ -249,12 +256,14 @@ export function analyzeQuery(query: string): QueryAnalysis {
   const isNumeric = isNumericExpression(trimmed);
   const hasWikiIndicators = containsWikipediaIndicators(trimmed);
   const isEncyclopedia = isEncyclopediaTopic(trimmed);
+  const hasMathWords = containsMathWords(trimmed);
 
   console.log('[QueryAnalyzer] hasCalcKeywords:', hasCalcKeywords);
   console.log('[QueryAnalyzer] hasMathSymbols:', hasMathSymbols);
   console.log('[QueryAnalyzer] isNumeric:', isNumeric);
   console.log('[QueryAnalyzer] hasWikiIndicators:', hasWikiIndicators);
   console.log('[QueryAnalyzer] isEncyclopediaTopic:', isEncyclopedia);
+  console.log('[QueryAnalyzer] hasMathWords:', hasMathWords);
 
   const extractedExpression = extractMathExpression(trimmed);
 
@@ -262,7 +271,7 @@ export function analyzeQuery(query: string): QueryAnalysis {
   let showCalculator = false;
   let showWikipedia = false;
 
-  if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols) {
+  if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols || hasMathWords) {
     showCalculator = true;
   }
 
