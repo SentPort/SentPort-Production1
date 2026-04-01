@@ -18,6 +18,7 @@ import { SearchWidgetContainer } from '../components/shared/SearchWidgetContaine
 import { analyzeQuery } from '../lib/queryAnalyzer';
 import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
+import { UnitConverter } from '../components/shared/UnitConverter';
 
 interface SearchResult {
   id: string;
@@ -272,6 +273,7 @@ export default function SearchResults() {
   const analysis = query ? analyzeQuery(query) : null;
   const showCalculator = analysis?.showCalculator || false;
   const showWikipedia = analysis?.showWikipedia && includeExternalContent || false;
+  const showUnitConverter = analysis?.showUnitConverter || false;
 
   useEffect(() => {
     if (query && analysis) {
@@ -279,9 +281,10 @@ export default function SearchResults() {
       console.log('[SearchResults] Analysis:', analysis);
       console.log('[SearchResults] Show Calculator:', showCalculator);
       console.log('[SearchResults] Show Wikipedia:', showWikipedia);
+      console.log('[SearchResults] Show Unit Converter:', showUnitConverter);
       console.log('[SearchResults] Include External Content:', includeExternalContent);
     }
-  }, [query, analysis, showCalculator, showWikipedia, includeExternalContent]);
+  }, [query, analysis, showCalculator, showWikipedia, showUnitConverter, includeExternalContent]);
 
   return (
     <>
@@ -423,6 +426,12 @@ export default function SearchResults() {
         {showCalculator && (
           <div className="mb-6">
             <Calculator initialExpression={analysis?.extractedExpression} />
+          </div>
+        )}
+
+        {showUnitConverter && (
+          <div className="mb-6">
+            <UnitConverter initialConversion={analysis?.extractedConversion} />
           </div>
         )}
 

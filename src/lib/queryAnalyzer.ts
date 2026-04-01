@@ -1,4 +1,5 @@
 import { parseWordBasedMathExpression, containsMathWords } from './mathExpressionParser';
+import { parseConversionQuery, containsConversionQuery, ConversionRequest } from './unitConversionParser';
 
 export type QueryIntent = 'computational' | 'informational' | 'navigational' | 'general';
 
@@ -6,7 +7,9 @@ export interface QueryAnalysis {
   intent: QueryIntent;
   showCalculator: boolean;
   showWikipedia: boolean;
+  showUnitConverter: boolean;
   extractedExpression?: string;
+  extractedConversion?: ConversionRequest;
   normalizedQuery: string;
 }
 
@@ -247,9 +250,13 @@ export function analyzeQuery(query: string): QueryAnalysis {
       intent: 'general',
       showCalculator: false,
       showWikipedia: false,
+      showUnitConverter: false,
       normalizedQuery: ''
     };
   }
+
+  const hasConversion = containsConversionQuery(trimmed);
+  const extractedConversion = hasConversion ? parseConversionQuery(trimmed) : undefined;
 
   const hasCalcKeywords = containsCalculatorKeywords(trimmed);
   const hasMathSymbols = containsMathSymbols(trimmed);
@@ -258,6 +265,8 @@ export function analyzeQuery(query: string): QueryAnalysis {
   const isEncyclopedia = isEncyclopediaTopic(trimmed);
   const hasMathWords = containsMathWords(trimmed);
 
+  console.log('[QueryAnalyzer] hasConversion:', hasConversion);
+  console.log('[QueryAnalyzer] extractedConversion:', extractedConversion);
   console.log('[QueryAnalyzer] hasCalcKeywords:', hasCalcKeywords);
   console.log('[QueryAnalyzer] hasMathSymbols:', hasMathSymbols);
   console.log('[QueryAnalyzer] isNumeric:', isNumeric);
@@ -270,8 +279,12 @@ export function analyzeQuery(query: string): QueryAnalysis {
   let intent: QueryIntent = 'general';
   let showCalculator = false;
   let showWikipedia = false;
+  let showUnitConverter = false;
 
-  if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols || hasMathWords) {
+  if (extractedConversion) {
+    showUnitConverter = true;
+    intent = 'computational';
+  } else if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols || hasMathWords) {
     showCalculator = true;
   }
 
@@ -283,19 +296,21 @@ export function analyzeQuery(query: string): QueryAnalysis {
     intent = 'computational';
   } else if (showCalculator) {
     intent = 'computational';
-  } else if (showWikipedia) {
+  } else if (showWikipedia && !showUnitConverter) {
     intent = 'informational';
   }
 
   const normalizedQuery = showWikipedia ? normalizeQueryForWikipedia(trimmed) : trimmed;
 
-  console.log('[QueryAnalyzer] Result - intent:', intent, 'showCalculator:', showCalculator, 'showWikipedia:', showWikipedia, 'normalizedQuery:', normalizedQuery);
+  console.log('[QueryAnalyzer] Result - intent:', intent, 'showCalculator:', showCalculator, 'showWikipedia:', showWikipedia, 'showUnitConverter:', showUnitConverter, 'normalizedQuery:', normalizedQuery);
 
   return {
     intent,
     showCalculator,
     showWikipedia,
+    showUnitConverter,
     extractedExpression,
+    extractedConversion,
     normalizedQuery
   };
 }
