@@ -219,6 +219,8 @@ Deno.serve(async (req: Request) => {
 
     let processedCount = 0;
     let updatedCount = 0;
+    let verifiedCount = 0;
+    const failedUpdates: string[] = [];
 
     for (const record of unprocessedRecords) {
       const detection = detectLanguage(
@@ -227,20 +229,54 @@ Deno.serve(async (req: Request) => {
         record.description || ''
       );
 
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('search_index')
         .update({
           language: detection.language,
           language_confidence: detection.confidence,
           language_backfill_processed: true
         })
-        .eq('id', record.id);
+        .eq('id', record.id)
+        .select('id, language_backfill_processed');
 
-      if (!updateError) {
+      if (updateError) {
+        console.error(`Failed to update record ${record.id}:`, updateError);
+        failedUpdates.push(record.id);
+      } else if (updateData && updateData.length > 0) {
+        if (updateData[0].language_backfill_processed === true) {
+          verifiedCount++;
+        } else {
+          console.error(`Update returned data but flag not set for ${record.id}`);
+          failedUpdates.push(record.id);
+        }
         updatedCount++;
+      } else {
+        console.error(`Update succeeded but no data returned for ${record.id}`);
+        failedUpdates.push(record.id);
       }
 
       processedCount++;
+    }
+
+    if (processedCount > 0 && verifiedCount === 0) {
+      console.error('CRITICAL: All updates failed verification. RLS policy may be blocking updates.');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Updates failed - RLS policy may be blocking updates',
+          processed: processedCount,
+          updated: updatedCount,
+          verified: verifiedCount,
+          failedIds: failedUpdates.slice(0, 5)
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
 
     const { count: remainingCount } = await supabase
@@ -248,13 +284,18 @@ Deno.serve(async (req: Request) => {
       .select('id', { count: 'exact', head: true })
       .or('language_backfill_processed.eq.false,language_backfill_processed.is.null');
 
+    const successRate = processedCount > 0 ? (verifiedCount / processedCount) * 100 : 0;
+    console.log(`Batch complete: ${verifiedCount}/${processedCount} verified (${successRate.toFixed(1)}%)`);
+
     return new Response(
       JSON.stringify({
         success: true,
         processed: processedCount,
         updated: updatedCount,
+        verified: verifiedCount,
         totalRemaining: remainingCount || 0,
-        message: `Processed ${processedCount} records, updated ${updatedCount} successfully`
+        successRate: successRate.toFixed(1),
+        message: `Processed ${processedCount} records, verified ${verifiedCount} updates successfully`
       }),
       {
         headers: {
