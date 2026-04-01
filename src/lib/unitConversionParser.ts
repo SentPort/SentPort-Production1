@@ -79,6 +79,7 @@ function extractNumber(words: string[], startIndex: number): { value: number; co
 }
 
 export function parseConversionQuery(query: string): ConversionRequest | null {
+  query = query.trim().replace(/[?!.]+$/, '');
   const allUnits = getAllUnits();
   const words = query.toLowerCase().split(/\s+/);
 

@@ -284,7 +284,7 @@ function extractMathExpression(query: string): string | undefined {
 
   const match = trimmed.match(/^(?:solve|calculate|compute|what\s+is)\s+(.+)$/i);
   if (match && match[1]) {
-    const expression = match[1].trim();
+    const expression = match[1].trim().replace(/[?!.]+$/, '');
     if (containsMathSymbols(expression) || isNumericExpression(expression)) {
       return expression;
     }

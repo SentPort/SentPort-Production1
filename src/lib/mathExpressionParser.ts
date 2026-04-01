@@ -145,8 +145,9 @@ function parseFraction(words: string[], startIndex: number): { value: string; co
 }
 
 function tokenizeQuery(query: string): ParsedToken[] {
+  query = query.trim().replace(/[?!.]+$/, '');
   const tokens: ParsedToken[] = [];
-  const words = query.trim().split(/\s+/);
+  const words = query.split(/\s+/);
   let i = 0;
 
   while (i < words.length) {
