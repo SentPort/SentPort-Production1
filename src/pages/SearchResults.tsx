@@ -423,13 +423,13 @@ export default function SearchResults() {
           </div>
         )}
 
-        {showCalculator && (
+        {showCalculator && activeTab === 'all' && (
           <div className="mb-6">
             <Calculator initialExpression={analysis?.extractedExpression} />
           </div>
         )}
 
-        {showUnitConverter && (
+        {showUnitConverter && activeTab === 'all' && (
           <div className="mb-6">
             <UnitConverter initialConversion={analysis?.extractedConversion} />
           </div>
@@ -856,7 +856,7 @@ export default function SearchResults() {
             )}
           </div>
 
-          {query && showWikipedia && (
+          {query && showWikipedia && activeTab === 'all' && (
             <div className="lg:col-span-1">
               <div className="sticky top-24">
                 <WikipediaKnowledgePanel query={analysis?.normalizedQuery || query} />
