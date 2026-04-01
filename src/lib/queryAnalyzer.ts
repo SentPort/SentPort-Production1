@@ -263,15 +263,19 @@ export function analyzeQuery(query: string): QueryAnalysis {
   let showWikipedia = false;
 
   if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols) {
-    intent = 'computational';
     showCalculator = true;
-  } else if (hasWikiIndicators || isEncyclopedia) {
-    intent = 'informational';
+  }
+
+  if (hasWikiIndicators || isEncyclopedia) {
     showWikipedia = true;
   }
 
-  if (hasWikiIndicators && !showCalculator) {
-    showWikipedia = true;
+  if (showCalculator && showWikipedia) {
+    intent = 'computational';
+  } else if (showCalculator) {
+    intent = 'computational';
+  } else if (showWikipedia) {
+    intent = 'informational';
   }
 
   const normalizedQuery = showWikipedia ? normalizeQueryForWikipedia(trimmed) : trimmed;
