@@ -648,12 +648,12 @@ export default function SearchResults() {
                       <p className="text-sm text-gray-700 mt-2 line-clamp-2">
                         {result.description || result.content_snippet}
                       </p>
-                      <div className="flex items-center gap-4 mt-3">
+                      <div className="flex items-center gap-4 mt-3 min-w-0">
                         <a
                           href={result.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline truncate"
+                          className="text-sm text-blue-600 hover:underline truncate min-w-0"
                         >
                           {result.url}
                         </a>

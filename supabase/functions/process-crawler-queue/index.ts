@@ -194,6 +194,28 @@ async function detectContentType(url: string, html: string, bodyHtml: string, su
   const domain = urlObj.hostname;
   const baseDomain = extractBaseDomain(url);
 
+  // PRIORITY 0: Direct image URL detection (check for dimension patterns and image extensions)
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/i;
+  const dimensionPattern = /\/(\d+)x(\d+)\//;
+  const dimensionMatch = url.match(dimensionPattern);
+
+  // If URL has dimension pattern AND image extension, OR has common CDN image indicators
+  if ((dimensionMatch && imageExtensions.test(url)) ||
+      (url.includes('/filters:') && imageExtensions.test(url)) ||
+      (url.includes('max_bytes(') && imageExtensions.test(url))) {
+
+    return {
+      contentType: 'image',
+      sourcePlatform: baseDomain.includes('investopedia.com') ? 'investopedia' :
+                      baseDomain.includes('medium.com') ? 'medium' : 'generic_web',
+      thumbnailUrl: url,
+      mediaDuration: null,
+      publicationDate: null,
+      authorName: null,
+      viewCount: null
+    };
+  }
+
   // PRIORITY 1: Check admin-defined domain rules first
   const { data: domainRule } = await supabase
     .from('content_type_domain_rules')
