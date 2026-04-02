@@ -19,7 +19,7 @@ import { analyzeQuery } from '../lib/queryAnalyzer';
 import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
-import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
+import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch, generateFuzzySearchTerms, fuzzyMatchText, extractQueryWords } from '../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -120,12 +120,14 @@ export default function SearchResults() {
     }
 
     try {
-      const searchVariations = generateSearchVariations(searchTerm);
-      console.log('[Search] Search variations:', searchVariations);
+      const fuzzySearchTerms = generateFuzzySearchTerms(searchTerm);
+      const queryWords = extractQueryWords(searchTerm);
+      console.log('[Search] Fuzzy search terms:', fuzzySearchTerms);
+      console.log('[Search] Query words:', queryWords);
 
       const allResults: SearchResult[] = [];
 
-      for (const variation of searchVariations) {
+      for (const term of fuzzySearchTerms) {
         let dbQuery = supabase
           .from('search_index')
           .select('*')
@@ -137,8 +139,8 @@ export default function SearchResults() {
 
         dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
 
-        const searchTermLower = variation.toLowerCase();
-        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+        const searchTermLower = term.toLowerCase();
+        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%,url.ilike.%${searchTermLower}%`);
 
         const { data, error } = await dbQuery;
 
@@ -148,10 +150,6 @@ export default function SearchResults() {
 
         if (data && !error) {
           allResults.push(...data);
-        }
-
-        if (data && data.length > 0) {
-          break;
         }
       }
 
@@ -187,20 +185,38 @@ export default function SearchResults() {
         const titleLower = result.title?.toLowerCase() || '';
         const descLower = result.description?.toLowerCase() || '';
         const contentLower = result.content_snippet?.toLowerCase() || '';
+        const urlLower = result.url?.toLowerCase() || '';
 
         const titleMatch = titleLower.includes(searchTermLower);
         const descMatch = descLower.includes(searchTermLower);
         const contentMatch = contentLower.includes(searchTermLower);
+        const urlMatch = urlLower.includes(searchTermLower);
 
-        if (titleMatch) score += 30;
-        if (descMatch) score += 20;
-        if (contentMatch) score += 10;
+        if (titleMatch) score += 40;
+        if (descMatch) score += 25;
+        if (contentMatch) score += 15;
+        if (urlMatch) score += 20;
 
-        const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
-        const descSimilarity = calculateSimilarity(searchTermLower, descLower);
+        const titleFuzzyScore = fuzzyMatchText(searchTerm, result.title || '', 0.6);
+        const descFuzzyScore = fuzzyMatchText(searchTerm, result.description || '', 0.6);
+        const contentFuzzyScore = fuzzyMatchText(searchTerm, result.content_snippet || '', 0.6);
+        const urlFuzzyScore = fuzzyMatchText(searchTerm, result.url || '', 0.6);
 
-        score += titleSimilarity * 25;
-        score += descSimilarity * 15;
+        score += titleFuzzyScore * 35;
+        score += descFuzzyScore * 20;
+        score += contentFuzzyScore * 10;
+        score += urlFuzzyScore * 15;
+
+        const queryWords = extractQueryWords(searchTerm);
+        const allText = `${titleLower} ${descLower} ${contentLower} ${urlLower}`;
+        let wordMatchCount = 0;
+        for (const word of queryWords) {
+          if (allText.includes(word)) {
+            wordMatchCount++;
+          }
+        }
+        const wordMatchRatio = queryWords.length > 0 ? wordMatchCount / queryWords.length : 0;
+        score += wordMatchRatio * 30;
 
         if (result.is_internal) {
           score *= 10;

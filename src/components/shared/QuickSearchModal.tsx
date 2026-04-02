@@ -5,6 +5,7 @@ import { trackSearch } from '../../lib/analytics';
 import { useAuth } from '../../contexts/AuthContext';
 import { safeGetHostname } from '../../lib/urlHelpers';
 import { useSearchPreferences } from '../../hooks/useSearchPreferences';
+import { generateFuzzySearchTerms, fuzzyMatchText, extractQueryWords } from '../../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -118,54 +119,98 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     }
 
     try {
-      let dbQuery = supabase
-        .from('search_index')
-        .select('*')
-        .abortSignal(currentController.signal);
+      const fuzzySearchTerms = generateFuzzySearchTerms(searchTerm);
+      const queryWords = extractQueryWords(searchTerm);
+      const allResults: SearchResult[] = [];
 
-      if (!includeExternalContent) {
-        dbQuery = dbQuery.eq('is_internal', true);
+      for (const term of fuzzySearchTerms) {
+        let dbQuery = supabase
+          .from('search_index')
+          .select('*')
+          .abortSignal(currentController.signal);
+
+        if (!includeExternalContent) {
+          dbQuery = dbQuery.eq('is_internal', true);
+        }
+
+        const searchTermLower = term.toLowerCase();
+        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%,url.ilike.%${searchTermLower}%`);
+
+        const { data, error } = await dbQuery;
+
+        if (currentController.signal.aborted || !isMountedRef.current) {
+          return;
+        }
+
+        if (data && !error) {
+          allResults.push(...data);
+        }
       }
-
-      const searchTermLower = searchTerm.toLowerCase();
-      dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
-
-      const { data, error } = await dbQuery;
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
       }
 
-      if (data && !error) {
-        const scoredResults = data.map(result => {
-          let score = result.relevance_score || 0;
+      const uniqueResults = Array.from(
+        new Map(allResults.map(item => [item.id, item])).values()
+      );
 
-          const titleMatch = result.title?.toLowerCase().includes(searchTermLower);
-          const descMatch = result.description?.toLowerCase().includes(searchTermLower);
-          const contentMatch = result.content_snippet?.toLowerCase().includes(searchTermLower);
+      const searchTermLower = searchTerm.toLowerCase();
+      const scoredResults = uniqueResults.map(result => {
+        let score = result.relevance_score || 0;
 
-          if (titleMatch) score += 30;
-          if (descMatch) score += 20;
-          if (contentMatch) score += 10;
+        const titleLower = result.title?.toLowerCase() || '';
+        const descLower = result.description?.toLowerCase() || '';
+        const contentLower = result.content_snippet?.toLowerCase() || '';
+        const urlLower = result.url?.toLowerCase() || '';
 
-          if (result.is_internal) {
-            score *= 10;
-          } else if (result.is_verified_external) {
-            score *= 5;
+        const titleMatch = titleLower.includes(searchTermLower);
+        const descMatch = descLower.includes(searchTermLower);
+        const contentMatch = contentLower.includes(searchTermLower);
+        const urlMatch = urlLower.includes(searchTermLower);
+
+        if (titleMatch) score += 40;
+        if (descMatch) score += 25;
+        if (contentMatch) score += 15;
+        if (urlMatch) score += 20;
+
+        const titleFuzzyScore = fuzzyMatchText(searchTerm, result.title || '', 0.6);
+        const descFuzzyScore = fuzzyMatchText(searchTerm, result.description || '', 0.6);
+        const contentFuzzyScore = fuzzyMatchText(searchTerm, result.content_snippet || '', 0.6);
+        const urlFuzzyScore = fuzzyMatchText(searchTerm, result.url || '', 0.6);
+
+        score += titleFuzzyScore * 35;
+        score += descFuzzyScore * 20;
+        score += contentFuzzyScore * 10;
+        score += urlFuzzyScore * 15;
+
+        const allText = `${titleLower} ${descLower} ${contentLower} ${urlLower}`;
+        let wordMatchCount = 0;
+        for (const word of queryWords) {
+          if (allText.includes(word)) {
+            wordMatchCount++;
           }
+        }
+        const wordMatchRatio = queryWords.length > 0 ? wordMatchCount / queryWords.length : 0;
+        score += wordMatchRatio * 30;
 
-          return { ...result, calculatedScore: score };
-        });
-
-        scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
-
-        if (isMountedRef.current && !currentController.signal.aborted) {
-          setResults(scoredResults);
+        if (result.is_internal) {
+          score *= 10;
+        } else if (result.is_verified_external) {
+          score *= 5;
         }
 
-        if (user && isMountedRef.current) {
-          trackSearch(searchTerm, scoredResults.length);
-        }
+        return { ...result, calculatedScore: score };
+      });
+
+      scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+      if (isMountedRef.current && !currentController.signal.aborted) {
+        setResults(scoredResults.slice(0, 20));
+      }
+
+      if (user && isMountedRef.current) {
+        trackSearch(searchTerm, scoredResults.length);
       }
 
       if (isMountedRef.current) {
