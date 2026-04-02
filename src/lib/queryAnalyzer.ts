@@ -14,8 +14,10 @@ export interface QueryAnalysis {
   showCalculator: boolean;
   showWikipedia: boolean;
   showUnitConverter: boolean;
+  showScientificNotationCalculators: boolean;
   extractedExpression?: string;
   extractedConversion?: ConversionRequest;
+  extractedScientificNotation?: string;
   normalizedQuery: string;
 }
 
@@ -156,6 +158,17 @@ const COMMON_STOPWORDS = [
   'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
   'should', 'could', 'may', 'might', 'must', 'can', 'about'
 ];
+
+const SCIENTIFIC_NOTATION_KEYWORDS = [
+  'scientific notation',
+  'e notation',
+  'e-notation',
+  'exponential notation',
+  'scientific',
+  'notation'
+];
+
+const SCIENTIFIC_NOTATION_PATTERN = /\d+\.?\d*[eE][+-]?\d+/;
 
 function containsMathSymbols(query: string): boolean {
   return MATH_SYMBOLS.test(query);
@@ -330,6 +343,34 @@ function normalizeQueryForWikipedia(query: string): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function containsScientificNotation(query: string): boolean {
+  return SCIENTIFIC_NOTATION_PATTERN.test(query);
+}
+
+function containsScientificNotationKeywords(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+  return SCIENTIFIC_NOTATION_KEYWORDS.some(keyword => lowerQuery.includes(keyword));
+}
+
+function extractScientificNotation(query: string): string | undefined {
+  const match = query.match(SCIENTIFIC_NOTATION_PATTERN);
+  return match ? match[0] : undefined;
+}
+
+function isScientificNotationQuery(query: string): boolean {
+  const hasNotation = containsScientificNotation(query);
+  const hasKeywords = containsScientificNotationKeywords(query);
+  const lowerQuery = query.toLowerCase();
+
+  const hasWhatIs = lowerQuery.startsWith('what is') || lowerQuery.startsWith('what does');
+  const hasCalculatorKeyword = lowerQuery.includes('calculator');
+
+  return (hasNotation && (hasKeywords || hasWhatIs || hasCalculatorKeyword)) ||
+         (hasNotation && hasWhatIs) ||
+         (hasKeywords && hasCalculatorKeyword && hasNotation) ||
+         (hasKeywords && hasNotation);
+}
+
 export function analyzeQuery(query: string, searchResults?: SearchResult[]): QueryAnalysis {
   const trimmed = query.trim();
 
@@ -342,6 +383,7 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
       showCalculator: false,
       showWikipedia: false,
       showUnitConverter: false,
+      showScientificNotationCalculators: false,
       normalizedQuery: ''
     };
   }
@@ -355,6 +397,8 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
   const hasWikiIndicators = containsWikipediaIndicators(trimmed);
   const isEncyclopedia = isEncyclopediaTopic(trimmed, searchResults);
   const hasMathWords = containsMathWords(trimmed);
+  const isScientificNotation = isScientificNotationQuery(trimmed);
+  const extractedScientificNotation = extractScientificNotation(trimmed);
 
   console.log('[QueryAnalyzer] hasConversion:', hasConversion);
   console.log('[QueryAnalyzer] extractedConversion:', extractedConversion);
@@ -364,6 +408,8 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
   console.log('[QueryAnalyzer] hasWikiIndicators:', hasWikiIndicators);
   console.log('[QueryAnalyzer] isEncyclopediaTopic:', isEncyclopedia);
   console.log('[QueryAnalyzer] hasMathWords:', hasMathWords);
+  console.log('[QueryAnalyzer] isScientificNotation:', isScientificNotation);
+  console.log('[QueryAnalyzer] extractedScientificNotation:', extractedScientificNotation);
 
   const extractedExpression = extractMathExpression(trimmed);
 
@@ -371,12 +417,18 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
   let showCalculator = false;
   let showWikipedia = false;
   let showUnitConverter = false;
+  let showScientificNotationCalculators = false;
 
   if (extractedConversion) {
     showUnitConverter = true;
     intent = 'computational';
   } else if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols || hasMathWords) {
     showCalculator = true;
+  }
+
+  if (isScientificNotation) {
+    showScientificNotationCalculators = true;
+    intent = 'computational';
   }
 
   if (hasWikiIndicators || isEncyclopedia) {
@@ -393,15 +445,17 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
 
   const normalizedQuery = showWikipedia ? normalizeQueryForWikipedia(trimmed) : trimmed;
 
-  console.log('[QueryAnalyzer] Result - intent:', intent, 'showCalculator:', showCalculator, 'showWikipedia:', showWikipedia, 'showUnitConverter:', showUnitConverter, 'normalizedQuery:', normalizedQuery);
+  console.log('[QueryAnalyzer] Result - intent:', intent, 'showCalculator:', showCalculator, 'showWikipedia:', showWikipedia, 'showUnitConverter:', showUnitConverter, 'showScientificNotationCalculators:', showScientificNotationCalculators, 'normalizedQuery:', normalizedQuery);
 
   return {
     intent,
     showCalculator,
     showWikipedia,
     showUnitConverter,
+    showScientificNotationCalculators,
     extractedExpression,
     extractedConversion,
+    extractedScientificNotation,
     normalizedQuery
   };
 }

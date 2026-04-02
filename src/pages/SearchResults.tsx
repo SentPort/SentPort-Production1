@@ -274,6 +274,7 @@ export default function SearchResults() {
   const showCalculator = analysis?.showCalculator || false;
   const showWikipedia = analysis?.showWikipedia && includeExternalContent || false;
   const showUnitConverter = analysis?.showUnitConverter || false;
+  const showScientificNotationCalculators = analysis?.showScientificNotationCalculators && includeExternalContent || false;
 
   useEffect(() => {
     if (query && analysis) {
@@ -282,9 +283,10 @@ export default function SearchResults() {
       console.log('[SearchResults] Show Calculator:', showCalculator);
       console.log('[SearchResults] Show Wikipedia:', showWikipedia);
       console.log('[SearchResults] Show Unit Converter:', showUnitConverter);
+      console.log('[SearchResults] Show Scientific Notation Calculators:', showScientificNotationCalculators);
       console.log('[SearchResults] Include External Content:', includeExternalContent);
     }
-  }, [query, analysis, showCalculator, showWikipedia, showUnitConverter, includeExternalContent]);
+  }, [query, analysis, showCalculator, showWikipedia, showUnitConverter, showScientificNotationCalculators, includeExternalContent]);
 
   return (
     <>
@@ -432,6 +434,62 @@ export default function SearchResults() {
         {showUnitConverter && activeTab === 'all' && (
           <div className="mb-6">
             <UnitConverter initialConversion={analysis?.extractedConversion} />
+          </div>
+        )}
+
+        {showScientificNotationCalculators && activeTab === 'all' && (
+          <div className="mb-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Globe className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Scientific Notation Calculators</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Convert between scientific notation, E-notation, and standard decimal format
+                  </p>
+                  <div className="space-y-3">
+                    {filteredResults
+                      .filter(r =>
+                        r.url.includes('calculator.net/scientific-notation') ||
+                        r.url.includes('inchcalculator.com/scientific-notation')
+                      )
+                      .slice(0, 2)
+                      .map(result => (
+                        <a
+                          key={result.id}
+                          href={result.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors group"
+                        >
+                          <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-blue-900 group-hover:underline">
+                                {result.title}
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-200 text-blue-800 rounded text-xs font-medium">
+                                <CheckCircle className="w-3 h-3" />
+                                Verified External
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-700 line-clamp-2">
+                              {result.description}
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1 truncate">
+                              {safeGetHostname(result.url, 'Unknown domain')}
+                            </p>
+                          </div>
+                        </a>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
