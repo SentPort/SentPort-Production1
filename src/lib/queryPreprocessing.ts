@@ -141,20 +141,36 @@ export function findBestFuzzyMatch<T>(
 
 export function generateSearchVariations(query: string): string[] {
   const variations: string[] = [query];
+  const wordCount = query.trim().split(/\s+/).length;
 
-  const normalized = normalizeQuery(query);
-  if (normalized !== query) {
-    variations.push(normalized);
-  }
+  // For short queries (1-3 words), be conservative with variations
+  // These are often entity names that shouldn't be heavily processed
+  if (wordCount <= 3) {
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery !== query) {
+      variations.push(lowerQuery);
+    }
+    // Only add normalized version if it's significantly different
+    const normalized = normalizeQuery(query);
+    if (normalized !== query && normalized.length >= query.length * 0.7) {
+      variations.push(normalized);
+    }
+  } else {
+    // For longer queries, generate more variations
+    const normalized = normalizeQuery(query);
+    if (normalized !== query) {
+      variations.push(normalized);
+    }
 
-  const entity = extractEntityFromQuery(query);
-  if (entity !== query && entity !== normalized) {
-    variations.push(entity);
-  }
+    const entity = extractEntityFromQuery(query);
+    if (entity !== query && entity !== normalized) {
+      variations.push(entity);
+    }
 
-  const lowerQuery = query.toLowerCase();
-  if (lowerQuery !== query) {
-    variations.push(lowerQuery);
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery !== query) {
+      variations.push(lowerQuery);
+    }
   }
 
   return [...new Set(variations)];

@@ -170,7 +170,7 @@ export default function SearchResults() {
           .rpc('fuzzy_search_content', {
             search_term: searchTerm.toLowerCase(),
             include_external: includeExternalContent,
-            similarity_threshold: 0.3
+            similarity_threshold: 0.25
           })
           .abortSignal(currentController.signal);
 
