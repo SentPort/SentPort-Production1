@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Globe, Users, UserCheck, Search, CheckCircle, BarChart3, Pin, Tags } from 'lucide-react';
+import { Shield, Globe, Users, UserCheck, Search, CheckCircle, BarChart3, Pin, Tags, UserCog } from 'lucide-react';
 import AdminManagementModal from './AdminManagementModal';
 import { AccountManagementModal } from './AccountManagementModal';
 import VerifiedExternalDomainsModal from './VerifiedExternalDomainsModal';
@@ -40,6 +40,13 @@ export default function AdminBanner() {
             >
               <Globe className="w-4 h-4" />
               <span>Subdomain Lookup</span>
+            </Link>
+            <Link
+              to="/admin/user-accounts"
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-semibold transition-colors flex items-center gap-2 backdrop-blur-sm"
+            >
+              <UserCog className="w-4 h-4" />
+              <span>User Accounts</span>
             </Link>
             <button
               onClick={() => setShowAdminModal(true)}

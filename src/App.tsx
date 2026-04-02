@@ -35,6 +35,7 @@ import HuTubePinsManagement from './pages/admin/HuTubePinsManagement';
 import HinstaPinsManagement from './pages/admin/HinstaPinsManagement';
 import SwitterPinsManagement from './pages/admin/SwitterPinsManagement';
 import TagManagement from './pages/admin/TagManagement';
+import UserAccounts from './pages/admin/UserAccounts';
 import HuBookRouter from './pages/hubook/HuBookRouter';
 import HuBookLayout from './components/hubook/HuBookLayout';
 import NewsFeed from './pages/hubook/NewsFeed';
@@ -209,6 +210,16 @@ function AppContent() {
                   <AdminRoute>
                     <Header />
                     <SubdomainLookup />
+                  </AdminRoute>
+                }
+              />
+
+              <Route
+                path="/admin/user-accounts"
+                element={
+                  <AdminRoute>
+                    <Header />
+                    <UserAccounts />
                   </AdminRoute>
                 }
               />
