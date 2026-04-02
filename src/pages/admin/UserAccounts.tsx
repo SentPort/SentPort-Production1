@@ -199,55 +199,32 @@ export default function UserAccounts() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      let countQuery = supabase
-        .from('user_profiles')
-        .select('*', { count: 'exact', head: true });
+      const { data: authData } = await supabase.auth.admin.listUsers();
+      const authUserMap = new Map(authData?.users.map(u => [u.id, u]) || []);
 
-      let dataQuery = supabase
+      let query = supabase
         .from('user_profiles')
         .select('id, email, full_name, is_admin, is_verified, created_at');
 
       if (searchTerm) {
         const searchPattern = `%${searchTerm}%`;
-        countQuery = countQuery.or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`);
-        dataQuery = dataQuery.or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`);
+        query = query.or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`);
       }
 
       if (filterFullyVerified !== null) {
-        countQuery = countQuery.eq('is_verified', filterFullyVerified);
-        dataQuery = dataQuery.eq('is_verified', filterFullyVerified);
+        query = query.eq('is_verified', filterFullyVerified);
       }
 
       if (filterAdmin !== null) {
-        countQuery = countQuery.eq('is_admin', filterAdmin);
-        dataQuery = dataQuery.eq('is_admin', filterAdmin);
+        query = query.eq('is_admin', filterAdmin);
       }
 
-      const { count } = await countQuery;
-      setTotalCount(count || 0);
-
-      const { data: profilesData, error: profilesError } = await dataQuery
-        .order(sortField, { ascending: sortDirection === 'asc' })
-        .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
+      const { data: allProfiles, error: profilesError } = await query;
 
       if (profilesError) throw profilesError;
 
-      const userIds = (profilesData || []).map(p => p.id);
-
-      const { data: authData } = await supabase.auth.admin.listUsers();
-
-      const { data: subdomainCounts } = await supabase
-        .from('subdomains')
-        .select('owner_id')
-        .in('owner_id', userIds);
-
-      const subdomainCountMap = (subdomainCounts || []).reduce((acc, sub) => {
-        acc[sub.owner_id] = (acc[sub.owner_id] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const enrichedUsers: UserAccount[] = (profilesData || []).map(profile => {
-        const authUser = authData?.users.find(u => u.id === profile.id);
+      let enrichedUsers: UserAccount[] = (allProfiles || []).map(profile => {
+        const authUser = authUserMap.get(profile.id);
 
         return {
           id: profile.id,
@@ -258,18 +235,57 @@ export default function UserAccounts() {
           full_name: profile.full_name,
           is_admin: profile.is_admin,
           is_verified: profile.is_verified,
-          subdomain_count: subdomainCountMap[profile.id] || 0
+          subdomain_count: 0
         };
       });
 
-      let filteredUsers = enrichedUsers;
       if (filterEmailVerified !== null) {
-        filteredUsers = filteredUsers.filter(u =>
+        enrichedUsers = enrichedUsers.filter(u =>
           filterEmailVerified ? u.email_confirmed_at !== null : u.email_confirmed_at === null
         );
       }
 
-      setUsers(filteredUsers);
+      enrichedUsers.sort((a, b) => {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+
+        if (aVal === null || aVal === undefined) return 1;
+        if (bVal === null || bVal === undefined) return -1;
+
+        if (sortDirection === 'asc') {
+          return aVal > bVal ? 1 : -1;
+        } else {
+          return aVal < bVal ? 1 : -1;
+        }
+      });
+
+      const totalFiltered = enrichedUsers.length;
+      setTotalCount(totalFiltered);
+
+      const paginatedUsers = enrichedUsers.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+      );
+
+      const userIds = paginatedUsers.map(u => u.id);
+
+      if (userIds.length > 0) {
+        const { data: subdomainCounts } = await supabase
+          .from('subdomains')
+          .select('owner_id')
+          .in('owner_id', userIds);
+
+        const subdomainCountMap = (subdomainCounts || []).reduce((acc, sub) => {
+          acc[sub.owner_id] = (acc[sub.owner_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        paginatedUsers.forEach(user => {
+          user.subdomain_count = subdomainCountMap[user.id] || 0;
+        });
+      }
+
+      setUsers(paginatedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
