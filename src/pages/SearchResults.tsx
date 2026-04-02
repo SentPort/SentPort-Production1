@@ -159,34 +159,9 @@ export default function SearchResults() {
         return;
       }
 
-      let uniqueResults = Array.from(
+      const uniqueResults = Array.from(
         new Map(allResults.map(item => [item.id, item])).values()
       );
-
-      if (uniqueResults.length < 3 && searchTerm.length >= 3) {
-        console.log('[Search] Few or no exact matches found, trying fuzzy search...');
-
-        const { data: fuzzyData, error: fuzzyError } = await supabase
-          .rpc('fuzzy_search_content', {
-            search_term: searchTerm.toLowerCase(),
-            include_external: includeExternalContent,
-            similarity_threshold: 0.3
-          })
-          .abortSignal(currentController.signal);
-
-        if (currentController.signal.aborted || !isMountedRef.current) {
-          return;
-        }
-
-        if (fuzzyData && !fuzzyError) {
-          console.log(`[Search] Fuzzy search found ${fuzzyData.length} results`);
-
-          const existingIds = new Set(uniqueResults.map(r => r.id));
-          const newFuzzyResults = fuzzyData.filter((r: any) => !existingIds.has(r.id));
-
-          uniqueResults = [...uniqueResults, ...newFuzzyResults];
-        }
-      }
 
       const initialResultCount = uniqueResults.length;
 
@@ -226,10 +201,6 @@ export default function SearchResults() {
 
         score += titleSimilarity * 25;
         score += descSimilarity * 15;
-
-        if ((result as any).similarity_score) {
-          score += (result as any).similarity_score * 40;
-        }
 
         if (result.is_internal) {
           score *= 10;
