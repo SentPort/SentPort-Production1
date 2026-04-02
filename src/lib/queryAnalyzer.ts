@@ -72,6 +72,22 @@ const MATH_SYMBOLS = /[\+\-\*\/\^\(\)\=\√\π\∑\∫]/;
 
 const NUMERIC_EXPRESSION = /^[\d\s\+\-\*\/\^\(\)\.]+$/;
 
+const UNIT_CONVERTER_KEYWORDS = [
+  'unit conversion',
+  'unit converter',
+  'converting units',
+  'convert units',
+  'unit calculator',
+  'conversion calculator',
+  'converter',
+  'measurement converter',
+  'metric conversion',
+  'imperial conversion',
+  'conversion tool',
+  'unit tool',
+  'measurement conversion'
+];
+
 const WIKIPEDIA_INDICATORS = [
   'what is',
   'who is',
@@ -184,6 +200,13 @@ function containsCalculatorKeywords(query: string): boolean {
   return CALCULATOR_KEYWORDS.some(keyword => {
     const regex = new RegExp(`\\b${keyword}\\b`, 'i');
     return regex.test(lowerQuery);
+  });
+}
+
+function containsUnitConverterKeywords(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+  return UNIT_CONVERTER_KEYWORDS.some(keyword => {
+    return lowerQuery.includes(keyword);
   });
 }
 
@@ -390,6 +413,7 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
 
   const hasConversion = containsConversionQuery(trimmed);
   const extractedConversion = hasConversion ? parseConversionQuery(trimmed) : undefined;
+  const hasUnitConverterKeywords = containsUnitConverterKeywords(trimmed);
 
   const hasCalcKeywords = containsCalculatorKeywords(trimmed);
   const hasMathSymbols = containsMathSymbols(trimmed);
@@ -402,6 +426,7 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
 
   console.log('[QueryAnalyzer] hasConversion:', hasConversion);
   console.log('[QueryAnalyzer] extractedConversion:', extractedConversion);
+  console.log('[QueryAnalyzer] hasUnitConverterKeywords:', hasUnitConverterKeywords);
   console.log('[QueryAnalyzer] hasCalcKeywords:', hasCalcKeywords);
   console.log('[QueryAnalyzer] hasMathSymbols:', hasMathSymbols);
   console.log('[QueryAnalyzer] isNumeric:', isNumeric);
@@ -419,7 +444,7 @@ export function analyzeQuery(query: string, searchResults?: SearchResult[]): Que
   let showUnitConverter = false;
   let showScientificNotationCalculators = false;
 
-  if (extractedConversion) {
+  if (extractedConversion || hasUnitConverterKeywords) {
     showUnitConverter = true;
     intent = 'computational';
   } else if (isNumeric || extractedExpression || hasCalcKeywords || hasMathSymbols || hasMathWords) {
