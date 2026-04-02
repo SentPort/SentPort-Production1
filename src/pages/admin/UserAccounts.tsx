@@ -211,10 +211,6 @@ export default function UserAccounts() {
         query = query.or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`);
       }
 
-      if (filterFullyVerified !== null) {
-        query = query.eq('is_verified', filterFullyVerified);
-      }
-
       if (filterAdmin !== null) {
         query = query.eq('is_admin', filterAdmin);
       }
@@ -243,6 +239,10 @@ export default function UserAccounts() {
         enrichedUsers = enrichedUsers.filter(u =>
           filterEmailVerified ? u.email_confirmed_at !== null : u.email_confirmed_at === null
         );
+      }
+
+      if (filterFullyVerified !== null) {
+        enrichedUsers = enrichedUsers.filter(u => u.is_verified === filterFullyVerified);
       }
 
       enrichedUsers.sort((a, b) => {
@@ -343,6 +343,8 @@ export default function UserAccounts() {
     filterFullyVerified !== null,
     filterAdmin !== null
   ].filter(Boolean).length;
+
+  const isImpossibleFilter = filterEmailVerified === false && filterFullyVerified === true;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -453,7 +455,19 @@ export default function UserAccounts() {
             <div className="text-center py-24">
               <Users className="w-20 h-20 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-xl mb-2">No users found</p>
-              <p className="text-gray-400">Try adjusting your filters or search terms</p>
+              {isImpossibleFilter ? (
+                <div className="mt-4 max-w-md mx-auto">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-amber-800 font-medium mb-2">Impossible Filter Combination</p>
+                    <p className="text-amber-700 text-sm">
+                      Users cannot be fully verified (Didit) without being email verified.
+                      Email verification is a requirement for Didit verification.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400">Try adjusting your filters or search terms</p>
+              )}
             </div>
           ) : (
             <>
