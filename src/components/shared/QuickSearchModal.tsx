@@ -5,6 +5,10 @@ import { trackSearch } from '../../lib/analytics';
 import { useAuth } from '../../contexts/AuthContext';
 import { safeGetHostname } from '../../lib/urlHelpers';
 import { useSearchPreferences } from '../../hooks/useSearchPreferences';
+import { analyzeQuery, QueryAnalysis } from '../../lib/queryAnalyzer';
+import { Calculator } from './Calculator';
+import { UnitConverter } from './UnitConverter';
+import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
 
 interface SearchResult {
   id: string;
@@ -42,6 +46,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [analysis, setAnalysis] = useState<QueryAnalysis | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -212,6 +217,21 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
   const filteredResults = getFilteredResults();
 
+  // Analyze query for widgets
+  useEffect(() => {
+    if (query) {
+      const queryAnalysis = analyzeQuery(query, results);
+      setAnalysis(queryAnalysis);
+      console.log('[QuickSearchModal] Query analysis:', queryAnalysis);
+    } else {
+      setAnalysis(null);
+    }
+  }, [query, results]);
+
+  const showCalculator = (analysis?.showCalculator && activeTab === 'all') || false;
+  const showUnitConverter = (analysis?.showUnitConverter && activeTab === 'all') || false;
+  const showWikipedia = (analysis?.showWikipedia && includeExternalContent && activeTab === 'all') || false;
+
   if (!isOpen) return null;
 
   return (
@@ -305,6 +325,34 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
+          {/* Calculator Widget */}
+          {showCalculator && (
+            <div className="mb-4">
+              <Calculator initialExpression={analysis?.extractedExpression} />
+            </div>
+          )}
+
+          {/* Unit Converter Widget */}
+          {showUnitConverter && (
+            <div className="mb-4">
+              <UnitConverter initialConversion={analysis?.extractedConversion} />
+            </div>
+          )}
+
+          {/* Wikipedia Knowledge Panel */}
+          {showWikipedia && (
+            <div className="mb-4">
+              <WikipediaKnowledgePanel query={analysis?.normalizedQuery || query} />
+            </div>
+          )}
+
+          {/* Separator between widgets and results */}
+          {(showCalculator || showUnitConverter || showWikipedia) && filteredResults.length > 0 && (
+            <div className="mb-4 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Search Results</h3>
+            </div>
+          )}
+
           {query && (
             <div className="mb-4">
               <p className="text-sm text-gray-600">
