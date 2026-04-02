@@ -66,6 +66,7 @@ export default function SearchResults() {
   const [expandedDuplicates, setExpandedDuplicates] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [filteredByLanguageCount, setFilteredByLanguageCount] = useState(0);
+  const [scientificNotationCalculatorUrls, setScientificNotationCalculatorUrls] = useState<SearchResult[]>([]);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -288,6 +289,32 @@ export default function SearchResults() {
     }
   }, [query, analysis, showCalculator, showWikipedia, showUnitConverter, showScientificNotationCalculators, includeExternalContent]);
 
+  useEffect(() => {
+    const fetchScientificNotationCalculators = async () => {
+      if (!showScientificNotationCalculators) {
+        setScientificNotationCalculatorUrls([]);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('search_index')
+          .select('*')
+          .eq('is_verified_external', true)
+          .or('url.ilike.%calculator.net/scientific-notation%,url.ilike.%inchcalculator.com/scientific-notation%')
+          .limit(5);
+
+        if (data && !error) {
+          setScientificNotationCalculatorUrls(data);
+        }
+      } catch (err) {
+        console.error('Error fetching scientific notation calculators:', err);
+      }
+    };
+
+    fetchScientificNotationCalculators();
+  }, [showScientificNotationCalculators]);
+
   return (
     <>
       <Header />
@@ -451,14 +478,9 @@ export default function SearchResults() {
                   <p className="text-sm text-gray-600 mb-4">
                     Convert between scientific notation, E-notation, and standard decimal format
                   </p>
-                  <div className="space-y-3">
-                    {filteredResults
-                      .filter(r =>
-                        r.url.includes('calculator.net/scientific-notation') ||
-                        r.url.includes('inchcalculator.com/scientific-notation')
-                      )
-                      .slice(0, 2)
-                      .map(result => (
+                  {scientificNotationCalculatorUrls.length > 0 ? (
+                    <div className="space-y-3">
+                      {scientificNotationCalculatorUrls.slice(0, 3).map(result => (
                         <a
                           key={result.id}
                           href={result.url}
@@ -486,7 +508,12 @@ export default function SearchResults() {
                           </div>
                         </a>
                       ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      Loading calculator tools...
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
