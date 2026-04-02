@@ -141,8 +141,35 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         return;
       }
 
-      if (data && !error) {
-        const scoredResults = data.map(result => {
+      let allResults = data || [];
+
+      if (allResults.length < 3 && searchTerm.length >= 3) {
+        console.log('[QuickSearch] Few or no exact matches found, trying fuzzy search...');
+
+        const { data: fuzzyData, error: fuzzyError } = await supabase
+          .rpc('fuzzy_search_content', {
+            search_term: searchTerm.toLowerCase(),
+            include_external: includeExternalContent,
+            similarity_threshold: 0.35
+          })
+          .abortSignal(currentController.signal);
+
+        if (currentController.signal.aborted || !isMountedRef.current) {
+          return;
+        }
+
+        if (fuzzyData && !fuzzyError) {
+          console.log(`[QuickSearch] Fuzzy search found ${fuzzyData.length} results`);
+
+          const existingIds = new Set(allResults.map(r => r.id));
+          const newFuzzyResults = fuzzyData.filter((r: any) => !existingIds.has(r.id));
+
+          allResults = [...allResults, ...newFuzzyResults];
+        }
+      }
+
+      if (!error && allResults.length > 0) {
+        const scoredResults = allResults.map(result => {
           let score = result.relevance_score || 0;
 
           const titleMatch = result.title?.toLowerCase().includes(searchTermLower);
@@ -152,6 +179,10 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           if (titleMatch) score += 30;
           if (descMatch) score += 20;
           if (contentMatch) score += 10;
+
+          if ((result as any).similarity_score) {
+            score += (result as any).similarity_score * 40;
+          }
 
           if (result.is_internal) {
             score *= 10;
