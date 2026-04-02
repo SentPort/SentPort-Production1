@@ -65,6 +65,8 @@ export interface WikipediaSummary {
   extract_html: string;
 }
 
+import { extractEntityFromQuery, calculateSimilarity, findBestFuzzyMatch } from './queryPreprocessing';
+
 const WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/api/rest_v1';
 const CACHE_DURATION_MS = 1000 * 60 * 60; // 1 hour
 
@@ -207,5 +209,128 @@ export async function findExactWikipediaMatch(query: string): Promise<WikipediaS
   }
 
   console.log('[Wikipedia] No suitable match found');
+  return null;
+}
+
+export async function searchWikipediaWithOpenSearch(query: string): Promise<string[]> {
+  const cacheKey = `opensearch:${query.toLowerCase()}`;
+  const cached = getCachedData<string[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=10&format=json&origin=*`,
+      {
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      return [];
+    }
+
+    const data = await response.json();
+    const suggestions = data[1] || [];
+
+    setCachedData(cacheKey, suggestions);
+    return suggestions;
+  } catch (error) {
+    console.error('[Wikipedia] Error with OpenSearch API:', error);
+    return [];
+  }
+}
+
+export async function findWikipediaWithSmartMatching(query: string): Promise<WikipediaSummary | null> {
+  const trimmedQuery = query.trim();
+
+  console.log('[Wikipedia Smart Match] Original query:', trimmedQuery);
+
+  if (trimmedQuery.length < 2) {
+    console.log('[Wikipedia Smart Match] Query too short');
+    return null;
+  }
+
+  const extractedEntity = extractEntityFromQuery(trimmedQuery);
+  console.log('[Wikipedia Smart Match] Extracted entity:', extractedEntity);
+
+  const searchQueries = [extractedEntity, trimmedQuery];
+
+  for (const searchQuery of searchQueries) {
+    console.log('[Wikipedia Smart Match] Trying query:', searchQuery);
+
+    const directSummary = await getWikipediaSummary(searchQuery);
+    if (directSummary && directSummary.type !== 'disambiguation') {
+      console.log('[Wikipedia Smart Match] Found direct match:', directSummary.title);
+      return directSummary;
+    }
+
+    const titleResults = await searchWikipediaTitles(searchQuery);
+
+    if (titleResults.length > 0) {
+      const exactMatch = titleResults.find(
+        result => result.title.toLowerCase() === searchQuery.toLowerCase()
+      );
+
+      if (exactMatch) {
+        console.log('[Wikipedia Smart Match] Found exact title match:', exactMatch.title);
+        return await getWikipediaSummary(exactMatch.title);
+      }
+
+      const fuzzyMatch = findBestFuzzyMatch(
+        searchQuery,
+        titleResults,
+        (result) => result.title,
+        0.7
+      );
+
+      if (fuzzyMatch) {
+        console.log('[Wikipedia Smart Match] Found fuzzy match:', fuzzyMatch.title);
+        return await getWikipediaSummary(fuzzyMatch.title);
+      }
+
+      const firstResult = titleResults[0];
+      if (firstResult) {
+        const similarity = calculateSimilarity(searchQuery, firstResult.title);
+        console.log('[Wikipedia Smart Match] Similarity to first result:', similarity);
+
+        if (similarity > 0.5 || firstResult.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+          console.log('[Wikipedia Smart Match] Using first result:', firstResult.title);
+          return await getWikipediaSummary(firstResult.title);
+        }
+      }
+    }
+
+    const openSearchSuggestions = await searchWikipediaWithOpenSearch(searchQuery);
+
+    if (openSearchSuggestions.length > 0) {
+      console.log('[Wikipedia Smart Match] OpenSearch suggestions:', openSearchSuggestions);
+
+      const bestSuggestion = findBestFuzzyMatch(
+        searchQuery,
+        openSearchSuggestions,
+        (suggestion) => suggestion,
+        0.65
+      );
+
+      if (bestSuggestion) {
+        console.log('[Wikipedia Smart Match] Using OpenSearch suggestion:', bestSuggestion);
+        const summary = await getWikipediaSummary(bestSuggestion);
+        if (summary && summary.type !== 'disambiguation') {
+          return summary;
+        }
+      }
+
+      const firstSuggestion = openSearchSuggestions[0];
+      console.log('[Wikipedia Smart Match] Trying first suggestion:', firstSuggestion);
+      const summary = await getWikipediaSummary(firstSuggestion);
+      if (summary && summary.type !== 'disambiguation') {
+        return summary;
+      }
+    }
+  }
+
+  console.log('[Wikipedia Smart Match] No match found');
   return null;
 }

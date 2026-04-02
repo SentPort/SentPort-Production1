@@ -19,6 +19,7 @@ import { analyzeQuery } from '../lib/queryAnalyzer';
 import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
+import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -119,73 +120,105 @@ export default function SearchResults() {
     }
 
     try {
-      let dbQuery = supabase
-        .from('search_index')
-        .select('*')
-        .abortSignal(currentController.signal);
+      const searchVariations = generateSearchVariations(searchTerm);
+      console.log('[Search] Search variations:', searchVariations);
 
-      if (!includeExternalContent) {
-        dbQuery = dbQuery.eq('is_internal', true);
+      const allResults: SearchResult[] = [];
+
+      for (const variation of searchVariations) {
+        let dbQuery = supabase
+          .from('search_index')
+          .select('*')
+          .abortSignal(currentController.signal);
+
+        if (!includeExternalContent) {
+          dbQuery = dbQuery.eq('is_internal', true);
+        }
+
+        dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+
+        const searchTermLower = variation.toLowerCase();
+        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+
+        const { data, error } = await dbQuery;
+
+        if (currentController.signal.aborted || !isMountedRef.current) {
+          return;
+        }
+
+        if (data && !error) {
+          allResults.push(...data);
+        }
+
+        if (data && data.length > 0) {
+          break;
+        }
       }
-
-      dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
-
-      const searchTermLower = searchTerm.toLowerCase();
-      dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
-
-      const { data, error } = await dbQuery;
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
       }
 
-      if (data && !error) {
-        const initialResultCount = data.length;
+      const uniqueResults = Array.from(
+        new Map(allResults.map(item => [item.id, item])).values()
+      );
 
-        const englishResults = data.filter(result =>
-          shouldIncludeInEnglishSearch({
-            title: result.title || '',
-            description: result.description || '',
-            url: result.url,
-            language: result.language,
-            language_backfill_processed: result.language_backfill_processed,
-          })
-        );
+      const initialResultCount = uniqueResults.length;
 
-        const filteredCount = initialResultCount - englishResults.length;
-        if (isMountedRef.current) {
-          setFilteredByLanguageCount(filteredCount);
+      const englishResults = uniqueResults.filter(result =>
+        shouldIncludeInEnglishSearch({
+          title: result.title || '',
+          description: result.description || '',
+          url: result.url,
+          language: result.language,
+          language_backfill_processed: result.language_backfill_processed,
+        })
+      );
+
+      const filteredCount = initialResultCount - englishResults.length;
+      if (isMountedRef.current) {
+        setFilteredByLanguageCount(filteredCount);
+      }
+
+      const searchTermLower = searchTerm.toLowerCase();
+      const scoredResults = englishResults.map(result => {
+        let score = result.relevance_score || 0;
+
+        const titleLower = result.title?.toLowerCase() || '';
+        const descLower = result.description?.toLowerCase() || '';
+        const contentLower = result.content_snippet?.toLowerCase() || '';
+
+        const titleMatch = titleLower.includes(searchTermLower);
+        const descMatch = descLower.includes(searchTermLower);
+        const contentMatch = contentLower.includes(searchTermLower);
+
+        if (titleMatch) score += 30;
+        if (descMatch) score += 20;
+        if (contentMatch) score += 10;
+
+        const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
+        const descSimilarity = calculateSimilarity(searchTermLower, descLower);
+
+        score += titleSimilarity * 25;
+        score += descSimilarity * 15;
+
+        if (result.is_internal) {
+          score *= 10;
+        } else if (result.is_verified_external) {
+          score *= 5;
         }
 
-        const scoredResults = englishResults.map(result => {
-          let score = result.relevance_score || 0;
+        return { ...result, calculatedScore: score };
+      });
 
-          const titleMatch = result.title?.toLowerCase().includes(searchTermLower);
-          const descMatch = result.description?.toLowerCase().includes(searchTermLower);
-          const contentMatch = result.content_snippet?.toLowerCase().includes(searchTermLower);
+      scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
 
-          if (titleMatch) score += 30;
-          if (descMatch) score += 20;
-          if (contentMatch) score += 10;
+      if (isMountedRef.current && !currentController.signal.aborted) {
+        setResults(scoredResults);
+      }
 
-          if (result.is_internal) {
-            score *= 10;
-          } else if (result.is_verified_external) {
-            score *= 5;
-          }
-
-          return { ...result, calculatedScore: score };
-        });
-
-        scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
-
-        if (isMountedRef.current && !currentController.signal.aborted) {
-          setResults(scoredResults);
-        }
-
-        if (isMountedRef.current) {
-          trackSearch(searchTerm, scoredResults.length);
-        }
+      if (isMountedRef.current) {
+        trackSearch(searchTerm, scoredResults.length);
       }
 
       if (isMountedRef.current) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react';
-import { WikipediaSummary, findExactWikipediaMatch } from '../../lib/wikipediaService';
+import { WikipediaSummary, findWikipediaWithSmartMatching } from '../../lib/wikipediaService';
 
 interface WikipediaKnowledgePanelProps {
   query: string;
@@ -22,7 +22,7 @@ export function WikipediaKnowledgePanel({ query, onClose }: WikipediaKnowledgePa
       setError(null);
 
       try {
-        const data = await findExactWikipediaMatch(query);
+        const data = await findWikipediaWithSmartMatching(query);
 
         if (!mounted) {
           console.log('[WikipediaPanel] Component unmounted, aborting');
