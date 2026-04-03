@@ -102,7 +102,7 @@ export default function SearchResults() {
       setWikipediaSpellSuggestion(null);
       performSearch(query);
     }
-  }, [query, includeExternalContent]);
+  }, [query]);
 
   useEffect(() => {
     if (!includeExternalContent) {
@@ -508,7 +508,7 @@ export default function SearchResults() {
         setLoading(false);
       }
     }
-  }, [includeExternalContent]);
+  }, [includeExternalContent, wikipediaSpellSuggestion]);
 
   // Filter results by active tab
   const getFilteredResults = () => {
