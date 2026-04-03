@@ -232,6 +232,8 @@ export default function SearchResults() {
               console.error('[Search] Fuzzy search error:', fuzzyError);
             } else if (fuzzyData) {
               console.log(`[Search] Fuzzy search found ${fuzzyData.length} results`);
+              console.log('[Search] First fuzzy result:', fuzzyData[0]);
+              console.log('[Search] Fuzzy result similarity_score:', fuzzyData[0]?.similarity_score);
               fuzzyResults.push(...fuzzyData);
             } else {
               console.warn('[Search] Fuzzy search returned null data');
@@ -321,6 +323,12 @@ export default function SearchResults() {
       let uniqueResults = Array.from(allResultsMap.values());
 
       console.log(`[Search] Combined results: ${exactResults.length} exact + ${fuzzyResults.length} fuzzy = ${uniqueResults.length} total`);
+
+      const fuzzyInUnique = uniqueResults.filter((r: any) => r.searchSource === 'fuzzy');
+      if (fuzzyInUnique.length > 0) {
+        console.log('[Search] First fuzzy result in uniqueResults:', fuzzyInUnique[0]);
+        console.log('[Search] similarity_score property:', fuzzyInUnique[0].similarity_score);
+      }
 
       if (uniqueResults.length === 0 && searchTerm.length >= 3) {
         console.log('[Search] No results found, checking for auto-search with high-confidence suggestions...');
@@ -428,18 +436,24 @@ export default function SearchResults() {
         const searchSource = (result as any).searchSource;
         const similarityScore = (result as any).similarity_score;
 
+        console.log(`[Search] Filtering result: "${result.title}", searchSource: ${searchSource}, similarity_score: ${similarityScore}, language: ${result.language}`);
+
         if (searchSource === 'fuzzy' && similarityScore && similarityScore > 0.8) {
           console.log(`[Search] Preserving high-scoring fuzzy match regardless of language: "${result.title}" (score: ${similarityScore})`);
           return true;
         }
 
-        return shouldIncludeInEnglishSearch({
+        const shouldInclude = shouldIncludeInEnglishSearch({
           title: result.title || '',
           description: result.description || '',
           url: result.url,
           language: result.language,
           language_backfill_processed: result.language_backfill_processed,
         });
+
+        console.log(`[Search] shouldIncludeInEnglishSearch for "${result.title}": ${shouldInclude}`);
+
+        return shouldInclude;
       });
 
       const filteredCount = initialResultCount - englishResults.length;
