@@ -258,8 +258,15 @@ export default function SearchResults() {
 
       // Use ONLY Wikipedia suggestions (with database-first check for learned corrections)
       // NO fuzzy matching, NO combining multiple sources
-      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase() && isMountedRef.current) {
-        console.log('[Search] Wikipedia spell suggestion:', wikiSpellCheckResult.suggestion);
+      // IMPORTANT: Use exact string comparison, not case-insensitive
+      // We want "Adam Smith" to be suggested when user types "adma smith"
+      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm && isMountedRef.current) {
+        console.log('[Search] Wikipedia spell suggestion accepted:', {
+          original: searchTerm,
+          suggestion: wikiSpellCheckResult.suggestion,
+          confidence: wikiSpellCheckResult.confidence,
+          source: wikiSpellCheckResult.source
+        });
 
         const spellSuggestions = [{
           correctedQuery: wikiSpellCheckResult.suggestion,
@@ -281,6 +288,16 @@ export default function SearchResults() {
           setSpellCheckLogId(logId);
         }
       } else if (isMountedRef.current) {
+        if (wikiSpellCheckResult) {
+          console.log('[Search] Wikipedia suggestion rejected - matches search term:', {
+            suggestion: wikiSpellCheckResult.suggestion,
+            searchTerm: searchTerm,
+            exactMatch: wikiSpellCheckResult.suggestion === searchTerm
+          });
+        } else {
+          console.log('[Search] No Wikipedia spelling suggestion available');
+        }
+
         setSpellSuggestions([]);
         setSpellCheckLogId(null);
 

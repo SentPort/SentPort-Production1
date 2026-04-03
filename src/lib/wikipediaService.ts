@@ -96,6 +96,26 @@ function setCachedData<T>(key: string, data: T): void {
   });
 }
 
+export function clearSpellCheckCache(query?: string): void {
+  if (query) {
+    // Clear specific query caches
+    cache.delete(`spell:${query.toLowerCase()}`);
+    cache.delete(`spellcheck:${query.toLowerCase()}`);
+    cache.delete(`opensearch:${query.toLowerCase()}`);
+    console.log(`[Wikipedia Cache] Cleared cache for query: ${query}`);
+  } else {
+    // Clear all spell-check related caches
+    const keysToDelete: string[] = [];
+    cache.forEach((_, key) => {
+      if (key.startsWith('spell:') || key.startsWith('spellcheck:') || key.startsWith('opensearch:')) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => cache.delete(key));
+    console.log(`[Wikipedia Cache] Cleared ${keysToDelete.length} spell-check cache entries`);
+  }
+}
+
 export async function searchWikipediaTitles(query: string): Promise<WikipediaSearchResult[]> {
   const cacheKey = `search:${query.toLowerCase()}`;
   const cached = getCachedData<WikipediaSearchResult[]>(cacheKey);
@@ -215,29 +235,37 @@ export async function findExactWikipediaMatch(query: string): Promise<WikipediaS
 export async function searchWikipediaWithOpenSearch(query: string): Promise<string[]> {
   const cacheKey = `opensearch:${query.toLowerCase()}`;
   const cached = getCachedData<string[]>(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log(`[Wikipedia OpenSearch] Using cached suggestions for "${query}":`, cached);
+    return cached;
+  }
 
   try {
-    const response = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=10&format=json&origin=*`,
-      {
-        headers: {
-          'Accept': 'application/json'
-        }
+    const apiUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=10&format=json&origin=*`;
+    console.log('[Wikipedia OpenSearch] Fetching:', apiUrl);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/json'
       }
-    );
+    });
+
+    console.log('[Wikipedia OpenSearch] Response status:', response.status, response.statusText);
 
     if (!response.ok) {
+      console.error(`[Wikipedia OpenSearch] HTTP error: ${response.status} ${response.statusText}`);
       return [];
     }
 
     const data = await response.json();
     const suggestions = data[1] || [];
 
+    console.log(`[Wikipedia OpenSearch] Received ${suggestions.length} suggestions for "${query}":`, suggestions);
+
     setCachedData(cacheKey, suggestions);
     return suggestions;
   } catch (error) {
-    console.error('[Wikipedia] Error with OpenSearch API:', error);
+    console.error('[Wikipedia OpenSearch] Error:', error);
     return [];
   }
 }
@@ -245,25 +273,36 @@ export async function searchWikipediaWithOpenSearch(query: string): Promise<stri
 export async function getWikipediaSpellingSuggestion(query: string): Promise<string | null> {
   const cacheKey = `spell:${query.toLowerCase()}`;
   const cached = getCachedData<string | null>(cacheKey);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    console.log(`[Wikipedia Spell] Using cached result for "${query}":`, cached);
+    return cached;
+  }
 
   try {
+    console.log(`[Wikipedia Spell] Getting suggestions for "${query}"...`);
     const suggestions = await searchWikipediaWithOpenSearch(query);
 
     if (suggestions.length > 0) {
       const topSuggestion = suggestions[0];
 
+      console.log(`[Wikipedia Spell] Comparing suggestion "${topSuggestion}" with query "${query}"`);
+      console.log(`[Wikipedia Spell] Exact match: ${topSuggestion === query}`);
+
       if (topSuggestion !== query) {
-        console.log(`[Wikipedia Spell] Suggestion for "${query}": "${topSuggestion}"`);
+        console.log(`[Wikipedia Spell] ✓ Suggestion accepted: "${query}" → "${topSuggestion}"`);
         setCachedData(cacheKey, topSuggestion);
         return topSuggestion;
+      } else {
+        console.log(`[Wikipedia Spell] ✗ Suggestion rejected: matches query exactly`);
       }
+    } else {
+      console.log(`[Wikipedia Spell] No suggestions returned by OpenSearch`);
     }
 
     setCachedData(cacheKey, null);
     return null;
   } catch (error) {
-    console.error('[Wikipedia] Error getting spelling suggestion:', error);
+    console.error('[Wikipedia Spell] Error:', error);
     return null;
   }
 }
