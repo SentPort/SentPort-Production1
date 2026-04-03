@@ -15,12 +15,14 @@ export interface SpellingSuggestion {
 
 export async function correctSearchQuery(query: string): Promise<SpellCorrectionResult | null> {
   try {
+    console.log('[SpellCorrection] Calling correct_search_query for:', query);
     const { data, error } = await supabase
       .rpc('correct_search_query', { input_query: query })
       .single();
 
     if (error) {
       console.error('[SpellCorrection] Error correcting query:', error);
+      console.error('[SpellCorrection] Full error details:', JSON.stringify(error, null, 2));
       return null;
     }
 
@@ -91,6 +93,7 @@ export async function recordSpellCheckAttempt(
   source: 'database' | 'wikipedia' | 'wikipedia_opensearch' | 'combined' = 'database'
 ): Promise<string | null> {
   try {
+    console.log('[SpellCorrection] Recording spell check attempt for:', originalQuery);
     const { data: logId, error: rpcError } = await supabase
       .rpc('record_spell_check_attempt', {
         p_original_query: originalQuery,
@@ -101,6 +104,7 @@ export async function recordSpellCheckAttempt(
 
     if (rpcError) {
       console.error('[SpellCorrection] Error recording spell check attempt:', rpcError);
+      console.error('[SpellCorrection] Full error details:', JSON.stringify(rpcError, null, 2));
       return null;
     }
 

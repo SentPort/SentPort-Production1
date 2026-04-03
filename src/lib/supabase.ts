@@ -14,6 +14,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 if (import.meta.env.DEV) {
   console.log('Supabase client initializing with URL:', supabaseUrl);
   console.log('Supabase API key present:', !!supabaseAnonKey);
+  console.log('Supabase API key prefix:', supabaseAnonKey?.substring(0, 20) + '...');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
