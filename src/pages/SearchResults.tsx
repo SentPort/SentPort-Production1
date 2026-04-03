@@ -19,7 +19,7 @@ import { analyzeQuery } from '../lib/queryAnalyzer';
 import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
-import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
+import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch, generateQueryTypoCorrections } from '../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -123,87 +123,167 @@ export default function SearchResults() {
       const searchVariations = generateSearchVariations(searchTerm);
       console.log('[Search] Search variations:', searchVariations);
 
-      const allResults: SearchResult[] = [];
+      const exactResults: SearchResult[] = [];
+      const fuzzyResults: SearchResult[] = [];
+      const typoResults: SearchResult[] = [];
 
-      for (const variation of searchVariations) {
-        let dbQuery = supabase
-          .from('search_index')
-          .select('*')
-          .abortSignal(currentController.signal);
+      const exactSearchPromise = (async () => {
+        for (const variation of searchVariations) {
+          let dbQuery = supabase
+            .from('search_index')
+            .select('*')
+            .abortSignal(currentController.signal);
 
-        if (!includeExternalContent) {
-          dbQuery = dbQuery.eq('is_internal', true);
+          if (!includeExternalContent) {
+            dbQuery = dbQuery.eq('is_internal', true);
+          }
+
+          dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+
+          const searchTermLower = variation.toLowerCase();
+          dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+
+          const { data, error } = await dbQuery;
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return;
+          }
+
+          if (data && !error) {
+            exactResults.push(...data);
+          }
+
+          if (data && data.length > 0) {
+            break;
+          }
         }
+      })();
 
-        dbQuery = dbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+      const fuzzySearchPromise = (async () => {
+        if (searchTerm.length >= 3) {
+          console.log('[Search] Starting fuzzy search in parallel...');
 
-        const searchTermLower = variation.toLowerCase();
-        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+          const { data: fuzzyData, error: fuzzyError } = await supabase
+            .rpc('fuzzy_search_content', {
+              search_term: searchTerm.toLowerCase(),
+              include_external: includeExternalContent,
+              similarity_threshold: 0.25
+            })
+            .abortSignal(currentController.signal);
 
-        const { data, error } = await dbQuery;
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return;
+          }
 
-        if (currentController.signal.aborted || !isMountedRef.current) {
-          return;
+          if (fuzzyError) {
+            console.error('[Search] Fuzzy search error:', fuzzyError);
+          } else if (fuzzyData) {
+            console.log(`[Search] Fuzzy search found ${fuzzyData.length} results`);
+            fuzzyResults.push(...fuzzyData);
+          } else {
+            console.warn('[Search] Fuzzy search returned null data');
+          }
         }
+      })();
 
-        if (data && !error) {
-          allResults.push(...data);
-        }
-
-        if (data && data.length > 0) {
-          break;
-        }
-      }
+      await Promise.all([exactSearchPromise, fuzzySearchPromise]);
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
       }
 
-      let uniqueResults = Array.from(
-        new Map(allResults.map(item => [item.id, item])).values()
-      );
+      const allResultsMap = new Map<string, SearchResult>();
+
+      exactResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, { ...r, searchSource: 'exact' } as any);
+        }
+      });
+
+      fuzzyResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, { ...r, searchSource: 'fuzzy' } as any);
+        }
+      });
+
+      let uniqueResults = Array.from(allResultsMap.values());
+
+      console.log(`[Search] Combined results: ${exactResults.length} exact + ${fuzzyResults.length} fuzzy = ${uniqueResults.length} total`);
 
       if (uniqueResults.length < 3 && searchTerm.length >= 3) {
-        console.log('[Search] Few or no exact matches found, trying fuzzy search...');
+        console.log('[Search] Still too few results, trying typo corrections...');
 
-        const { data: fuzzyData, error: fuzzyError } = await supabase
-          .rpc('fuzzy_search_content', {
-            search_term: searchTerm.toLowerCase(),
-            include_external: includeExternalContent,
-            similarity_threshold: 0.25
-          })
-          .abortSignal(currentController.signal);
+        const typoCorrections = generateQueryTypoCorrections(searchTerm);
+        console.log('[Search] Trying typo corrections:', typoCorrections.slice(0, 5));
 
-        if (currentController.signal.aborted || !isMountedRef.current) {
-          return;
+        for (const correction of typoCorrections.slice(0, 10)) {
+          if (correction === searchTerm.toLowerCase()) continue;
+
+          const { data: typoData, error: typoError } = await supabase
+            .rpc('fuzzy_search_content', {
+              search_term: correction,
+              include_external: includeExternalContent,
+              similarity_threshold: 0.2
+            })
+            .abortSignal(currentController.signal);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return;
+          }
+
+          if (typoError) {
+            console.error('[Search] Typo correction search error:', typoError);
+          } else if (typoData && typoData.length > 0) {
+            console.log(`[Search] Typo correction "${correction}" found ${typoData.length} results`);
+            typoResults.push(...typoData);
+
+            if (typoData.length > 0) {
+              break;
+            }
+          }
         }
 
-        if (fuzzyData && !fuzzyError) {
-          console.log(`[Search] Fuzzy search found ${fuzzyData.length} results`);
+        typoResults.forEach(r => {
+          if (!allResultsMap.has(r.id)) {
+            allResultsMap.set(r.id, { ...r, searchSource: 'typo' } as any);
+          }
+        });
 
-          const existingIds = new Set(uniqueResults.map(r => r.id));
-          const newFuzzyResults = fuzzyData.filter((r: any) => !existingIds.has(r.id));
-
-          uniqueResults = [...uniqueResults, ...newFuzzyResults];
-        }
+        uniqueResults = Array.from(allResultsMap.values());
+        console.log(`[Search] After typo corrections: ${uniqueResults.length} total results`);
       }
 
       const initialResultCount = uniqueResults.length;
 
-      const englishResults = uniqueResults.filter(result =>
-        shouldIncludeInEnglishSearch({
+      const englishResults = uniqueResults.filter(result => {
+        const searchSource = (result as any).searchSource;
+        const similarityScore = (result as any).similarity_score;
+
+        if (searchSource === 'fuzzy' && similarityScore && similarityScore > 0.8) {
+          console.log(`[Search] Preserving high-scoring fuzzy match regardless of language: "${result.title}" (score: ${similarityScore})`);
+          return true;
+        }
+
+        if (searchSource === 'typo' && similarityScore && similarityScore > 0.7) {
+          console.log(`[Search] Preserving typo-corrected match regardless of language: "${result.title}" (score: ${similarityScore})`);
+          return true;
+        }
+
+        return shouldIncludeInEnglishSearch({
           title: result.title || '',
           description: result.description || '',
           url: result.url,
           language: result.language,
           language_backfill_processed: result.language_backfill_processed,
-        })
-      );
+        });
+      });
 
       const filteredCount = initialResultCount - englishResults.length;
       if (isMountedRef.current) {
         setFilteredByLanguageCount(filteredCount);
       }
+
+      console.log(`[Search] Language filtering: ${initialResultCount} -> ${englishResults.length} (filtered ${filteredCount})`);
 
       const searchTermLower = searchTerm.toLowerCase();
       const scoredResults = englishResults.map(result => {
@@ -227,8 +307,16 @@ export default function SearchResults() {
         score += titleSimilarity * 25;
         score += descSimilarity * 15;
 
+        const searchSource = (result as any).searchSource;
         if ((result as any).similarity_score) {
-          score += (result as any).similarity_score * 40;
+          const simScore = (result as any).similarity_score;
+          score += simScore * 40;
+
+          if (searchSource === 'fuzzy') {
+            score += simScore * 20;
+          } else if (searchSource === 'typo') {
+            score += simScore * 15;
+          }
         }
 
         if (result.is_internal) {

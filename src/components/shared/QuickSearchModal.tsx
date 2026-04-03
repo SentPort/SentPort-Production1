@@ -9,6 +9,7 @@ import { analyzeQuery, QueryAnalysis } from '../../lib/queryAnalyzer';
 import { Calculator } from './Calculator';
 import { UnitConverter } from './UnitConverter';
 import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
+import { generateQueryTypoCorrections, calculateSimilarity } from '../../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -123,65 +124,144 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     }
 
     try {
-      let dbQuery = supabase
-        .from('search_index')
-        .select('*')
-        .abortSignal(currentController.signal);
+      const exactResults: SearchResult[] = [];
+      const fuzzyResults: SearchResult[] = [];
+      const typoResults: SearchResult[] = [];
 
-      if (!includeExternalContent) {
-        dbQuery = dbQuery.eq('is_internal', true);
-      }
-
-      const searchTermLower = searchTerm.toLowerCase();
-      dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
-
-      const { data, error } = await dbQuery;
-
-      if (currentController.signal.aborted || !isMountedRef.current) {
-        return;
-      }
-
-      let allResults = data || [];
-
-      if (allResults.length < 3 && searchTerm.length >= 3) {
-        console.log('[QuickSearch] Few or no exact matches found, trying fuzzy search...');
-
-        const { data: fuzzyData, error: fuzzyError } = await supabase
-          .rpc('fuzzy_search_content', {
-            search_term: searchTerm.toLowerCase(),
-            include_external: includeExternalContent,
-            similarity_threshold: 0.25
-          })
+      const exactSearchPromise = (async () => {
+        let dbQuery = supabase
+          .from('search_index')
+          .select('*')
           .abortSignal(currentController.signal);
+
+        if (!includeExternalContent) {
+          dbQuery = dbQuery.eq('is_internal', true);
+        }
+
+        const searchTermLower = searchTerm.toLowerCase();
+        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+
+        const { data, error } = await dbQuery;
 
         if (currentController.signal.aborted || !isMountedRef.current) {
           return;
         }
 
-        if (fuzzyData && !fuzzyError) {
-          console.log(`[QuickSearch] Fuzzy search found ${fuzzyData.length} results`);
-
-          const existingIds = new Set(allResults.map(r => r.id));
-          const newFuzzyResults = fuzzyData.filter((r: any) => !existingIds.has(r.id));
-
-          allResults = [...allResults, ...newFuzzyResults];
+        if (data && !error) {
+          exactResults.push(...data);
         }
+      })();
+
+      const fuzzySearchPromise = (async () => {
+        if (searchTerm.length >= 3) {
+          const { data: fuzzyData, error: fuzzyError } = await supabase
+            .rpc('fuzzy_search_content', {
+              search_term: searchTerm.toLowerCase(),
+              include_external: includeExternalContent,
+              similarity_threshold: 0.25
+            })
+            .abortSignal(currentController.signal);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return;
+          }
+
+          if (fuzzyError) {
+            console.error('[QuickSearch] Fuzzy search error:', fuzzyError);
+          } else if (fuzzyData) {
+            fuzzyResults.push(...fuzzyData);
+          }
+        }
+      })();
+
+      await Promise.all([exactSearchPromise, fuzzySearchPromise]);
+
+      if (currentController.signal.aborted || !isMountedRef.current) {
+        return;
       }
 
-      if (!error && allResults.length > 0) {
+      const allResultsMap = new Map<string, SearchResult>();
+
+      exactResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, { ...r, searchSource: 'exact' } as any);
+        }
+      });
+
+      fuzzyResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, { ...r, searchSource: 'fuzzy' } as any);
+        }
+      });
+
+      let allResults = Array.from(allResultsMap.values());
+
+      if (allResults.length < 3 && searchTerm.length >= 3) {
+        const typoCorrections = generateQueryTypoCorrections(searchTerm);
+
+        for (const correction of typoCorrections.slice(0, 10)) {
+          if (correction === searchTerm.toLowerCase()) continue;
+
+          const { data: typoData, error: typoError } = await supabase
+            .rpc('fuzzy_search_content', {
+              search_term: correction,
+              include_external: includeExternalContent,
+              similarity_threshold: 0.2
+            })
+            .abortSignal(currentController.signal);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return;
+          }
+
+          if (!typoError && typoData && typoData.length > 0) {
+            typoResults.push(...typoData);
+            if (typoData.length > 0) break;
+          }
+        }
+
+        typoResults.forEach(r => {
+          if (!allResultsMap.has(r.id)) {
+            allResultsMap.set(r.id, { ...r, searchSource: 'typo' } as any);
+          }
+        });
+
+        allResults = Array.from(allResultsMap.values());
+      }
+
+      if (allResults.length > 0) {
+        const searchTermLower = searchTerm.toLowerCase();
         const scoredResults = allResults.map(result => {
           let score = result.relevance_score || 0;
 
-          const titleMatch = result.title?.toLowerCase().includes(searchTermLower);
-          const descMatch = result.description?.toLowerCase().includes(searchTermLower);
-          const contentMatch = result.content_snippet?.toLowerCase().includes(searchTermLower);
+          const titleLower = result.title?.toLowerCase() || '';
+          const descLower = result.description?.toLowerCase() || '';
+          const contentLower = result.content_snippet?.toLowerCase() || '';
+
+          const titleMatch = titleLower.includes(searchTermLower);
+          const descMatch = descLower.includes(searchTermLower);
+          const contentMatch = contentLower.includes(searchTermLower);
 
           if (titleMatch) score += 30;
           if (descMatch) score += 20;
           if (contentMatch) score += 10;
 
+          const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
+          const descSimilarity = calculateSimilarity(searchTermLower, descLower);
+
+          score += titleSimilarity * 25;
+          score += descSimilarity * 15;
+
+          const searchSource = (result as any).searchSource;
           if ((result as any).similarity_score) {
-            score += (result as any).similarity_score * 40;
+            const simScore = (result as any).similarity_score;
+            score += simScore * 40;
+
+            if (searchSource === 'fuzzy') {
+              score += simScore * 20;
+            } else if (searchSource === 'typo') {
+              score += simScore * 15;
+            }
           }
 
           if (result.is_internal) {
