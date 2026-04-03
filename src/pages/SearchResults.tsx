@@ -505,7 +505,6 @@ export default function SearchResults() {
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
     console.log('[SearchResults] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
     console.log('[SearchResults] OpenSearch completed:', openSearchCompletedRef.current);
-    console.log('[SearchResults] Current spell suggestions:', spellSuggestions);
 
     if (suggestion !== query && isMountedRef.current) {
       if (!openSearchCompletedRef.current) {
@@ -513,17 +512,20 @@ export default function SearchResults() {
         return;
       }
 
-      if (spellSuggestions.length > 0) {
-        console.log('[SearchResults] OpenSearch already provided a suggestion, not overriding');
-        return;
-      }
+      setSpellSuggestions(currentSuggestions => {
+        console.log('[SearchResults] Current spell suggestions:', currentSuggestions);
 
-      console.log('[SearchResults] Using Wikipedia panel suggestion as spell correction');
+        if (currentSuggestions.length > 0) {
+          console.log('[SearchResults] OpenSearch already provided a suggestion, not overriding');
+          return currentSuggestions;
+        }
 
-      setSpellSuggestions([{
-        correctedQuery: suggestion,
-        confidence: confidence
-      }]);
+        console.log('[SearchResults] Using Wikipedia panel suggestion as spell correction');
+        return [{
+          correctedQuery: suggestion,
+          confidence: confidence
+        }];
+      });
 
       recordSpellCheckAttempt(
         query,
@@ -539,7 +541,7 @@ export default function SearchResults() {
         console.error('[SearchResults] Error recording Wikipedia spell check:', err);
       });
     }
-  }, [query, spellSuggestions, results.length]);
+  }, [query, results.length]);
 
   // Analyze query with current results to determine what widgets to show
   // Use useMemo to recalculate whenever query or results change
