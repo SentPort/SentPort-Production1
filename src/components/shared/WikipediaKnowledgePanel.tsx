@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { ExternalLink, ChevronDown, ChevronUp, Loader2, X } from 'lucide-react';
 import { WikipediaSummary, findWikipediaWithSmartMatching } from '../../lib/wikipediaService';
+import { calculateSimilarity } from '../../lib/queryPreprocessing';
 
 interface WikipediaKnowledgePanelProps {
   query: string;
   onClose?: () => void;
+  onSpellingSuggestion?: (suggestion: string, confidence: number) => void;
 }
 
-export function WikipediaKnowledgePanel({ query, onClose }: WikipediaKnowledgePanelProps) {
+export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion }: WikipediaKnowledgePanelProps) {
   const [summary, setSummary] = useState<WikipediaSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,16 @@ export function WikipediaKnowledgePanel({ query, onClose }: WikipediaKnowledgePa
         if (data) {
           console.log('[WikipediaPanel] Successfully loaded data:', data.title);
           setSummary(data);
+
+          if (onSpellingSuggestion) {
+            const similarity = calculateSimilarity(query.toLowerCase(), data.title.toLowerCase());
+            console.log('[WikipediaPanel] Similarity between query and title:', similarity);
+
+            if (similarity < 0.9 && data.title.toLowerCase() !== query.toLowerCase()) {
+              console.log('[WikipediaPanel] Emitting spelling suggestion:', data.title);
+              onSpellingSuggestion(data.title, 0.95);
+            }
+          }
         } else {
           console.log('[WikipediaPanel] No Wikipedia article found for:', query);
           setError('No Wikipedia article found');

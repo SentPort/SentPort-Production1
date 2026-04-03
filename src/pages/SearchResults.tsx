@@ -75,6 +75,7 @@ export default function SearchResults() {
   const [showingResultsFor, setShowingResultsFor] = useState<string | null>(null);
   const [spellSuggestions, setSpellSuggestions] = useState<Array<{ correctedQuery: string; confidence: number }>>([]);
   const [spellCheckLogId, setSpellCheckLogId] = useState<string | null>(null);
+  const [wikipediaSpellSuggestion, setWikipediaSpellSuggestion] = useState<{ suggestion: string; confidence: number } | null>(null);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -98,6 +99,7 @@ export default function SearchResults() {
 
   useEffect(() => {
     if (query) {
+      setWikipediaSpellSuggestion(null);
       performSearch(query);
     }
   }, [query, includeExternalContent]);
@@ -235,13 +237,35 @@ export default function SearchResults() {
         return;
       }
 
-      if (spellCheckResults && spellCheckResults.length > 0 && isMountedRef.current) {
-        setSpellSuggestions(spellCheckResults);
+      const combinedSpellSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
+
+      if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+        console.log('[Search] Adding Wikipedia suggestion with high priority:', wikipediaSpellSuggestion.suggestion);
+        combinedSpellSuggestions.push({
+          correctedQuery: wikipediaSpellSuggestion.suggestion,
+          confidence: wikipediaSpellSuggestion.confidence
+        });
+      }
+
+      if (spellCheckResults && spellCheckResults.length > 0) {
+        for (const result of spellCheckResults) {
+          const alreadyExists = combinedSpellSuggestions.some(
+            s => s.correctedQuery.toLowerCase() === result.correctedQuery.toLowerCase()
+          );
+          if (!alreadyExists) {
+            combinedSpellSuggestions.push(result);
+          }
+        }
+      }
+
+      if (combinedSpellSuggestions.length > 0 && isMountedRef.current) {
+        combinedSpellSuggestions.sort((a, b) => b.confidence - a.confidence);
+        setSpellSuggestions(combinedSpellSuggestions);
 
         const logId = await recordSpellCheckAttempt(
           searchTerm,
-          spellCheckResults[0].correctedQuery,
-          spellCheckResults[0].confidence,
+          combinedSpellSuggestions[0].correctedQuery,
+          combinedSpellSuggestions[0].confidence,
           0
         );
 
@@ -285,8 +309,23 @@ export default function SearchResults() {
 
         const combinedSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
+        if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+          console.log('[Search] Adding Wikipedia panel suggestion (high priority):', wikipediaSpellSuggestion.suggestion);
+          combinedSuggestions.push({
+            correctedQuery: wikipediaSpellSuggestion.suggestion,
+            confidence: wikipediaSpellSuggestion.confidence
+          });
+        }
+
         if (spellCheckResults && spellCheckResults.length > 0) {
-          combinedSuggestions.push(...spellCheckResults);
+          for (const result of spellCheckResults) {
+            const alreadyExists = combinedSuggestions.some(
+              s => s.correctedQuery.toLowerCase() === result.correctedQuery.toLowerCase()
+            );
+            if (!alreadyExists) {
+              combinedSuggestions.push(result);
+            }
+          }
         }
 
         if (wikipediaSuggestion && wikipediaSuggestion.toLowerCase() !== searchTerm.toLowerCase()) {
@@ -294,7 +333,7 @@ export default function SearchResults() {
             s => s.correctedQuery.toLowerCase() === wikipediaSuggestion.toLowerCase()
           );
           if (!alreadyExists) {
-            console.log(`[Search] Wikipedia suggestion found: "${wikipediaSuggestion}"`);
+            console.log(`[Search] Wikipedia OpenSearch suggestion found: "${wikipediaSuggestion}"`);
             combinedSuggestions.push({
               correctedQuery: wikipediaSuggestion,
               confidence: 0.85
@@ -307,10 +346,59 @@ export default function SearchResults() {
         if (isMountedRef.current && combinedSuggestions.length > 0) {
           setSpellSuggestions(combinedSuggestions);
 
+          const topSuggestion = combinedSuggestions[0];
+
+          if (topSuggestion.confidence >= 0.9 && wikipediaSpellSuggestion) {
+            console.log('[Search] Auto-searching with high-confidence Wikipedia suggestion:', topSuggestion.correctedQuery);
+            setShowingResultsFor(topSuggestion.correctedQuery);
+
+            const retrySearchPromise = (async () => {
+              let retryDbQuery = supabase
+                .from('search_index')
+                .select('*')
+                .abortSignal(currentController.signal);
+
+              if (!includeExternalContent) {
+                retryDbQuery = retryDbQuery.eq('is_internal', true);
+              }
+
+              retryDbQuery = retryDbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+
+              const searchTermLower = topSuggestion.correctedQuery.toLowerCase();
+              retryDbQuery = retryDbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+
+              const { data, error } = await retryDbQuery;
+
+              if (currentController.signal.aborted || !isMountedRef.current) {
+                return;
+              }
+
+              if (data && !error && data.length > 0) {
+                console.log('[Search] Auto-search found', data.length, 'results with corrected query');
+
+                const retryResults = data.map(result => ({
+                  ...result,
+                  calculatedScore: result.relevance_score || 0
+                }));
+
+                retryResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+                if (isMountedRef.current && !currentController.signal.aborted) {
+                  setResults(retryResults);
+                  trackSearch(topSuggestion.correctedQuery, retryResults.length);
+
+                  await recordSpellCorrection(searchTerm, topSuggestion.correctedQuery, topSuggestion.confidence);
+                }
+              }
+            })();
+
+            await retrySearchPromise;
+          }
+
           const logId = await recordSpellCheckAttempt(
             searchTerm,
-            combinedSuggestions[0].correctedQuery,
-            combinedSuggestions[0].confidence,
+            topSuggestion.correctedQuery,
+            topSuggestion.confidence,
             0
           );
 
@@ -487,6 +575,11 @@ export default function SearchResults() {
   const handleRelatedSearchClick = (relatedQuery: string) => {
     setSearchParams({ q: relatedQuery });
   };
+
+  const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
+    console.log('[SearchResults] Received Wikipedia spelling suggestion:', suggestion, 'confidence:', confidence);
+    setWikipediaSpellSuggestion({ suggestion, confidence });
+  }, []);
 
   const analysis = query ? analyzeQuery(query, results) : null;
   const showCalculator = analysis?.showCalculator || false;
@@ -1187,7 +1280,10 @@ export default function SearchResults() {
           {query && showWikipedia && activeTab === 'all' && (
             <div className="lg:col-span-1">
               <div className="sticky top-24">
-                <WikipediaKnowledgePanel query={analysis?.normalizedQuery || query} />
+                <WikipediaKnowledgePanel
+                  query={analysis?.normalizedQuery || query}
+                  onSpellingSuggestion={handleWikipediaSpellingSuggestion}
+                />
               </div>
             </div>
           )}
