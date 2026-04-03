@@ -98,7 +98,6 @@ export default function SearchResults() {
 
   useEffect(() => {
     if (query) {
-      setWikipediaSpellSuggestion(null);
       performSearch(query);
     }
   }, [query, includeExternalContent]);
