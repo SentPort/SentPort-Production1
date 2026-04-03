@@ -135,35 +135,50 @@ export default function SearchResults() {
 
       const wikipediaSpellCheckPromise = (async () => {
         if (searchTerm.length >= 3) {
+          console.log('[Search] ========== WIKIPEDIA SPELL CHECK START ==========');
+          console.log('[Search] Search term:', searchTerm);
+
           // Check database FIRST for learned corrections from Wikipedia
-          console.log('[Search] Checking database for learned Wikipedia corrections...');
+          console.log('[Search] Step 1: Checking database for learned Wikipedia corrections...');
           const learnedCorrection = await getLearnedCorrection(searchTerm);
 
           if (currentController.signal.aborted || !isMountedRef.current) {
+            console.log('[Search] Aborted after database check');
             return null;
           }
 
           if (learnedCorrection) {
-            console.log(`[Search] Found learned correction: "${learnedCorrection.correction}" (confidence: ${learnedCorrection.confidence})`);
-            return {
+            console.log(`[Search] ✓ Found learned correction: "${learnedCorrection.correction}" (confidence: ${learnedCorrection.confidence})`);
+            const result = {
               suggestion: learnedCorrection.correction,
               confidence: learnedCorrection.confidence,
-              source: 'wikipedia_opensearch' as const // Mark as Wikipedia to maintain consistency
+              source: 'wikipedia_opensearch' as const
             };
+            console.log('[Search] Returning learned correction:', result);
+            return result;
           }
 
           // If not in database, call Wikipedia OpenSearch API
-          console.log('[Search] No learned correction, calling Wikipedia API...');
+          console.log('[Search] Step 2: No learned correction, calling Wikipedia API...');
           const wikiSpellCheck = await checkWikipediaSpelling(searchTerm);
 
+          console.log('[Search] Wikipedia API returned:', wikiSpellCheck);
+
           if (currentController.signal.aborted || !isMountedRef.current) {
+            console.log('[Search] Aborted after Wikipedia API call');
             return null;
           }
 
           if (wikiSpellCheck) {
-            console.log(`[Search] Wikipedia spell suggestion found: "${wikiSpellCheck.suggestion}" (confidence: ${wikiSpellCheck.confidence})`);
+            console.log(`[Search] ✓ Wikipedia spell suggestion found: "${wikiSpellCheck.suggestion}" (confidence: ${wikiSpellCheck.confidence})`);
+            console.log('[Search] ========== WIKIPEDIA SPELL CHECK END (SUCCESS) ==========');
             return wikiSpellCheck;
+          } else {
+            console.log('[Search] ✗ No Wikipedia spell suggestion');
+            console.log('[Search] ========== WIKIPEDIA SPELL CHECK END (NO RESULT) ==========');
           }
+        } else {
+          console.log('[Search] Query too short for spell check (<3 chars)');
         }
         return null;
       })();
@@ -252,7 +267,12 @@ export default function SearchResults() {
         fuzzySearchPromise
       ]);
 
+      console.log('[Search] ========== PROCESSING SPELL CHECK RESULT ==========');
+      console.log('[Search] wikiSpellCheckResult:', wikiSpellCheckResult);
+      console.log('[Search] searchTerm:', searchTerm);
+
       if (currentController.signal.aborted || !isMountedRef.current) {
+        console.log('[Search] Aborted or unmounted, exiting');
         return;
       }
 
@@ -261,6 +281,7 @@ export default function SearchResults() {
       // IMPORTANT: Use exact string comparison, not case-insensitive
       // We want "Adam Smith" to be suggested when user types "adma smith"
       if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm && isMountedRef.current) {
+        console.log('[Search] ✓ Spell suggestion ACCEPTED - Creating suggestion UI');
         console.log('[Search] Wikipedia spell suggestion accepted:', {
           original: searchTerm,
           suggestion: wikiSpellCheckResult.suggestion,
@@ -273,9 +294,11 @@ export default function SearchResults() {
           confidence: wikiSpellCheckResult.confidence
         }];
 
+        console.log('[Search] Setting spell suggestions state:', spellSuggestions);
         setSpellSuggestions(spellSuggestions);
 
         const suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
+        console.log('[Search] Recording spell check attempt to database...');
         const logId = await recordSpellCheckAttempt(
           searchTerm,
           wikiSpellCheckResult.suggestion,
@@ -284,24 +307,32 @@ export default function SearchResults() {
           suggestionSource
         );
 
+        console.log('[Search] Spell check log ID:', logId);
+
         if (logId && isMountedRef.current) {
           setSpellCheckLogId(logId);
         }
+        console.log('[Search] ========== SPELL SUGGESTION SETUP COMPLETE ==========');
       } else if (isMountedRef.current) {
+        console.log('[Search] ✗ Spell suggestion REJECTED or not available');
         if (wikiSpellCheckResult) {
+          console.log('[Search] Rejection reason: matches search term');
           console.log('[Search] Wikipedia suggestion rejected - matches search term:', {
             suggestion: wikiSpellCheckResult.suggestion,
             searchTerm: searchTerm,
             exactMatch: wikiSpellCheckResult.suggestion === searchTerm
           });
         } else {
+          console.log('[Search] Rejection reason: no suggestion from Wikipedia');
           console.log('[Search] No Wikipedia spelling suggestion available');
         }
 
+        console.log('[Search] Clearing spell suggestions state');
         setSpellSuggestions([]);
         setSpellCheckLogId(null);
 
         await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
+        console.log('[Search] ========== NO SPELL SUGGESTION ==========');
       }
 
       const allResultsMap = new Map<string, SearchResult>();

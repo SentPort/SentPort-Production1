@@ -282,11 +282,16 @@ export async function getWikipediaSpellingSuggestion(query: string): Promise<str
     console.log(`[Wikipedia Spell] Getting suggestions for "${query}"...`);
     const suggestions = await searchWikipediaWithOpenSearch(query);
 
+    console.log(`[Wikipedia Spell] Raw suggestions array:`, suggestions);
+    console.log(`[Wikipedia Spell] Suggestions length:`, suggestions.length);
+
     if (suggestions.length > 0) {
       const topSuggestion = suggestions[0];
 
-      console.log(`[Wikipedia Spell] Comparing suggestion "${topSuggestion}" with query "${query}"`);
+      console.log(`[Wikipedia Spell] Top suggestion: "${topSuggestion}" (type: ${typeof topSuggestion})`);
+      console.log(`[Wikipedia Spell] Query: "${query}" (type: ${typeof query})`);
       console.log(`[Wikipedia Spell] Exact match: ${topSuggestion === query}`);
+      console.log(`[Wikipedia Spell] Case-insensitive match: ${topSuggestion.toLowerCase() === query.toLowerCase()}`);
 
       if (topSuggestion !== query) {
         console.log(`[Wikipedia Spell] ✓ Suggestion accepted: "${query}" → "${topSuggestion}"`);
@@ -317,51 +322,51 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
   const cacheKey = `spellcheck:${query.toLowerCase()}`;
   const cached = getCachedData<WikipediaSpellCheckResult | null>(cacheKey);
   if (cached !== undefined) {
-    console.log('[Wikipedia Spell Check] Using cached result for:', query);
+    console.log('[Wikipedia Spell Check] Using cached result for:', query, 'Result:', cached);
     return cached;
   }
 
   const trimmedQuery = query.trim();
-  console.log('[Wikipedia Spell Check] Checking spelling for:', trimmedQuery);
+  console.log('[Wikipedia Spell Check] Starting spell check for:', trimmedQuery);
 
   if (trimmedQuery.length < 3) {
-    console.log('[Wikipedia Spell Check] Query too short');
+    console.log('[Wikipedia Spell Check] Query too short (<3 chars)');
     setCachedData(cacheKey, null);
     return null;
   }
 
   try {
-    // Use ONLY Wikipedia's OpenSearch API for spelling suggestions
-    // This API is specifically designed for autocomplete and spell correction
-    // We trust Wikipedia's algorithm completely - no fuzzy matching or similarity calculations
+    console.log('[Wikipedia Spell Check] Calling getWikipediaSpellingSuggestion...');
     const openSearchSuggestion = await getWikipediaSpellingSuggestion(trimmedQuery);
+
+    console.log('[Wikipedia Spell Check] Received suggestion:', openSearchSuggestion);
 
     if (openSearchSuggestion) {
       // Ensure the suggestion is actually different from the query
       if (openSearchSuggestion === trimmedQuery) {
-        console.log('[Wikipedia Spell Check] Suggestion matches query exactly, no correction needed');
+        console.log('[Wikipedia Spell Check] ✗ Suggestion rejected: matches query exactly');
         setCachedData(cacheKey, null);
         return null;
       }
 
-      console.log('[Wikipedia Spell Check] Wikipedia suggests:', openSearchSuggestion);
+      console.log('[Wikipedia Spell Check] ✓ Creating result object with suggestion:', openSearchSuggestion);
 
-      // Trust Wikipedia completely - use high confidence for all suggestions
-      // Wikipedia's OpenSearch is designed for this exact use case
       const result: WikipediaSpellCheckResult = {
         suggestion: openSearchSuggestion,
         confidence: 0.95,
         source: 'wikipedia_opensearch'
       };
+
+      console.log('[Wikipedia Spell Check] ✓ Final result:', result);
       setCachedData(cacheKey, result);
       return result;
     }
 
-    console.log('[Wikipedia Spell Check] No spelling suggestion found');
+    console.log('[Wikipedia Spell Check] No suggestion available');
     setCachedData(cacheKey, null);
     return null;
   } catch (error) {
-    console.error('[Wikipedia Spell Check] Error checking spelling:', error);
+    console.error('[Wikipedia Spell Check] ERROR:', error);
     setCachedData(cacheKey, null);
     return null;
   }
