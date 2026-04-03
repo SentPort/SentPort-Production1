@@ -102,13 +102,7 @@ export default function SearchResults() {
       setWikipediaSpellSuggestion(null);
       performSearch(query);
     }
-  }, [query]);
-
-  useEffect(() => {
-    if (!includeExternalContent) {
-      setWikipediaSpellSuggestion(null);
-    }
-  }, [includeExternalContent]);
+  }, [query, includeExternalContent]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -245,7 +239,7 @@ export default function SearchResults() {
 
       const combinedSpellSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
-      if (includeExternalContent && wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+      if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
         console.log('[Search] Adding Wikipedia suggestion with high priority:', wikipediaSpellSuggestion.suggestion);
         combinedSpellSuggestions.push({
           correctedQuery: wikipediaSpellSuggestion.suggestion,
@@ -315,7 +309,7 @@ export default function SearchResults() {
 
         const combinedSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
-        if (includeExternalContent && wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+        if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
           console.log('[Search] Adding Wikipedia panel suggestion (high priority):', wikipediaSpellSuggestion.suggestion);
           combinedSuggestions.push({
             correctedQuery: wikipediaSpellSuggestion.suggestion,
@@ -354,7 +348,7 @@ export default function SearchResults() {
 
           const topSuggestion = combinedSuggestions[0];
 
-          if (topSuggestion.confidence >= 0.9 && wikipediaSpellSuggestion && includeExternalContent) {
+          if (topSuggestion.confidence >= 0.9 && wikipediaSpellSuggestion) {
             console.log('[Search] Auto-searching with high-confidence Wikipedia suggestion:', topSuggestion.correctedQuery);
             setShowingResultsFor(topSuggestion.correctedQuery);
 
@@ -508,7 +502,7 @@ export default function SearchResults() {
         setLoading(false);
       }
     }
-  }, [includeExternalContent, wikipediaSpellSuggestion]);
+  }, [includeExternalContent]);
 
   // Filter results by active tab
   const getFilteredResults = () => {
@@ -583,13 +577,9 @@ export default function SearchResults() {
   };
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
-    if (!includeExternalContent) {
-      console.log('[SearchResults] Ignoring Wikipedia spelling suggestion - external content disabled');
-      return;
-    }
     console.log('[SearchResults] Received Wikipedia spelling suggestion:', suggestion, 'confidence:', confidence);
     setWikipediaSpellSuggestion({ suggestion, confidence });
-  }, [includeExternalContent]);
+  }, []);
 
   const analysis = query ? analyzeQuery(query, results) : null;
   const showCalculator = analysis?.showCalculator || false;
