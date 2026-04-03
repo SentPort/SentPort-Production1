@@ -154,6 +154,18 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
       const fuzzySearchPromise = (async () => {
         if (searchTerm.length >= 3) {
+          console.log('[QuickSearch] Calling fuzzy_search_content with:', {
+            search_term: searchTerm.toLowerCase(),
+            include_external: includeExternalContent,
+            similarity_threshold: 0.25
+          });
+
+          console.log('[QuickSearch] Supabase client check:', {
+            hasClient: !!supabase,
+            clientUrl: (supabase as any).supabaseUrl,
+            hasAuth: !!(supabase as any).auth
+          });
+
           const { data: fuzzyData, error: fuzzyError } = await supabase
             .rpc('fuzzy_search_content', {
               search_term: searchTerm.toLowerCase(),
@@ -168,7 +180,9 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
           if (fuzzyError) {
             console.error('[QuickSearch] Fuzzy search error:', fuzzyError);
+            console.error('[QuickSearch] Full error details:', JSON.stringify(fuzzyError, null, 2));
           } else if (fuzzyData) {
+            console.log('[QuickSearch] Fuzzy search returned:', fuzzyData?.length, 'results');
             fuzzyResults.push(...fuzzyData);
           }
         }
