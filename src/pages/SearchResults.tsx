@@ -337,23 +337,13 @@ export default function SearchResults() {
 
         const combinedSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
-        if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+        // IMPORTANT: Use exact string comparison (not case-insensitive) to catch typos like "adma smith" -> "Adam Smith"
+        if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm) {
           console.log('[Search] Using background Wikipedia suggestion for auto-search:', wikiSpellCheckResult.suggestion);
           combinedSuggestions.push({
             correctedQuery: wikiSpellCheckResult.suggestion,
             confidence: wikiSpellCheckResult.confidence
           });
-        }
-
-        if (spellCheckResults && spellCheckResults.length > 0) {
-          for (const result of spellCheckResults) {
-            const alreadyExists = combinedSuggestions.some(
-              s => s.correctedQuery.toLowerCase() === result.correctedQuery.toLowerCase()
-            );
-            if (!alreadyExists) {
-              combinedSuggestions.push(result);
-            }
-          }
         }
 
         combinedSuggestions.sort((a, b) => b.confidence - a.confidence);
