@@ -295,11 +295,14 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
     const wikipediaData = await findWikipediaWithSmartMatching(trimmedQuery);
 
     if (wikipediaData) {
-      const similarity = calculateSimilarity(trimmedQuery.toLowerCase(), wikipediaData.title.toLowerCase());
-      console.log('[Wikipedia Spell Check] Similarity between query and Wikipedia title:', similarity);
+      const queryLower = trimmedQuery.toLowerCase();
+      const titleLower = wikipediaData.title.toLowerCase();
 
-      if (similarity < 0.9 && wikipediaData.title.toLowerCase() !== trimmedQuery.toLowerCase()) {
-        console.log('[Wikipedia Spell Check] Found spelling suggestion (direct):', wikipediaData.title);
+      if (queryLower !== titleLower) {
+        const similarity = calculateSimilarity(queryLower, titleLower);
+        console.log('[Wikipedia Spell Check] Found potential correction:', wikipediaData.title);
+        console.log('[Wikipedia Spell Check] Similarity:', similarity);
+
         const result: WikipediaSpellCheckResult = {
           suggestion: wikipediaData.title,
           confidence: 0.95,
@@ -307,6 +310,8 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
         };
         setCachedData(cacheKey, result);
         return result;
+      } else {
+        console.log('[Wikipedia Spell Check] Query matches Wikipedia title exactly, no correction needed');
       }
     }
 
