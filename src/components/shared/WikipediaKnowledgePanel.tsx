@@ -39,9 +39,11 @@ export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion }
             const similarity = calculateSimilarity(query.toLowerCase(), data.title.toLowerCase());
             console.log('[WikipediaPanel] Similarity between query and title:', similarity);
 
-            if (similarity < 0.9 && data.title.toLowerCase() !== query.toLowerCase()) {
+            if (similarity < 0.99 && data.title.toLowerCase() !== query.toLowerCase()) {
               console.log('[WikipediaPanel] Emitting spelling suggestion:', data.title);
               onSpellingSuggestion(data.title, 0.95);
+            } else {
+              console.log('[WikipediaPanel] No suggestion needed - similarity:', similarity, 'exact match:', data.title.toLowerCase() === query.toLowerCase());
             }
           }
         } else {

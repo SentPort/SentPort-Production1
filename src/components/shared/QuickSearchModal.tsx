@@ -471,8 +471,10 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           {spellSuggestions.length > 0 && (
             <div className="mb-4">
               <DidYouMean
+                originalQuery={query}
                 suggestions={spellSuggestions}
-                onAccept={handleSpellingSuggestionAccepted}
+                onSuggestionClick={handleSpellingSuggestionAccepted}
+                showMultiple={results.length === 0}
               />
             </div>
           )}
