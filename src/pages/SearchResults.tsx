@@ -381,69 +381,7 @@ export default function SearchResults() {
 
         if (isMountedRef.current && combinedSuggestions.length > 0) {
           setSpellSuggestions(combinedSuggestions);
-
-          const topSuggestion = combinedSuggestions[0];
-
-          if (topSuggestion.confidence >= 0.9) {
-            console.log('[Search] Auto-searching with high-confidence Wikipedia suggestion:', topSuggestion.correctedQuery);
-            setShowingResultsFor(topSuggestion.correctedQuery);
-
-            const retrySearchPromise = (async () => {
-              let retryDbQuery = supabase
-                .from('search_index')
-                .select('*')
-                .abortSignal(currentController.signal);
-
-              if (!includeExternalContent) {
-                retryDbQuery = retryDbQuery.eq('is_internal', true);
-              }
-
-              retryDbQuery = retryDbQuery.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
-
-              const searchTermLower = topSuggestion.correctedQuery.toLowerCase();
-              retryDbQuery = retryDbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
-
-              const { data, error } = await retryDbQuery;
-
-              if (currentController.signal.aborted || !isMountedRef.current) {
-                return;
-              }
-
-              if (data && !error && data.length > 0) {
-                console.log('[Search] Auto-search found', data.length, 'results with corrected query');
-
-                const retryResults = data.map(result => ({
-                  ...result,
-                  calculatedScore: result.relevance_score || 0
-                }));
-
-                retryResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
-
-                if (isMountedRef.current && !currentController.signal.aborted) {
-                  setResults(retryResults);
-                  trackSearch(topSuggestion.correctedQuery, retryResults.length);
-
-                  await recordSpellCorrection(searchTerm, topSuggestion.correctedQuery, topSuggestion.confidence);
-                }
-              }
-            })();
-
-            await retrySearchPromise;
-          }
-
-          const logId = await recordSpellCheckAttempt(
-            searchTerm,
-            topSuggestion.correctedQuery,
-            topSuggestion.confidence,
-            0
-          );
-
-          if (logId && isMountedRef.current) {
-            setSpellCheckLogId(logId);
-          }
         }
-
-        recordSpellCorrection(searchTerm, '', 0);
       } else if (isMountedRef.current) {
         setCorrectedQuery(null);
         setShowingResultsFor(null);
