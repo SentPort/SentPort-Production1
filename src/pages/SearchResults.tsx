@@ -498,7 +498,30 @@ export default function SearchResults() {
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
     console.log('[SearchResults] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
-  }, []);
+
+    if (spellSuggestions.length === 0 && suggestion !== query && isMountedRef.current) {
+      console.log('[SearchResults] Using Wikipedia panel suggestion as spell correction');
+
+      setSpellSuggestions([{
+        correctedQuery: suggestion,
+        confidence: confidence
+      }]);
+
+      recordSpellCheckAttempt(
+        query,
+        suggestion,
+        confidence,
+        results.length,
+        'wikipedia_direct'
+      ).then(logId => {
+        if (logId && isMountedRef.current) {
+          setSpellCheckLogId(logId);
+        }
+      }).catch(err => {
+        console.error('[SearchResults] Error recording Wikipedia spell check:', err);
+      });
+    }
+  }, [query, spellSuggestions, results.length]);
 
   const analysis = query ? analyzeQuery(query, results) : null;
   const showCalculator = analysis?.showCalculator || false;
