@@ -292,35 +292,41 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
   }
 
   try {
-    const wikipediaData = await findWikipediaWithSmartMatching(trimmedQuery);
-
-    if (wikipediaData) {
-      const queryLower = trimmedQuery.toLowerCase();
-      const titleLower = wikipediaData.title.toLowerCase();
-
-      if (queryLower !== titleLower) {
-        const similarity = calculateSimilarity(queryLower, titleLower);
-        console.log('[Wikipedia Spell Check] Found potential correction:', wikipediaData.title);
-        console.log('[Wikipedia Spell Check] Similarity:', similarity);
-
-        const result: WikipediaSpellCheckResult = {
-          suggestion: wikipediaData.title,
-          confidence: 0.95,
-          source: 'wikipedia_direct'
-        };
-        setCachedData(cacheKey, result);
-        return result;
-      } else {
-        console.log('[Wikipedia Spell Check] Query matches Wikipedia title exactly, no correction needed');
-      }
-    }
-
+    // Use ONLY Wikipedia's OpenSearch API for spelling suggestions
+    // This API is specifically designed for autocomplete and spell correction
+    // We trust Wikipedia's algorithm completely - no fuzzy matching on our end
     const openSearchSuggestion = await getWikipediaSpellingSuggestion(trimmedQuery);
+
     if (openSearchSuggestion) {
-      console.log('[Wikipedia Spell Check] Found spelling suggestion (OpenSearch):', openSearchSuggestion);
+      // Ensure the suggestion is actually different from the query
+      if (openSearchSuggestion.toLowerCase() === trimmedQuery.toLowerCase()) {
+        console.log('[Wikipedia Spell Check] Suggestion matches query exactly, no correction needed');
+        setCachedData(cacheKey, null);
+        return null;
+      }
+
+      console.log('[Wikipedia Spell Check] Wikipedia suggests:', openSearchSuggestion);
+
+      // Calculate edit distance to determine confidence
+      const distance = levenshteinDistance(
+        trimmedQuery.toLowerCase(),
+        openSearchSuggestion.toLowerCase()
+      );
+      const maxLen = Math.max(trimmedQuery.length, openSearchSuggestion.length);
+      const similarity = 1 - (distance / maxLen);
+
+      // High confidence if very similar (likely a spelling correction)
+      // Lower confidence if very different (might be a different concept)
+      let confidence = 0.85;
+      if (similarity >= 0.8) {
+        confidence = 0.95; // Very similar, high confidence
+      } else if (similarity < 0.5) {
+        confidence = 0.70; // Very different, lower confidence
+      }
+
       const result: WikipediaSpellCheckResult = {
         suggestion: openSearchSuggestion,
-        confidence: 0.85,
+        confidence,
         source: 'wikipedia_opensearch'
       };
       setCachedData(cacheKey, result);

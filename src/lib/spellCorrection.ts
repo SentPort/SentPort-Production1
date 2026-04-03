@@ -13,6 +13,31 @@ export interface SpellingSuggestion {
   source: 'exact' | 'known' | 'edit1' | 'fuzzy';
 }
 
+export async function getLearnedCorrection(query: string): Promise<{ correction: string; confidence: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('spelling_corrections')
+      .select('correction, confidence')
+      .eq('misspelling', query.toLowerCase())
+      .maybeSingle();
+
+    if (error) {
+      console.error('[SpellCorrection] Error checking learned corrections:', error);
+      return null;
+    }
+
+    if (data) {
+      console.log('[SpellCorrection] Found learned correction for:', query, '->', data.correction);
+      return data;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[SpellCorrection] Exception checking learned corrections:', error);
+    return null;
+  }
+}
+
 export async function correctSearchQuery(query: string): Promise<SpellCorrectionResult | null> {
   try {
     console.log('[SpellCorrection] Calling correct_search_query for:', query);

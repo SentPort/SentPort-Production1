@@ -20,7 +20,7 @@ import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
 import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
-import { correctSearchQuery, recordSpellCorrection, getSpellingSuggestions, recordSpellCheckAttempt } from '../lib/spellCorrection';
+import { correctSearchQuery, recordSpellCorrection, getSpellingSuggestions, recordSpellCheckAttempt, getLearnedCorrection } from '../lib/spellCorrection';
 import { getWikipediaSpellingSuggestion, checkWikipediaSpelling } from '../lib/wikipediaService';
 import { DidYouMean } from '../components/shared/DidYouMean';
 
@@ -155,7 +155,25 @@ export default function SearchResults() {
 
       const wikipediaSpellCheckPromise = (async () => {
         if (searchTerm.length >= 3) {
-          console.log('[Search] Running Wikipedia spell check in parallel...');
+          // Check database FIRST for learned corrections from Wikipedia
+          console.log('[Search] Checking database for learned Wikipedia corrections...');
+          const learnedCorrection = await getLearnedCorrection(searchTerm);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return null;
+          }
+
+          if (learnedCorrection) {
+            console.log(`[Search] Found learned correction: "${learnedCorrection.correction}" (confidence: ${learnedCorrection.confidence})`);
+            return {
+              suggestion: learnedCorrection.correction,
+              confidence: learnedCorrection.confidence,
+              source: 'wikipedia_opensearch' as const // Mark as Wikipedia to maintain consistency
+            };
+          }
+
+          // If not in database, call Wikipedia OpenSearch API
+          console.log('[Search] No learned correction, calling Wikipedia API...');
           const wikiSpellCheck = await checkWikipediaSpelling(searchTerm);
 
           if (currentController.signal.aborted || !isMountedRef.current) {
