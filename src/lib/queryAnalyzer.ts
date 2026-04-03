@@ -304,8 +304,25 @@ function isEncyclopediaTopic(query: string, searchResults?: SearchResult[]): boo
     }
   }
 
+  // Single lowercase word >= 4 chars (e.g., "paris", "obama", "climate")
   if (/^[a-z]+$/.test(lowerQuery) && lowerQuery.length >= 4) {
     return true;
+  }
+
+  // Multi-word queries that look like they could be names or places (even if lowercase)
+  // Examples: "adam smith", "new york", "world war", "pitsburgh" (misspelled)
+  const words = lowerQuery.split(/\s+/);
+  if (words.length >= 2 && words.length <= 4) {
+    // Check if all words are alphabetic and reasonable length
+    const allAlphabetic = words.every(word => /^[a-z]+$/.test(word) && word.length >= 2);
+    if (allAlphabetic) {
+      // Filter out common stopwords
+      const meaningfulWords = words.filter(word => !COMMON_STOPWORDS.includes(word));
+      // If we have 2+ meaningful words, likely an encyclopedia topic
+      if (meaningfulWords.length >= 2) {
+        return true;
+      }
+    }
   }
 
   return false;

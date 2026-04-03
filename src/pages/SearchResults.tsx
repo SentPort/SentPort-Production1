@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Globe, CheckCircle, FileText, Image, Video, Newspaper, Users, Sparkles, TrendingUp, Shield, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -541,11 +541,18 @@ export default function SearchResults() {
     }
   }, [query, spellSuggestions, results.length]);
 
-  const analysis = query ? analyzeQuery(query, results) : null;
+  // Analyze query with current results to determine what widgets to show
+  // Use useMemo to recalculate whenever query or results change
+  // This ensures Wikipedia panel shows up both initially and when results load
+  const analysis = useMemo(() => {
+    if (!query) return null;
+    return analyzeQuery(query, results);
+  }, [query, results]);
+
   const showCalculator = analysis?.showCalculator || false;
-  const showWikipedia = analysis?.showWikipedia && includeExternalContent || false;
+  const showWikipedia = (analysis?.showWikipedia && includeExternalContent) || false;
   const showUnitConverter = analysis?.showUnitConverter || false;
-  const showScientificNotationCalculators = analysis?.showScientificNotationCalculators && includeExternalContent || false;
+  const showScientificNotationCalculators = (analysis?.showScientificNotationCalculators && includeExternalContent) || false;
 
   useEffect(() => {
     if (query && analysis) {
