@@ -253,7 +253,7 @@ export async function getWikipediaSpellingSuggestion(query: string): Promise<str
     if (suggestions.length > 0) {
       const topSuggestion = suggestions[0];
 
-      if (topSuggestion.toLowerCase() !== query.toLowerCase()) {
+      if (topSuggestion !== query) {
         console.log(`[Wikipedia Spell] Suggestion for "${query}": "${topSuggestion}"`);
         setCachedData(cacheKey, topSuggestion);
         return topSuggestion;
@@ -299,7 +299,7 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
 
     if (openSearchSuggestion) {
       // Ensure the suggestion is actually different from the query
-      if (openSearchSuggestion.toLowerCase() === trimmedQuery.toLowerCase()) {
+      if (openSearchSuggestion === trimmedQuery) {
         console.log('[Wikipedia Spell Check] Suggestion matches query exactly, no correction needed');
         setCachedData(cacheKey, null);
         return null;
