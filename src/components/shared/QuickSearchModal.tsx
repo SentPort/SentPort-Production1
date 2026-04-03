@@ -125,8 +125,6 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
     try {
       const exactResults: SearchResult[] = [];
-      const fuzzyResults: SearchResult[] = [];
-      const typoResults: SearchResult[] = [];
 
       const exactSearchPromise = (async () => {
         let dbQuery = supabase
@@ -152,43 +150,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         }
       })();
 
-      const fuzzySearchPromise = (async () => {
-        if (searchTerm.length >= 3) {
-          console.log('[QuickSearch] Calling fuzzy_search_content with:', {
-            search_term: searchTerm.toLowerCase(),
-            include_external: includeExternalContent,
-            similarity_threshold: 0.25
-          });
-
-          console.log('[QuickSearch] Supabase client check:', {
-            hasClient: !!supabase,
-            clientUrl: (supabase as any).supabaseUrl,
-            hasAuth: !!(supabase as any).auth
-          });
-
-          const { data: fuzzyData, error: fuzzyError } = await supabase
-            .rpc('fuzzy_search_content', {
-              search_term: searchTerm.toLowerCase(),
-              include_external: includeExternalContent,
-              similarity_threshold: 0.25
-            })
-            .abortSignal(currentController.signal);
-
-          if (currentController.signal.aborted || !isMountedRef.current) {
-            return;
-          }
-
-          if (fuzzyError) {
-            console.error('[QuickSearch] Fuzzy search error:', fuzzyError);
-            console.error('[QuickSearch] Full error details:', JSON.stringify(fuzzyError, null, 2));
-          } else if (fuzzyData) {
-            console.log('[QuickSearch] Fuzzy search returned:', fuzzyData?.length, 'results');
-            fuzzyResults.push(...fuzzyData);
-          }
-        }
-      })();
-
-      await Promise.all([exactSearchPromise, fuzzySearchPromise]);
+      await Promise.all([exactSearchPromise]);
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
@@ -199,12 +161,6 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       exactResults.forEach(r => {
         if (!allResultsMap.has(r.id)) {
           allResultsMap.set(r.id, { ...r, searchSource: 'exact' } as any);
-        }
-      });
-
-      fuzzyResults.forEach(r => {
-        if (!allResultsMap.has(r.id)) {
-          allResultsMap.set(r.id, { ...r, searchSource: 'fuzzy' } as any);
         }
       });
 

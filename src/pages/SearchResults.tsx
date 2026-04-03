@@ -131,7 +131,6 @@ export default function SearchResults() {
       console.log('[Search] Search variations:', searchVariations);
 
       const exactResults: SearchResult[] = [];
-      const fuzzyResults: SearchResult[] = [];
 
       const wikipediaSpellCheckPromise = (async () => {
         if (searchTerm.length >= 3) {
@@ -215,56 +214,9 @@ export default function SearchResults() {
         }
       })();
 
-      const fuzzySearchPromise = (async () => {
-        if (searchTerm.length >= 3) {
-          console.log('[Search] Starting fuzzy search in parallel...');
-
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Fuzzy search timeout')), 3000);
-          });
-
-          try {
-            const searchPromise = supabase
-              .rpc('fuzzy_search_content', {
-                search_term: searchTerm.toLowerCase(),
-                include_external: includeExternalContent,
-                similarity_threshold: 0.25
-              })
-              .abortSignal(currentController.signal);
-
-            const { data: fuzzyData, error: fuzzyError } = await Promise.race([
-              searchPromise,
-              timeoutPromise
-            ]) as any;
-
-            if (currentController.signal.aborted || !isMountedRef.current) {
-              return;
-            }
-
-            if (fuzzyError) {
-              console.error('[Search] Fuzzy search error:', fuzzyError);
-            } else if (fuzzyData) {
-              console.log(`[Search] Fuzzy search found ${fuzzyData.length} results`);
-              console.log('[Search] First fuzzy result:', fuzzyData[0]);
-              console.log('[Search] Fuzzy result similarity_score:', fuzzyData[0]?.similarity_score);
-              fuzzyResults.push(...fuzzyData);
-            } else {
-              console.warn('[Search] Fuzzy search returned null data');
-            }
-          } catch (error: any) {
-            if (error.message === 'Fuzzy search timeout') {
-              console.warn('[Search] Fuzzy search timed out after 3 seconds');
-            } else if (!currentController.signal.aborted) {
-              console.error('[Search] Fuzzy search exception:', error);
-            }
-          }
-        }
-      })();
-
       const [wikiSpellCheckResult] = await Promise.all([
         wikipediaSpellCheckPromise,
-        exactSearchPromise,
-        fuzzySearchPromise
+        exactSearchPromise
       ]);
 
       console.log('[Search] ========== PROCESSING SPELL CHECK RESULT ==========');
@@ -343,21 +295,9 @@ export default function SearchResults() {
         }
       });
 
-      fuzzyResults.forEach(r => {
-        if (!allResultsMap.has(r.id)) {
-          allResultsMap.set(r.id, { ...r, searchSource: 'fuzzy' } as any);
-        }
-      });
-
       let uniqueResults = Array.from(allResultsMap.values());
 
-      console.log(`[Search] Combined results: ${exactResults.length} exact + ${fuzzyResults.length} fuzzy = ${uniqueResults.length} total`);
-
-      const fuzzyInUnique = uniqueResults.filter((r: any) => r.searchSource === 'fuzzy');
-      if (fuzzyInUnique.length > 0) {
-        console.log('[Search] First fuzzy result in uniqueResults:', fuzzyInUnique[0]);
-        console.log('[Search] similarity_score property:', fuzzyInUnique[0].similarity_score);
-      }
+      console.log(`[Search] Combined results: ${exactResults.length} exact = ${uniqueResults.length} total`);
 
       if (uniqueResults.length === 0 && searchTerm.length >= 3) {
         console.log('[Search] No results found, checking for auto-search with high-confidence suggestions...');
