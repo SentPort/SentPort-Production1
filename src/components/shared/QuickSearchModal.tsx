@@ -9,6 +9,7 @@ import { analyzeQuery, QueryAnalysis } from '../../lib/queryAnalyzer';
 import { Calculator } from './Calculator';
 import { UnitConverter } from './UnitConverter';
 import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
+import { DidYouMean } from './DidYouMean';
 import { calculateSimilarity } from '../../lib/queryPreprocessing';
 
 interface SearchResult {
@@ -48,6 +49,8 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [analysis, setAnalysis] = useState<QueryAnalysis | null>(null);
+  const [spellSuggestions, setSpellSuggestions] = useState<{ correctedQuery: string; confidence: number }[]>([]);
+  const [spellCheckLogId, setSpellCheckLogId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -77,6 +80,8 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       }
       setResults([]);
       setQuery('');
+      setSpellSuggestions([]);
+      setSpellCheckLogId(null);
     }
   }, [isOpen, initialQuery]);
 
@@ -237,6 +242,95 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     performSearch(query);
   };
 
+  const recordSpellCheckAttempt = async (
+    original: string,
+    suggestion: string | null,
+    confidence: number,
+    resultCount: number,
+    source: string
+  ): Promise<string | null> => {
+    if (!user) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('spell_check_suggestions_log')
+        .insert({
+          user_id: user.id,
+          original_query: original,
+          suggested_query: suggestion,
+          confidence_score: confidence,
+          result_count: resultCount,
+          suggestion_source: source,
+          was_accepted: false
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      return data?.id || null;
+    } catch (err) {
+      console.error('[QuickSearchModal] Error recording spell check:', err);
+      return null;
+    }
+  };
+
+  const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
+    console.log('[QuickSearchModal] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
+
+    if (suggestion !== query && isMountedRef.current) {
+      console.log('[QuickSearchModal] Setting Wikipedia panel suggestion as spell correction');
+
+      setSpellSuggestions([{
+        correctedQuery: suggestion,
+        confidence: confidence
+      }]);
+
+      recordSpellCheckAttempt(
+        query,
+        suggestion,
+        confidence,
+        results.length,
+        'wikipedia_direct'
+      ).then(logId => {
+        if (logId && isMountedRef.current) {
+          setSpellCheckLogId(logId);
+        }
+      }).catch(err => {
+        console.error('[QuickSearchModal] Error recording Wikipedia spell check:', err);
+      });
+    }
+  }, [query, results.length, user]);
+
+  const handleSpellingSuggestionAccepted = async (suggestion: string) => {
+    if (spellCheckLogId && user) {
+      try {
+        await supabase
+          .from('spell_check_suggestions_log')
+          .update({ was_accepted: true })
+          .eq('id', spellCheckLogId);
+
+        await supabase
+          .from('spelling_corrections')
+          .upsert({
+            misspelling: query.toLowerCase(),
+            correction: suggestion,
+            frequency: 1,
+            confidence: spellSuggestions[0]?.confidence || 0.95,
+            source: 'user_acceptance'
+          }, {
+            onConflict: 'misspelling',
+            ignoreDuplicates: false
+          });
+      } catch (err) {
+        console.error('[QuickSearchModal] Error updating spell check acceptance:', err);
+      }
+    }
+
+    setQuery(suggestion);
+    setSpellSuggestions([]);
+    setSpellCheckLogId(null);
+  };
+
   useEffect(() => {
     if (query) {
       const timer = setTimeout(() => {
@@ -373,6 +467,16 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
+          {/* Spell Check Suggestions */}
+          {spellSuggestions.length > 0 && (
+            <div className="mb-4">
+              <DidYouMean
+                suggestions={spellSuggestions}
+                onAccept={handleSpellingSuggestionAccepted}
+              />
+            </div>
+          )}
+
           {/* Calculator Widget */}
           {showCalculator && (
             <div className="mb-4">
@@ -390,7 +494,10 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           {/* Wikipedia Knowledge Panel */}
           {showWikipedia && (
             <div className="mb-4">
-              <WikipediaKnowledgePanel query={analysis?.normalizedQuery || query} />
+              <WikipediaKnowledgePanel
+                query={analysis?.normalizedQuery || query}
+                onSpellingSuggestion={handleWikipediaSpellingSuggestion}
+              />
             </div>
           )}
 

@@ -80,6 +80,7 @@ export default function SearchResults() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
   const resultsTopRef = useRef<HTMLDivElement>(null);
+  const openSearchCompletedRef = useRef<boolean>(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -121,6 +122,8 @@ export default function SearchResults() {
 
     abortControllerRef.current = new AbortController();
     const currentController = abortControllerRef.current;
+
+    openSearchCompletedRef.current = false;
 
     if (isMountedRef.current) {
       setLoading(true);
@@ -286,6 +289,9 @@ export default function SearchResults() {
         await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
         console.log('[Search] ========== NO SPELL SUGGESTION ==========');
       }
+
+      openSearchCompletedRef.current = true;
+      console.log('[Search] OpenSearch spell check completed, flag set to true');
 
       const allResultsMap = new Map<string, SearchResult>();
 
@@ -498,8 +504,20 @@ export default function SearchResults() {
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
     console.log('[SearchResults] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
+    console.log('[SearchResults] OpenSearch completed:', openSearchCompletedRef.current);
+    console.log('[SearchResults] Current spell suggestions:', spellSuggestions);
 
-    if (spellSuggestions.length === 0 && suggestion !== query && isMountedRef.current) {
+    if (suggestion !== query && isMountedRef.current) {
+      if (!openSearchCompletedRef.current) {
+        console.log('[SearchResults] OpenSearch not yet completed, waiting to accept panel suggestion');
+        return;
+      }
+
+      if (spellSuggestions.length > 0) {
+        console.log('[SearchResults] OpenSearch already provided a suggestion, not overriding');
+        return;
+      }
+
       console.log('[SearchResults] Using Wikipedia panel suggestion as spell correction');
 
       setSpellSuggestions([{
