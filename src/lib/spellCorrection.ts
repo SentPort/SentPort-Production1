@@ -82,3 +82,49 @@ export async function recordSpellCorrection(
     console.error('[SpellCorrection] Exception recording correction:', error);
   }
 }
+
+export async function recordSpellCheckAttempt(
+  originalQuery: string,
+  suggestedQuery: string | null,
+  confidence: number,
+  resultCount: number
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .rpc('record_spell_check_attempt', {
+        p_original_query: originalQuery,
+        p_suggested_query: suggestedQuery,
+        p_confidence: confidence,
+        p_result_count: resultCount
+      });
+
+    if (error) {
+      console.error('[SpellCorrection] Error recording spell check attempt:', error);
+      return null;
+    }
+
+    return data as string;
+  } catch (error) {
+    console.error('[SpellCorrection] Exception recording spell check attempt:', error);
+    return null;
+  }
+}
+
+export async function markSuggestionClicked(
+  logId: string,
+  resultCountSuggested: number
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .rpc('mark_suggestion_clicked', {
+        p_log_id: logId,
+        p_result_count_suggested: resultCountSuggested
+      });
+
+    if (error) {
+      console.error('[SpellCorrection] Error marking suggestion clicked:', error);
+    }
+  } catch (error) {
+    console.error('[SpellCorrection] Exception marking suggestion clicked:', error);
+  }
+}

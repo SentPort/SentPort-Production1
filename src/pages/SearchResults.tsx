@@ -20,8 +20,9 @@ import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
 import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
-import { correctSearchQuery, recordSpellCorrection } from '../lib/spellCorrection';
+import { correctSearchQuery, recordSpellCorrection, getSpellingSuggestions, recordSpellCheckAttempt } from '../lib/spellCorrection';
 import { getWikipediaSpellingSuggestion } from '../lib/wikipediaService';
+import { DidYouMean } from '../components/shared/DidYouMean';
 
 interface SearchResult {
   id: string;
@@ -72,6 +73,8 @@ export default function SearchResults() {
   const [scientificNotationCalculatorUrls, setScientificNotationCalculatorUrls] = useState<SearchResult[]>([]);
   const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
   const [showingResultsFor, setShowingResultsFor] = useState<string | null>(null);
+  const [spellSuggestions, setSpellSuggestions] = useState<Array<{ correctedQuery: string; confidence: number }>>([]);
+  const [spellCheckLogId, setSpellCheckLogId] = useState<string | null>(null);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -129,6 +132,26 @@ export default function SearchResults() {
 
       const exactResults: SearchResult[] = [];
       const fuzzyResults: SearchResult[] = [];
+
+      const spellCheckPromise = (async () => {
+        if (searchTerm.length >= 3) {
+          console.log('[Search] Running spell check in parallel...');
+          const spellCorrection = await correctSearchQuery(searchTerm);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return null;
+          }
+
+          if (spellCorrection && spellCorrection.changed) {
+            console.log(`[Search] Spell suggestion found: "${spellCorrection.correctedQuery}" (confidence: ${spellCorrection.confidence})`);
+            return [{
+              correctedQuery: spellCorrection.correctedQuery,
+              confidence: spellCorrection.confidence
+            }];
+          }
+        }
+        return null;
+      })();
 
       const exactSearchPromise = (async () => {
         for (const variation of searchVariations) {
@@ -206,10 +229,30 @@ export default function SearchResults() {
         }
       })();
 
-      await Promise.all([exactSearchPromise, fuzzySearchPromise]);
+      const [spellCheckResults] = await Promise.all([spellCheckPromise, exactSearchPromise, fuzzySearchPromise]);
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
+      }
+
+      if (spellCheckResults && spellCheckResults.length > 0 && isMountedRef.current) {
+        setSpellSuggestions(spellCheckResults);
+
+        const logId = await recordSpellCheckAttempt(
+          searchTerm,
+          spellCheckResults[0].correctedQuery,
+          spellCheckResults[0].confidence,
+          0
+        );
+
+        if (logId && isMountedRef.current) {
+          setSpellCheckLogId(logId);
+        }
+      } else if (isMountedRef.current) {
+        setSpellSuggestions([]);
+        setSpellCheckLogId(null);
+
+        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0);
       }
 
       const allResultsMap = new Map<string, SearchResult>();
@@ -231,61 +274,52 @@ export default function SearchResults() {
       console.log(`[Search] Combined results: ${exactResults.length} exact + ${fuzzyResults.length} fuzzy = ${uniqueResults.length} total`);
 
       if (uniqueResults.length === 0 && searchTerm.length >= 3) {
-        console.log('[Search] No results found, trying spell correction...');
+        console.log('[Search] No results found, getting additional suggestions...');
 
-        const spellCorrectionPromise = correctSearchQuery(searchTerm);
         const wikipediaSpellPromise = getWikipediaSpellingSuggestion(searchTerm);
+        const wikipediaSuggestion = await wikipediaSpellPromise;
 
-        const [spellCorrection, wikipediaSuggestion] = await Promise.all([
-          spellCorrectionPromise,
-          wikipediaSpellPromise
-        ]);
-
-        let correctedSearchTerm: string | null = null;
-
-        if (spellCorrection && spellCorrection.changed && spellCorrection.confidence > 0.6) {
-          console.log(`[Search] Spell correction found: "${spellCorrection.correctedQuery}" (confidence: ${spellCorrection.confidence})`);
-          correctedSearchTerm = spellCorrection.correctedQuery;
-        } else if (wikipediaSuggestion) {
-          console.log(`[Search] Wikipedia suggestion found: "${wikipediaSuggestion}"`);
-          correctedSearchTerm = wikipediaSuggestion;
+        if (currentController.signal.aborted || !isMountedRef.current) {
+          return;
         }
 
-        if (correctedSearchTerm && correctedSearchTerm.toLowerCase() !== searchTerm.toLowerCase()) {
-          console.log(`[Search] Searching with corrected query: "${correctedSearchTerm}"`);
+        const combinedSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
-          const { data: correctedData, error: correctedError } = await supabase
-            .rpc('fuzzy_search_content', {
-              search_term: correctedSearchTerm.toLowerCase(),
-              include_external: includeExternalContent,
-              similarity_threshold: 0.2
-            })
-            .abortSignal(currentController.signal)
-            .limit(50);
+        if (spellCheckResults && spellCheckResults.length > 0) {
+          combinedSuggestions.push(...spellCheckResults);
+        }
 
-          if (currentController.signal.aborted || !isMountedRef.current) {
-            return;
-          }
-
-          if (correctedData && correctedData.length > 0) {
-            console.log(`[Search] Corrected search found ${correctedData.length} results`);
-
-            correctedData.forEach(r => {
-              if (!allResultsMap.has(r.id)) {
-                allResultsMap.set(r.id, { ...r, searchSource: 'corrected' } as any);
-              }
+        if (wikipediaSuggestion && wikipediaSuggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+          const alreadyExists = combinedSuggestions.some(
+            s => s.correctedQuery.toLowerCase() === wikipediaSuggestion.toLowerCase()
+          );
+          if (!alreadyExists) {
+            console.log(`[Search] Wikipedia suggestion found: "${wikipediaSuggestion}"`);
+            combinedSuggestions.push({
+              correctedQuery: wikipediaSuggestion,
+              confidence: 0.85
             });
-
-            uniqueResults = Array.from(allResultsMap.values());
-
-            if (isMountedRef.current) {
-              setCorrectedQuery(correctedSearchTerm);
-              setShowingResultsFor(correctedSearchTerm);
-            }
-
-            recordSpellCorrection(searchTerm, correctedSearchTerm, correctedData.length);
           }
         }
+
+        combinedSuggestions.sort((a, b) => b.confidence - a.confidence);
+
+        if (isMountedRef.current && combinedSuggestions.length > 0) {
+          setSpellSuggestions(combinedSuggestions);
+
+          const logId = await recordSpellCheckAttempt(
+            searchTerm,
+            combinedSuggestions[0].correctedQuery,
+            combinedSuggestions[0].confidence,
+            0
+          );
+
+          if (logId && isMountedRef.current) {
+            setSpellCheckLogId(logId);
+          }
+        }
+
+        recordSpellCorrection(searchTerm, '', 0);
       } else if (isMountedRef.current) {
         setCorrectedQuery(null);
         setShowingResultsFor(null);
@@ -648,6 +682,16 @@ export default function SearchResults() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {spellSuggestions.length > 0 && activeTab === 'all' && (
+          <div ref={resultsTopRef}>
+            <DidYouMean
+              originalQuery={query}
+              suggestions={spellSuggestions}
+              showMultiple={paginatedResults.length === 0}
+            />
           </div>
         )}
 
