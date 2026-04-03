@@ -9,7 +9,7 @@ import { analyzeQuery, QueryAnalysis } from '../../lib/queryAnalyzer';
 import { Calculator } from './Calculator';
 import { UnitConverter } from './UnitConverter';
 import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
-import { generateQueryTypoCorrections, calculateSimilarity } from '../../lib/queryPreprocessing';
+import { calculateSimilarity } from '../../lib/queryPreprocessing';
 
 interface SearchResult {
   id: string;
@@ -195,39 +195,6 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       });
 
       let allResults = Array.from(allResultsMap.values());
-
-      if (allResults.length < 3 && searchTerm.length >= 3) {
-        const typoCorrections = generateQueryTypoCorrections(searchTerm);
-
-        for (const correction of typoCorrections.slice(0, 10)) {
-          if (correction === searchTerm.toLowerCase()) continue;
-
-          const { data: typoData, error: typoError } = await supabase
-            .rpc('fuzzy_search_content', {
-              search_term: correction,
-              include_external: includeExternalContent,
-              similarity_threshold: 0.2
-            })
-            .abortSignal(currentController.signal);
-
-          if (currentController.signal.aborted || !isMountedRef.current) {
-            return;
-          }
-
-          if (!typoError && typoData && typoData.length > 0) {
-            typoResults.push(...typoData);
-            if (typoData.length > 0) break;
-          }
-        }
-
-        typoResults.forEach(r => {
-          if (!allResultsMap.has(r.id)) {
-            allResultsMap.set(r.id, { ...r, searchSource: 'typo' } as any);
-          }
-        });
-
-        allResults = Array.from(allResultsMap.values());
-      }
 
       if (allResults.length > 0) {
         const searchTermLower = searchTerm.toLowerCase();

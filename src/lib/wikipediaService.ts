@@ -242,6 +242,32 @@ export async function searchWikipediaWithOpenSearch(query: string): Promise<stri
   }
 }
 
+export async function getWikipediaSpellingSuggestion(query: string): Promise<string | null> {
+  const cacheKey = `spell:${query.toLowerCase()}`;
+  const cached = getCachedData<string | null>(cacheKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    const suggestions = await searchWikipediaWithOpenSearch(query);
+
+    if (suggestions.length > 0) {
+      const topSuggestion = suggestions[0];
+
+      if (topSuggestion.toLowerCase() !== query.toLowerCase()) {
+        console.log(`[Wikipedia Spell] Suggestion for "${query}": "${topSuggestion}"`);
+        setCachedData(cacheKey, topSuggestion);
+        return topSuggestion;
+      }
+    }
+
+    setCachedData(cacheKey, null);
+    return null;
+  } catch (error) {
+    console.error('[Wikipedia] Error getting spelling suggestion:', error);
+    return null;
+  }
+}
+
 export async function findWikipediaWithSmartMatching(query: string): Promise<WikipediaSummary | null> {
   const trimmedQuery = query.trim();
 

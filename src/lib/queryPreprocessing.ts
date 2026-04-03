@@ -197,14 +197,10 @@ export function cleanSearchQuery(query: string): string {
   return cleaned;
 }
 
-export function generateTypoVariations(word: string): string[] {
+export function generateSimpleTypoVariations(word: string): string[] {
   const variations = new Set<string>();
-  variations.add(word);
-
   const lower = word.toLowerCase();
-  if (lower !== word) {
-    variations.add(lower);
-  }
+  variations.add(lower);
 
   for (let i = 0; i < lower.length - 1; i++) {
     const chars = lower.split('');
@@ -212,77 +208,5 @@ export function generateTypoVariations(word: string): string[] {
     variations.add(chars.join(''));
   }
 
-  for (let i = 0; i < lower.length; i++) {
-    const deleted = lower.slice(0, i) + lower.slice(i + 1);
-    if (deleted.length >= 2) {
-      variations.add(deleted);
-    }
-  }
-
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-  for (let i = 0; i < lower.length; i++) {
-    for (const char of alphabet) {
-      if (char !== lower[i]) {
-        const replaced = lower.slice(0, i) + char + lower.slice(i + 1);
-        variations.add(replaced);
-      }
-    }
-  }
-
-  for (let i = 0; i <= lower.length && variations.size < 50; i++) {
-    for (const char of alphabet) {
-      const inserted = lower.slice(0, i) + char + lower.slice(i);
-      variations.add(inserted);
-      if (variations.size >= 50) break;
-    }
-  }
-
-  return Array.from(variations).slice(0, 30);
-}
-
-export function generateQueryTypoCorrections(query: string): string[] {
-  const corrections = new Set<string>();
-  corrections.add(query);
-
-  const words = query.toLowerCase().split(/\s+/);
-
-  if (words.length === 1) {
-    const typoVars = generateTypoVariations(words[0]);
-    typoVars.slice(0, 10).forEach(v => corrections.add(v));
-  } else if (words.length === 2) {
-    const firstVars = generateTypoVariations(words[0]).slice(0, 5);
-    const secondVars = generateTypoVariations(words[1]).slice(0, 5);
-
-    firstVars.forEach(first => {
-      corrections.add(`${first} ${words[1]}`);
-    });
-
-    secondVars.forEach(second => {
-      corrections.add(`${words[0]} ${second}`);
-    });
-
-    firstVars.slice(0, 3).forEach(first => {
-      secondVars.slice(0, 3).forEach(second => {
-        corrections.add(`${first} ${second}`);
-      });
-    });
-  } else if (words.length === 3) {
-    const firstVars = generateTypoVariations(words[0]).slice(0, 3);
-    const secondVars = generateTypoVariations(words[1]).slice(0, 3);
-    const thirdVars = generateTypoVariations(words[2]).slice(0, 3);
-
-    firstVars.forEach(first => {
-      corrections.add(`${first} ${words[1]} ${words[2]}`);
-    });
-
-    secondVars.forEach(second => {
-      corrections.add(`${words[0]} ${second} ${words[2]}`);
-    });
-
-    thirdVars.forEach(third => {
-      corrections.add(`${words[0]} ${words[1]} ${third}`);
-    });
-  }
-
-  return Array.from(corrections).slice(0, 20);
+  return Array.from(variations);
 }
