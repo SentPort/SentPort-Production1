@@ -294,7 +294,7 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
   try {
     // Use ONLY Wikipedia's OpenSearch API for spelling suggestions
     // This API is specifically designed for autocomplete and spell correction
-    // We trust Wikipedia's algorithm completely - no fuzzy matching on our end
+    // We trust Wikipedia's algorithm completely - no fuzzy matching or similarity calculations
     const openSearchSuggestion = await getWikipediaSpellingSuggestion(trimmedQuery);
 
     if (openSearchSuggestion) {
@@ -307,26 +307,11 @@ export async function checkWikipediaSpelling(query: string): Promise<WikipediaSp
 
       console.log('[Wikipedia Spell Check] Wikipedia suggests:', openSearchSuggestion);
 
-      // Calculate edit distance to determine confidence
-      const distance = levenshteinDistance(
-        trimmedQuery.toLowerCase(),
-        openSearchSuggestion.toLowerCase()
-      );
-      const maxLen = Math.max(trimmedQuery.length, openSearchSuggestion.length);
-      const similarity = 1 - (distance / maxLen);
-
-      // High confidence if very similar (likely a spelling correction)
-      // Lower confidence if very different (might be a different concept)
-      let confidence = 0.85;
-      if (similarity >= 0.8) {
-        confidence = 0.95; // Very similar, high confidence
-      } else if (similarity < 0.5) {
-        confidence = 0.70; // Very different, lower confidence
-      }
-
+      // Trust Wikipedia completely - use high confidence for all suggestions
+      // Wikipedia's OpenSearch is designed for this exact use case
       const result: WikipediaSpellCheckResult = {
         suggestion: openSearchSuggestion,
-        confidence,
+        confidence: 0.95,
         source: 'wikipedia_opensearch'
       };
       setCachedData(cacheKey, result);

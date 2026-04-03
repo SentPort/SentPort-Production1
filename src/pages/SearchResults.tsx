@@ -20,8 +20,8 @@ import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
 import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
-import { correctSearchQuery, recordSpellCorrection, getSpellingSuggestions, recordSpellCheckAttempt, getLearnedCorrection } from '../lib/spellCorrection';
-import { getWikipediaSpellingSuggestion, checkWikipediaSpelling } from '../lib/wikipediaService';
+import { recordSpellCheckAttempt, getLearnedCorrection } from '../lib/spellCorrection';
+import { checkWikipediaSpelling } from '../lib/wikipediaService';
 import { DidYouMean } from '../components/shared/DidYouMean';
 
 interface SearchResult {
@@ -132,26 +132,6 @@ export default function SearchResults() {
 
       const exactResults: SearchResult[] = [];
       const fuzzyResults: SearchResult[] = [];
-
-      const spellCheckPromise = (async () => {
-        if (searchTerm.length >= 3) {
-          console.log('[Search] Running spell check in parallel...');
-          const spellCorrection = await correctSearchQuery(searchTerm);
-
-          if (currentController.signal.aborted || !isMountedRef.current) {
-            return null;
-          }
-
-          if (spellCorrection && spellCorrection.changed) {
-            console.log(`[Search] Spell suggestion found: "${spellCorrection.correctedQuery}" (confidence: ${spellCorrection.confidence})`);
-            return [{
-              correctedQuery: spellCorrection.correctedQuery,
-              confidence: spellCorrection.confidence
-            }];
-          }
-        }
-        return null;
-      })();
 
       const wikipediaSpellCheckPromise = (async () => {
         if (searchTerm.length >= 3) {
@@ -266,8 +246,7 @@ export default function SearchResults() {
         }
       })();
 
-      const [spellCheckResults, wikiSpellCheckResult] = await Promise.all([
-        spellCheckPromise,
+      const [wikiSpellCheckResult] = await Promise.all([
         wikipediaSpellCheckPromise,
         exactSearchPromise,
         fuzzySearchPromise
@@ -277,39 +256,23 @@ export default function SearchResults() {
         return;
       }
 
-      const combinedSpellSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
-      let suggestionSource: 'database' | 'wikipedia' | 'wikipedia_opensearch' | 'combined' = 'database';
+      // Use ONLY Wikipedia suggestions (with database-first check for learned corrections)
+      // NO fuzzy matching, NO combining multiple sources
+      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase() && isMountedRef.current) {
+        console.log('[Search] Wikipedia spell suggestion:', wikiSpellCheckResult.suggestion);
 
-      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
-        console.log('[Search] Adding Wikipedia background spell check suggestion:', wikiSpellCheckResult.suggestion);
-        combinedSpellSuggestions.push({
+        const spellSuggestions = [{
           correctedQuery: wikiSpellCheckResult.suggestion,
           confidence: wikiSpellCheckResult.confidence
-        });
-        suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
-      }
+        }];
 
-      if (spellCheckResults && spellCheckResults.length > 0) {
-        for (const result of spellCheckResults) {
-          const alreadyExists = combinedSpellSuggestions.some(
-            s => s.correctedQuery.toLowerCase() === result.correctedQuery.toLowerCase()
-          );
-          if (!alreadyExists) {
-            combinedSpellSuggestions.push(result);
-          } else if (suggestionSource !== 'database') {
-            suggestionSource = 'combined';
-          }
-        }
-      }
+        setSpellSuggestions(spellSuggestions);
 
-      if (combinedSpellSuggestions.length > 0 && isMountedRef.current) {
-        combinedSpellSuggestions.sort((a, b) => b.confidence - a.confidence);
-        setSpellSuggestions(combinedSpellSuggestions);
-
+        const suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
         const logId = await recordSpellCheckAttempt(
           searchTerm,
-          combinedSpellSuggestions[0].correctedQuery,
-          combinedSpellSuggestions[0].confidence,
+          wikiSpellCheckResult.suggestion,
+          wikiSpellCheckResult.confidence,
           0,
           suggestionSource
         );
@@ -321,7 +284,7 @@ export default function SearchResults() {
         setSpellSuggestions([]);
         setSpellCheckLogId(null);
 
-        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'database');
+        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
       }
 
       const allResultsMap = new Map<string, SearchResult>();
