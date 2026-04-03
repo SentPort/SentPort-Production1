@@ -87,10 +87,11 @@ export async function recordSpellCheckAttempt(
   originalQuery: string,
   suggestedQuery: string | null,
   confidence: number,
-  resultCount: number
+  resultCount: number,
+  source: 'database' | 'wikipedia' | 'wikipedia_opensearch' | 'combined' = 'database'
 ): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    const { data: logId, error: rpcError } = await supabase
       .rpc('record_spell_check_attempt', {
         p_original_query: originalQuery,
         p_suggested_query: suggestedQuery,
@@ -98,12 +99,23 @@ export async function recordSpellCheckAttempt(
         p_result_count: resultCount
       });
 
-    if (error) {
-      console.error('[SpellCorrection] Error recording spell check attempt:', error);
+    if (rpcError) {
+      console.error('[SpellCorrection] Error recording spell check attempt:', rpcError);
       return null;
     }
 
-    return data as string;
+    if (logId && source !== 'database') {
+      const { error: updateError } = await supabase
+        .from('spell_check_log')
+        .update({ source })
+        .eq('id', logId);
+
+      if (updateError) {
+        console.error('[SpellCorrection] Error updating source:', updateError);
+      }
+    }
+
+    return logId as string;
   } catch (error) {
     console.error('[SpellCorrection] Exception recording spell check attempt:', error);
     return null;
@@ -126,5 +138,72 @@ export async function markSuggestionClicked(
     }
   } catch (error) {
     console.error('[SpellCorrection] Exception marking suggestion clicked:', error);
+  }
+}
+
+export interface WikipediaLearningResult {
+  original: string;
+  correction: string;
+  clickCount: number;
+  avgConfidence: number;
+  learned: boolean;
+}
+
+export async function learnFromWikipediaCorrections(): Promise<WikipediaLearningResult[]> {
+  try {
+    const { data, error } = await supabase
+      .rpc('learn_from_wikipedia_corrections');
+
+    if (error) {
+      console.error('[SpellCorrection] Error learning from Wikipedia:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      original: row.original,
+      correction: row.correction,
+      clickCount: row.click_count,
+      avgConfidence: row.avg_confidence,
+      learned: row.learned
+    }));
+  } catch (error) {
+    console.error('[SpellCorrection] Exception learning from Wikipedia:', error);
+    return [];
+  }
+}
+
+export interface WikipediaLearningStats {
+  totalWikipediaSuggestions: number;
+  clickedSuggestions: number;
+  learnableCorrections: number;
+  alreadyLearned: number;
+  clickThroughRate: number;
+}
+
+export async function getWikipediaLearningStats(): Promise<WikipediaLearningStats | null> {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_wikipedia_learning_stats')
+      .single();
+
+    if (error) {
+      console.error('[SpellCorrection] Error getting learning stats:', error);
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      totalWikipediaSuggestions: data.total_wikipedia_suggestions,
+      clickedSuggestions: data.clicked_suggestions,
+      learnableCorrections: data.learnable_corrections,
+      alreadyLearned: data.already_learned,
+      clickThroughRate: data.click_through_rate
+    };
+  } catch (error) {
+    console.error('[SpellCorrection] Exception getting learning stats:', error);
+    return null;
   }
 }

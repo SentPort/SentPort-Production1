@@ -21,7 +21,7 @@ import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledge
 import { UnitConverter } from '../components/shared/UnitConverter';
 import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
 import { correctSearchQuery, recordSpellCorrection, getSpellingSuggestions, recordSpellCheckAttempt } from '../lib/spellCorrection';
-import { getWikipediaSpellingSuggestion } from '../lib/wikipediaService';
+import { getWikipediaSpellingSuggestion, checkWikipediaSpelling } from '../lib/wikipediaService';
 import { DidYouMean } from '../components/shared/DidYouMean';
 
 interface SearchResult {
@@ -75,7 +75,6 @@ export default function SearchResults() {
   const [showingResultsFor, setShowingResultsFor] = useState<string | null>(null);
   const [spellSuggestions, setSpellSuggestions] = useState<Array<{ correctedQuery: string; confidence: number }>>([]);
   const [spellCheckLogId, setSpellCheckLogId] = useState<string | null>(null);
-  const [wikipediaSpellSuggestion, setWikipediaSpellSuggestion] = useState<{ suggestion: string; confidence: number } | null>(null);
   const { user, isVerified, isAdmin } = useAuth();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -150,6 +149,23 @@ export default function SearchResults() {
               correctedQuery: spellCorrection.correctedQuery,
               confidence: spellCorrection.confidence
             }];
+          }
+        }
+        return null;
+      })();
+
+      const wikipediaSpellCheckPromise = (async () => {
+        if (searchTerm.length >= 3) {
+          console.log('[Search] Running Wikipedia spell check in parallel...');
+          const wikiSpellCheck = await checkWikipediaSpelling(searchTerm);
+
+          if (currentController.signal.aborted || !isMountedRef.current) {
+            return null;
+          }
+
+          if (wikiSpellCheck) {
+            console.log(`[Search] Wikipedia spell suggestion found: "${wikiSpellCheck.suggestion}" (confidence: ${wikiSpellCheck.confidence})`);
+            return wikiSpellCheck;
           }
         }
         return null;
@@ -231,20 +247,27 @@ export default function SearchResults() {
         }
       })();
 
-      const [spellCheckResults] = await Promise.all([spellCheckPromise, exactSearchPromise, fuzzySearchPromise]);
+      const [spellCheckResults, wikiSpellCheckResult] = await Promise.all([
+        spellCheckPromise,
+        wikipediaSpellCheckPromise,
+        exactSearchPromise,
+        fuzzySearchPromise
+      ]);
 
       if (currentController.signal.aborted || !isMountedRef.current) {
         return;
       }
 
       const combinedSpellSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
+      let suggestionSource: 'database' | 'wikipedia' | 'wikipedia_opensearch' | 'combined' = 'database';
 
-      if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
-        console.log('[Search] Adding Wikipedia suggestion with high priority:', wikipediaSpellSuggestion.suggestion);
+      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+        console.log('[Search] Adding Wikipedia background spell check suggestion:', wikiSpellCheckResult.suggestion);
         combinedSpellSuggestions.push({
-          correctedQuery: wikipediaSpellSuggestion.suggestion,
-          confidence: wikipediaSpellSuggestion.confidence
+          correctedQuery: wikiSpellCheckResult.suggestion,
+          confidence: wikiSpellCheckResult.confidence
         });
+        suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
       }
 
       if (spellCheckResults && spellCheckResults.length > 0) {
@@ -254,6 +277,8 @@ export default function SearchResults() {
           );
           if (!alreadyExists) {
             combinedSpellSuggestions.push(result);
+          } else if (suggestionSource !== 'database') {
+            suggestionSource = 'combined';
           }
         }
       }
@@ -266,7 +291,8 @@ export default function SearchResults() {
           searchTerm,
           combinedSpellSuggestions[0].correctedQuery,
           combinedSpellSuggestions[0].confidence,
-          0
+          0,
+          suggestionSource
         );
 
         if (logId && isMountedRef.current) {
@@ -276,7 +302,7 @@ export default function SearchResults() {
         setSpellSuggestions([]);
         setSpellCheckLogId(null);
 
-        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0);
+        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'database');
       }
 
       const allResultsMap = new Map<string, SearchResult>();
@@ -298,10 +324,7 @@ export default function SearchResults() {
       console.log(`[Search] Combined results: ${exactResults.length} exact + ${fuzzyResults.length} fuzzy = ${uniqueResults.length} total`);
 
       if (uniqueResults.length === 0 && searchTerm.length >= 3) {
-        console.log('[Search] No results found, getting additional suggestions...');
-
-        const wikipediaSpellPromise = getWikipediaSpellingSuggestion(searchTerm);
-        const wikipediaSuggestion = await wikipediaSpellPromise;
+        console.log('[Search] No results found, checking for auto-search with high-confidence suggestions...');
 
         if (currentController.signal.aborted || !isMountedRef.current) {
           return;
@@ -309,11 +332,11 @@ export default function SearchResults() {
 
         const combinedSuggestions: Array<{ correctedQuery: string; confidence: number }> = [];
 
-        if (wikipediaSpellSuggestion && wikipediaSpellSuggestion.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
-          console.log('[Search] Adding Wikipedia panel suggestion (high priority):', wikipediaSpellSuggestion.suggestion);
+        if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion.toLowerCase() !== searchTerm.toLowerCase()) {
+          console.log('[Search] Using background Wikipedia suggestion for auto-search:', wikiSpellCheckResult.suggestion);
           combinedSuggestions.push({
-            correctedQuery: wikipediaSpellSuggestion.suggestion,
-            confidence: wikipediaSpellSuggestion.confidence
+            correctedQuery: wikiSpellCheckResult.suggestion,
+            confidence: wikiSpellCheckResult.confidence
           });
         }
 
@@ -328,19 +351,6 @@ export default function SearchResults() {
           }
         }
 
-        if (wikipediaSuggestion && wikipediaSuggestion.toLowerCase() !== searchTerm.toLowerCase()) {
-          const alreadyExists = combinedSuggestions.some(
-            s => s.correctedQuery.toLowerCase() === wikipediaSuggestion.toLowerCase()
-          );
-          if (!alreadyExists) {
-            console.log(`[Search] Wikipedia OpenSearch suggestion found: "${wikipediaSuggestion}"`);
-            combinedSuggestions.push({
-              correctedQuery: wikipediaSuggestion,
-              confidence: 0.85
-            });
-          }
-        }
-
         combinedSuggestions.sort((a, b) => b.confidence - a.confidence);
 
         if (isMountedRef.current && combinedSuggestions.length > 0) {
@@ -348,7 +358,7 @@ export default function SearchResults() {
 
           const topSuggestion = combinedSuggestions[0];
 
-          if (topSuggestion.confidence >= 0.9 && wikipediaSpellSuggestion) {
+          if (topSuggestion.confidence >= 0.9) {
             console.log('[Search] Auto-searching with high-confidence Wikipedia suggestion:', topSuggestion.correctedQuery);
             setShowingResultsFor(topSuggestion.correctedQuery);
 
@@ -577,8 +587,7 @@ export default function SearchResults() {
   };
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
-    console.log('[SearchResults] Received Wikipedia spelling suggestion:', suggestion, 'confidence:', confidence);
-    setWikipediaSpellSuggestion({ suggestion, confidence });
+    console.log('[SearchResults] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
   }, []);
 
   const analysis = query ? analyzeQuery(query, results) : null;

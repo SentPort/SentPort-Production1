@@ -268,6 +268,70 @@ export async function getWikipediaSpellingSuggestion(query: string): Promise<str
   }
 }
 
+export interface WikipediaSpellCheckResult {
+  suggestion: string;
+  confidence: number;
+  source: 'wikipedia_direct' | 'wikipedia_opensearch';
+}
+
+export async function checkWikipediaSpelling(query: string): Promise<WikipediaSpellCheckResult | null> {
+  const cacheKey = `spellcheck:${query.toLowerCase()}`;
+  const cached = getCachedData<WikipediaSpellCheckResult | null>(cacheKey);
+  if (cached !== undefined) {
+    console.log('[Wikipedia Spell Check] Using cached result for:', query);
+    return cached;
+  }
+
+  const trimmedQuery = query.trim();
+  console.log('[Wikipedia Spell Check] Checking spelling for:', trimmedQuery);
+
+  if (trimmedQuery.length < 3) {
+    console.log('[Wikipedia Spell Check] Query too short');
+    setCachedData(cacheKey, null);
+    return null;
+  }
+
+  try {
+    const wikipediaData = await findWikipediaWithSmartMatching(trimmedQuery);
+
+    if (wikipediaData) {
+      const similarity = calculateSimilarity(trimmedQuery.toLowerCase(), wikipediaData.title.toLowerCase());
+      console.log('[Wikipedia Spell Check] Similarity between query and Wikipedia title:', similarity);
+
+      if (similarity < 0.9 && wikipediaData.title.toLowerCase() !== trimmedQuery.toLowerCase()) {
+        console.log('[Wikipedia Spell Check] Found spelling suggestion (direct):', wikipediaData.title);
+        const result: WikipediaSpellCheckResult = {
+          suggestion: wikipediaData.title,
+          confidence: 0.95,
+          source: 'wikipedia_direct'
+        };
+        setCachedData(cacheKey, result);
+        return result;
+      }
+    }
+
+    const openSearchSuggestion = await getWikipediaSpellingSuggestion(trimmedQuery);
+    if (openSearchSuggestion) {
+      console.log('[Wikipedia Spell Check] Found spelling suggestion (OpenSearch):', openSearchSuggestion);
+      const result: WikipediaSpellCheckResult = {
+        suggestion: openSearchSuggestion,
+        confidence: 0.85,
+        source: 'wikipedia_opensearch'
+      };
+      setCachedData(cacheKey, result);
+      return result;
+    }
+
+    console.log('[Wikipedia Spell Check] No spelling suggestion found');
+    setCachedData(cacheKey, null);
+    return null;
+  } catch (error) {
+    console.error('[Wikipedia Spell Check] Error checking spelling:', error);
+    setCachedData(cacheKey, null);
+    return null;
+  }
+}
+
 export async function findWikipediaWithSmartMatching(query: string): Promise<WikipediaSummary | null> {
   const trimmedQuery = query.trim();
 
