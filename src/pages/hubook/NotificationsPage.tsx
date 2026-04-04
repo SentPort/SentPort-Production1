@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
-import HuBookLayout from '../../components/hubook/HuBookLayout';
 
 interface Notification {
   id: string;
@@ -258,8 +257,7 @@ export default function NotificationsPage() {
 
   return (
     <PlatformGuard platform="hubook">
-      <HuBookLayout>
-        <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
             <div className="flex items-center gap-3">
               <Bell className="text-blue-600" size={32} />
@@ -479,9 +477,8 @@ export default function NotificationsPage() {
               </p>
             </div>
           )}
-        </div>
 
-        {showDeleteAllConfirm && (
+          {showDeleteAllConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 max-w-md w-full">
               <div className="flex items-center justify-between mb-4">
@@ -513,7 +510,7 @@ export default function NotificationsPage() {
             </div>
           </div>
         )}
-      </HuBookLayout>
+        </div>
     </PlatformGuard>
   );
 }
