@@ -170,7 +170,7 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
     try {
       const { data, error } = await supabase.rpc('get_post_reactions_with_users', {
         p_target_id: comment.id,
-        p_target_type: 'comment'
+        p_target_type: 'media_comment'
       });
 
       if (error) throw error;
