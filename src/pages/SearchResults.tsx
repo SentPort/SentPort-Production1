@@ -81,6 +81,7 @@ export default function SearchResults() {
   const isMountedRef = useRef(true);
   const resultsTopRef = useRef<HTMLDivElement>(null);
   const openSearchCompletedRef = useRef<boolean>(false);
+  const suggestionSourceRef = useRef<'opensearch' | 'wikipedia_panel' | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -124,6 +125,7 @@ export default function SearchResults() {
     const currentController = abortControllerRef.current;
 
     openSearchCompletedRef.current = false;
+    suggestionSourceRef.current = null;
 
     if (isMountedRef.current) {
       setLoading(true);
@@ -250,6 +252,7 @@ export default function SearchResults() {
         }];
 
         console.log('[Search] Setting spell suggestions state:', spellSuggestions);
+        suggestionSourceRef.current = 'opensearch';
         setSpellSuggestions(spellSuggestions);
 
         const suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
@@ -282,9 +285,16 @@ export default function SearchResults() {
           console.log('[Search] No Wikipedia spelling suggestion available');
         }
 
-        console.log('[Search] Clearing spell suggestions state');
-        setSpellSuggestions([]);
-        setSpellCheckLogId(null);
+        // Only clear suggestions if OpenSearch was the one that set them
+        // Don't clear if Wikipedia panel provided the suggestion
+        if (suggestionSourceRef.current !== 'wikipedia_panel') {
+          console.log('[Search] Clearing spell suggestions state (no Wikipedia panel suggestion)');
+          setSpellSuggestions([]);
+          setSpellCheckLogId(null);
+          suggestionSourceRef.current = null;
+        } else {
+          console.log('[Search] NOT clearing suggestions - Wikipedia panel provided them');
+        }
 
         await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
         console.log('[Search] ========== NO SPELL SUGGESTION ==========');
@@ -516,6 +526,7 @@ export default function SearchResults() {
         }
 
         console.log('[SearchResults] Using Wikipedia panel suggestion as spell correction');
+        suggestionSourceRef.current = 'wikipedia_panel';
         return [{
           correctedQuery: suggestion,
           confidence: confidence
