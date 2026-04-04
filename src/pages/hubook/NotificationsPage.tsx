@@ -12,6 +12,7 @@ interface Notification {
   post_id: string | null;
   comment_id: string | null;
   share_id: string | null;
+  album_media_comment_id: string | null;
   message: string;
   read: boolean;
   dismissed: boolean;
@@ -174,10 +175,27 @@ export default function NotificationsPage() {
     }
   };
 
-  const getNotificationLink = (notification: Notification) => {
+  const getNotificationLink = async (notification: Notification): Promise<string | null> => {
     if (notification.post_id) {
       return `/hubook/post/${notification.post_id}`;
     }
+
+    if (notification.album_media_comment_id) {
+      try {
+        const { data: comment } = await supabase
+          .from('album_media_comments')
+          .select('media_id')
+          .eq('id', notification.album_media_comment_id)
+          .single();
+
+        if (comment?.media_id) {
+          return `/hubook/albums/media/${comment.media_id}`;
+        }
+      } catch (error) {
+        console.error('Error fetching album media comment:', error);
+      }
+    }
+
     return null;
   };
 
@@ -382,12 +400,24 @@ export default function NotificationsPage() {
           ) : filteredNotifications.length > 0 ? (
             <div className="bg-white rounded-lg shadow-sm divide-y divide-gray-200">
               {filteredNotifications.map((notification) => {
-                const link = getNotificationLink(notification);
+                const hasLink = !!(notification.post_id || notification.album_media_comment_id);
+
+                const handleNotificationClick = async () => {
+                  const link = await getNotificationLink(notification);
+                  if (!notification.read) {
+                    markAsRead(notification.id);
+                  }
+                  if (link) {
+                    navigate(link);
+                  }
+                };
+
                 const NotificationContent = (
                   <div
-                    className={`p-4 transition-colors ${
+                    className={`p-4 transition-colors ${hasLink ? 'cursor-pointer' : ''} ${
                       !notification.read ? 'bg-blue-50' : 'hover:bg-gray-50'
                     }`}
+                    onClick={hasLink ? handleNotificationClick : undefined}
                   >
                     <div className="flex items-start gap-4">
                       <div className="relative flex-shrink-0">
@@ -425,7 +455,7 @@ export default function NotificationsPage() {
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={(e) => {
-                            e.preventDefault();
+                            e.stopPropagation();
                             toggleRead(notification.id, notification.read);
                           }}
                           className="p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded-full transition-colors"
@@ -435,7 +465,7 @@ export default function NotificationsPage() {
                         </button>
                         <button
                           onClick={(e) => {
-                            e.preventDefault();
+                            e.stopPropagation();
                             deleteNotification(notification.id);
                           }}
                           className="p-2 text-gray-600 hover:text-red-600 hover:bg-gray-100 rounded-full transition-colors"
@@ -448,16 +478,7 @@ export default function NotificationsPage() {
                   </div>
                 );
 
-                return link ? (
-                  <Link
-                    key={notification.id}
-                    to={link}
-                    onClick={() => !notification.read && markAsRead(notification.id)}
-                    className="block"
-                  >
-                    {NotificationContent}
-                  </Link>
-                ) : (
+                return (
                   <div key={notification.id}>
                     {NotificationContent}
                   </div>
