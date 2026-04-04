@@ -49,7 +49,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
   const fetchPostData = async () => {
     const [authorRes, mediaRes, reactionRes, userReactionRes, commentsRes, sharesRes] = await Promise.all([
       supabase.from('hubook_profiles').select('*').eq('id', post.author_id).single(),
-      supabase.from('post_media').select('*').eq('post_id', post.id).order('display_order'),
+      supabase.from('post_media').select('id, post_id, media_url, media_type, display_order, album_media_id').eq('post_id', post.id).order('display_order'),
       supabase.from('reactions').select('*').eq('target_id', post.id).eq('target_type', 'post'),
       hubookProfile
         ? supabase
@@ -151,6 +151,36 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
     } catch (error) {
       console.error('Error editing post:', error);
     }
+  };
+
+  const renderPostContent = (content: string) => {
+    // Check if this is an album upload post
+    if (post.source_type === 'album_upload' && post.source_album_id) {
+      // Parse album name from content (format: "added X photo(s)/video(s) to [Album Name]")
+      const albumNameMatch = content.match(/to (.+)$/);
+      if (albumNameMatch && albumNameMatch[1]) {
+        const albumName = albumNameMatch[1];
+        const beforeAlbumName = content.substring(0, content.lastIndexOf('to ') + 3);
+
+        return (
+          <span>
+            {beforeAlbumName}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/hubook/albums/${post.source_album_id}`);
+              }}
+              className="text-blue-600 hover:text-blue-700 hover:underline font-semibold cursor-pointer"
+            >
+              {albumName}
+            </button>
+          </span>
+        );
+      }
+    }
+
+    // Default rendering with mention links
+    return <span dangerouslySetInnerHTML={{ __html: renderMentionsAsLinks(content) }} />;
   };
 
   const handleDelete = async () => {
@@ -400,10 +430,9 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
                 />
               </>
             ) : (
-              <p
-                className="text-gray-900 mb-4 whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: renderMentionsAsLinks(post.content) }}
-              />
+              <p className="text-gray-900 mb-4 whitespace-pre-wrap">
+                {renderPostContent(post.content)}
+              </p>
             )}
             {post.is_edited && (
               <span className="text-sm text-gray-500 -mt-2 mb-4 block">(edited)</span>
@@ -415,9 +444,9 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
           <div className={`grid gap-2 mb-4 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {media.map((item, index) => {
               // Check if this is an album update post with clickable media
-              const isAlbumMedia = post.post_type === 'album_media' && post.source_metadata?.album_id && post.source_metadata?.media_ids;
-              const albumId = post.source_metadata?.album_id;
-              const mediaId = post.source_metadata?.media_ids?.[index];
+              const isAlbumMedia = post.source_type === 'album_upload' && post.source_album_id && item.album_media_id;
+              const albumId = post.source_album_id;
+              const mediaId = item.album_media_id;
 
               const handleMediaClick = () => {
                 if (isAlbumMedia && albumId && mediaId) {
