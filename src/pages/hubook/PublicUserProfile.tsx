@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image } from 'lucide-react';
+import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image, Globe } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
@@ -19,6 +19,7 @@ export default function PublicUserProfile() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [photos, setPhotos] = useState<any[]>([]);
+  const [albums, setAlbums] = useState<any[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ urls: string[]; index: number } | null>(null);
@@ -41,6 +42,7 @@ export default function PublicUserProfile() {
     if (userId && privacySettings && friendship !== undefined) {
       fetchPosts();
       fetchPhotos();
+      fetchAlbums();
     }
   }, [userId, privacySettings, friendship]);
 
@@ -248,6 +250,12 @@ export default function PublicUserProfile() {
     return false;
   };
 
+  const canViewAlbum = (albumPrivacy: string) => {
+    if (albumPrivacy === 'public') return true;
+    if (albumPrivacy === 'friends' && friendship?.status === 'accepted') return true;
+    return false;
+  };
+
   const fetchPosts = async () => {
     if (!userId || !canViewPosts()) {
       setFeedItems([]);
@@ -328,6 +336,69 @@ export default function PublicUserProfile() {
       console.error('Error fetching photos:', error);
     } finally {
       setPhotosLoading(false);
+    }
+  };
+
+  const fetchAlbums = async () => {
+    if (!userId || !canViewPhotos()) {
+      setAlbums([]);
+      return;
+    }
+
+    try {
+      const { data: albumsData, error: albumsError } = await supabase
+        .from('albums')
+        .select('*')
+        .eq('owner_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (albumsError) throw albumsError;
+
+      const visibleAlbums = (albumsData || []).filter(album =>
+        canViewAlbum(album.privacy)
+      );
+
+      const albumsWithCounts = await Promise.all(
+        visibleAlbums.map(async (album) => {
+          const { count } = await supabase
+            .from('album_media')
+            .select('*', { count: 'exact', head: true })
+            .eq('album_id', album.id);
+
+          const { data: coverMedia } = await supabase
+            .from('album_media')
+            .select('media_url')
+            .eq('album_id', album.id)
+            .eq('is_album_cover', true)
+            .eq('media_type', 'image')
+            .maybeSingle();
+
+          let coverUrl = coverMedia?.media_url || album.cover_photo_url;
+
+          if (!coverUrl) {
+            const { data: firstMedia } = await supabase
+              .from('album_media')
+              .select('media_url')
+              .eq('album_id', album.id)
+              .eq('media_type', 'image')
+              .order('uploaded_at', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            coverUrl = firstMedia?.media_url || null;
+          }
+
+          return {
+            ...album,
+            media_count: count || 0,
+            cover_photo_url: coverUrl
+          };
+        })
+      );
+
+      setAlbums(albumsWithCounts);
+    } catch (error) {
+      console.error('Error fetching albums:', error);
     }
   };
 
@@ -628,28 +699,81 @@ export default function PublicUserProfile() {
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
-            ) : photos.length === 0 ? (
+            ) : albums.length === 0 && photos.length === 0 ? (
               <div className="text-center py-12">
                 <Image className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No photos yet</h3>
                 <p className="text-gray-600">{user.display_name} hasn't shared any photos yet.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {photos.flatMap(post =>
-                  post.media_urls.map((url: string, urlIndex: number) => (
-                    <div
-                      key={`${post.id}-${urlIndex}`}
-                      className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                      onClick={() => setSelectedMedia({ urls: post.media_urls, index: urlIndex })}
-                    >
-                      <img
-                        src={url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
+              <div className="space-y-8">
+                {albums.length > 0 && (
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">Albums</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {albums.map((album) => (
+                        <div
+                          key={album.id}
+                          onClick={() => navigate(`/hubook/albums/${album.id}`)}
+                          className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+                        >
+                          <div className="relative aspect-square bg-gradient-to-br from-blue-100 to-purple-100 overflow-hidden">
+                            {album.cover_photo_url ? (
+                              <img
+                                src={album.cover_photo_url}
+                                alt={album.album_name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Image className="w-16 h-16 text-gray-400" />
+                              </div>
+                            )}
+                            <div className="absolute top-2 left-2">
+                              <div className="bg-black bg-opacity-60 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
+                                {album.privacy === 'public' && <Globe className="w-3 h-3" />}
+                                {album.privacy === 'friends' && <Users className="w-3 h-3" />}
+                                {album.privacy === 'private' && <Lock className="w-3 h-3" />}
+                                <span>{album.privacy === 'public' ? 'Public' : album.privacy === 'friends' ? 'Friends' : 'Private'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <h3 className="font-semibold text-gray-900 truncate">{album.album_name}</h3>
+                            {album.description && (
+                              <p className="text-sm text-gray-600 mt-1 line-clamp-2">{album.description}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-2">
+                              {album.media_count || 0} {album.media_count === 1 ? 'item' : 'items'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))
+                  </div>
+                )}
+
+                {photos.length > 0 && (
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-4">Photos from Posts</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {photos.flatMap(post =>
+                        post.media_urls.map((url: string, urlIndex: number) => (
+                          <div
+                            key={`${post.id}-${urlIndex}`}
+                            className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setSelectedMedia({ urls: post.media_urls, index: urlIndex })}
+                          >
+                            <img
+                              src={url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             )}

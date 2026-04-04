@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Image as ImageIcon, Video, Lock, Users, Globe, MoreVertical, Pencil, Trash2, Download, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useHuBook } from '../../contexts/HuBookContext';
 import UploadMediaModal from '../../components/hubook/UploadMediaModal';
 import MediaViewer from '../../components/hubook/MediaViewer';
 import EditAlbumModal from '../../components/hubook/EditAlbumModal';
@@ -31,6 +32,7 @@ export default function AlbumView() {
   const { albumId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { hubookProfile } = useHuBook();
   const [searchParams, setSearchParams] = useSearchParams();
   const [album, setAlbum] = useState<Album | null>(null);
   const [media, setMedia] = useState<Media[]>([]);
@@ -42,13 +44,20 @@ export default function AlbumView() {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [settingCoverId, setSettingCoverId] = useState<string | null>(null);
+  const [friendship, setFriendship] = useState<any>(null);
+  const [canAccess, setCanAccess] = useState(true);
 
   useEffect(() => {
     if (albumId) {
       fetchAlbum();
-      fetchMedia();
     }
   }, [albumId]);
+
+  useEffect(() => {
+    if (album) {
+      checkAccess();
+    }
+  }, [album, friendship]);
 
   // Handle direct media viewing via URL parameter
   useEffect(() => {
@@ -74,12 +83,47 @@ export default function AlbumView() {
 
       if (error) throw error;
       setAlbum(data);
+
+      if (data && hubookProfile && data.owner_id !== hubookProfile.id) {
+        const { data: friendshipData } = await supabase
+          .from('friendships')
+          .select('*')
+          .or(`and(requester_id.eq.${hubookProfile.id},addressee_id.eq.${data.owner_id}),and(requester_id.eq.${data.owner_id},addressee_id.eq.${hubookProfile.id})`)
+          .maybeSingle();
+
+        setFriendship(friendshipData);
+      }
     } catch (error) {
       console.error('Error fetching album:', error);
       navigate('/hubook/photos');
     } finally {
       setLoading(false);
     }
+  };
+
+  const checkAccess = () => {
+    if (!album) return;
+
+    const isOwner = user?.id === album.owner_id;
+    if (isOwner) {
+      setCanAccess(true);
+      fetchMedia();
+      return;
+    }
+
+    if (album.privacy === 'public') {
+      setCanAccess(true);
+      fetchMedia();
+      return;
+    }
+
+    if (album.privacy === 'friends' && friendship?.status === 'accepted') {
+      setCanAccess(true);
+      fetchMedia();
+      return;
+    }
+
+    setCanAccess(false);
   };
 
   const fetchMedia = async () => {
@@ -220,15 +264,44 @@ export default function AlbumView() {
     );
   }
 
+  if (!canAccess) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back
+        </button>
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+          <Lock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">This album is private</h3>
+          <p className="text-gray-600">
+            {album.privacy === 'friends'
+              ? 'Only friends can view this album.'
+              : 'This album is not available for viewing.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-6">
         <button
-          onClick={() => navigate('/hubook/photos')}
+          onClick={() => {
+            if (isOwner) {
+              navigate('/hubook/photos');
+            } else {
+              navigate(-1);
+            }
+          }}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Albums
+          {isOwner ? 'Back to Albums' : 'Back'}
         </button>
 
         <div className="bg-white rounded-lg shadow-sm p-6">
