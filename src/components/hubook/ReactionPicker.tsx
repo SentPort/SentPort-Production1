@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export type ReactionType = 'like' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry' | 'care';
 
@@ -20,12 +21,31 @@ const reactions = [
 
 export default function ReactionPicker({ onReact, currentReaction, alignRight = false }: ReactionPickerProps) {
   const [showPicker, setShowPicker] = useState(false);
+  const [buttonPosition, setButtonPosition] = useState({ top: 0, left: 0, width: 0 });
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    return () => {
+    const handleScroll = () => {
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
+      }
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      setShowPicker(false);
+    };
+
+    window.addEventListener('scroll', handleScroll, true);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
       }
     };
   }, []);
@@ -35,10 +55,30 @@ export default function ReactionPicker({ onReact, currentReaction, alignRight = 
       clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
     }
-    setShowPicker(true);
+
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setButtonPosition({
+          top: rect.top,
+          left: rect.left,
+          width: rect.width
+        });
+        setShowPicker(true);
+      }
+    }, 100);
   };
 
   const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+
     closeTimeoutRef.current = setTimeout(() => {
       setShowPicker(false);
     }, 200);
@@ -54,9 +94,12 @@ export default function ReactionPicker({ onReact, currentReaction, alignRight = 
 
   const currentReactionData = reactions.find((r) => r.type === currentReaction);
 
+  const pickerHeight = 70;
+
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -84,11 +127,17 @@ export default function ReactionPicker({ onReact, currentReaction, alignRight = 
         )}
       </button>
 
-      {showPicker && (
+      {showPicker && createPortal(
         <div
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className={`absolute bottom-full ${alignRight ? 'left-0' : 'right-0'} mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-[100]`}
+          style={{
+            position: 'fixed',
+            top: `${buttonPosition.top - pickerHeight - 8}px`,
+            left: alignRight ? `${buttonPosition.left}px` : `${buttonPosition.left + buttonPosition.width - 320}px`,
+            zIndex: 9999
+          }}
+          className="bg-white rounded-2xl shadow-xl border border-gray-200 p-3"
         >
           <div className="flex gap-1">
             {reactions.map((reaction) => (
@@ -106,7 +155,8 @@ export default function ReactionPicker({ onReact, currentReaction, alignRight = 
               </button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
