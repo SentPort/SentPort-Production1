@@ -5,6 +5,7 @@ export type ReactionType = 'like' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry' |
 interface ReactionPickerProps {
   onReact: (type: ReactionType) => void;
   currentReaction?: ReactionType | null;
+  alignRight?: boolean;
 }
 
 const reactions = [
@@ -17,7 +18,7 @@ const reactions = [
   { type: 'care' as ReactionType, emoji: '🤗', label: 'Care' }
 ];
 
-export default function ReactionPicker({ onReact, currentReaction }: ReactionPickerProps) {
+export default function ReactionPicker({ onReact, currentReaction, alignRight = false }: ReactionPickerProps) {
   const [showPicker, setShowPicker] = useState(false);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -87,7 +88,7 @@ export default function ReactionPicker({ onReact, currentReaction }: ReactionPic
         <div
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-50"
+          className={`absolute bottom-full ${alignRight ? 'left-0' : 'right-0'} mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-[100]`}
         >
           <div className="flex gap-1">
             {reactions.map((reaction) => (

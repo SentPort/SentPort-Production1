@@ -386,6 +386,7 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
               <ReactionPicker
                 onReact={handleReaction}
                 currentReaction={currentReaction}
+                alignRight={true}
               />
               {Object.keys(reactionCounts).length > 0 && (
                 <div className="flex items-center gap-2 ml-2 flex-wrap">
