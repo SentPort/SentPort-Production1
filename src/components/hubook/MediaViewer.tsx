@@ -3,6 +3,8 @@ import { X, ChevronLeft, ChevronRight, Download, Trash2, CreditCard as Edit2, Zo
 import { supabase } from '../../lib/supabase';
 import DeleteMediaModal from './DeleteMediaModal';
 import MediaCommentSection from './MediaCommentSection';
+import ReactionPicker, { ReactionType } from './ReactionPicker';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Media {
   id: string;
@@ -25,6 +27,7 @@ interface MediaViewerProps {
 }
 
 export default function MediaViewer({ media, initialIndex, albumId, onClose, onDelete, onUpdate, canEdit, canComment = false }: MediaViewerProps) {
+  const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [editingCaption, setEditingCaption] = useState(false);
   const [caption, setCaption] = useState('');
@@ -32,6 +35,9 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
   const [zoom, setZoom] = useState(1);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [settingCover, setSettingCover] = useState(false);
+  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(null);
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
+  const [loadingReaction, setLoadingReaction] = useState(false);
 
   const currentMedia = media[currentIndex];
 
@@ -39,7 +45,39 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
     setCaption(currentMedia.caption || '');
     setEditingCaption(false);
     setZoom(1);
+    fetchReactions();
   }, [currentIndex, currentMedia]);
+
+  const fetchReactions = async () => {
+    if (!user) return;
+
+    try {
+      const { data: reactionData, error: reactionError } = await supabase
+        .from('album_media_reactions')
+        .select('reaction_type')
+        .eq('media_id', currentMedia.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (reactionError) throw reactionError;
+      setCurrentReaction(reactionData?.reaction_type as ReactionType || null);
+
+      const { data: countsData, error: countsError } = await supabase
+        .from('album_media_reactions')
+        .select('reaction_type')
+        .eq('media_id', currentMedia.id);
+
+      if (countsError) throw countsError;
+
+      const counts: Record<string, number> = {};
+      countsData?.forEach((r) => {
+        counts[r.reaction_type] = (counts[r.reaction_type] || 0) + 1;
+      });
+      setReactionCounts(counts);
+    } catch (error) {
+      console.error('Error fetching reactions:', error);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -124,6 +162,58 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
       alert('Failed to set album cover. Please try again.');
     } finally {
       setSettingCover(false);
+    }
+  };
+
+  const handleReaction = async (type: ReactionType) => {
+    if (!user || loadingReaction) return;
+
+    setLoadingReaction(true);
+    try {
+      if (currentReaction === type) {
+        const { error } = await supabase
+          .from('album_media_reactions')
+          .delete()
+          .eq('media_id', currentMedia.id)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+        setCurrentReaction(null);
+
+        setReactionCounts((prev) => {
+          const newCounts = { ...prev };
+          newCounts[type] = Math.max(0, (newCounts[type] || 0) - 1);
+          if (newCounts[type] === 0) delete newCounts[type];
+          return newCounts;
+        });
+      } else {
+        const { error } = await supabase
+          .from('album_media_reactions')
+          .upsert({
+            media_id: currentMedia.id,
+            user_id: user.id,
+            reaction_type: type
+          }, {
+            onConflict: 'user_id,media_id'
+          });
+
+        if (error) throw error;
+
+        setReactionCounts((prev) => {
+          const newCounts = { ...prev };
+          if (currentReaction) {
+            newCounts[currentReaction] = Math.max(0, (newCounts[currentReaction] || 0) - 1);
+            if (newCounts[currentReaction] === 0) delete newCounts[currentReaction];
+          }
+          newCounts[type] = (newCounts[type] || 0) + 1;
+          return newCounts;
+        });
+        setCurrentReaction(type);
+      }
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+    } finally {
+      setLoadingReaction(false);
     }
   };
 
@@ -283,6 +373,43 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
       </div>
 
       <div className="w-96 bg-white overflow-y-auto">
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Reactions</h3>
+            {Object.keys(reactionCounts).length > 0 && (
+              <span className="text-sm text-gray-500">
+                {Object.values(reactionCounts).reduce((a, b) => a + b, 0)} reactions
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <ReactionPicker
+              onReact={handleReaction}
+              currentReaction={currentReaction}
+            />
+            {Object.keys(reactionCounts).length > 0 && (
+              <div className="flex items-center gap-2 ml-2">
+                {Object.entries(reactionCounts).map(([type, count]) => {
+                  const reactionEmojis: Record<string, string> = {
+                    like: '👍',
+                    love: '❤️',
+                    laugh: '😂',
+                    wow: '😮',
+                    sad: '😢',
+                    angry: '😠',
+                    care: '🤗'
+                  };
+                  return (
+                    <div key={type} className="flex items-center gap-1 text-sm">
+                      <span>{reactionEmojis[type]}</span>
+                      <span className="text-gray-600">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="p-4">
           <MediaCommentSection
             mediaId={currentMedia.id}

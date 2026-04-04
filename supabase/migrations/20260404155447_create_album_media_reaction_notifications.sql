@@ -1,0 +1,70 @@
+/*
+  # Create Album Media Reaction Notifications
+
+  1. Notification Trigger
+    - Automatically create notifications when users react to album media
+    - Notify the media owner (album owner) when someone reacts
+    - Don't notify if user reacts to their own media
+    - Include reaction type in notification metadata
+
+  2. Changes
+    - Add trigger function `notify_media_owner_on_reaction`
+    - Add trigger on `album_media_reactions` table for INSERT events
+*/
+
+-- Function to notify media owner when someone reacts to their media
+CREATE OR REPLACE FUNCTION notify_media_owner_on_reaction()
+RETURNS TRIGGER
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_media_owner_id uuid;
+  v_reactor_name text;
+BEGIN
+  -- Get the media owner (album owner)
+  SELECT a.owner_id
+  INTO v_media_owner_id
+  FROM album_media am
+  JOIN albums a ON am.album_id = a.id
+  WHERE am.id = NEW.media_id;
+
+  -- Don't notify if user reacted to their own media
+  IF v_media_owner_id = NEW.user_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- Get reactor's name
+  SELECT COALESCE(full_name, display_name, 'Someone')
+  INTO v_reactor_name
+  FROM hubook_profiles
+  WHERE id = NEW.user_id;
+
+  -- Create notification
+  INSERT INTO hubook_notifications (
+    user_id,
+    type,
+    title,
+    message,
+    link,
+    created_at
+  ) VALUES (
+    v_media_owner_id,
+    'album_media_reaction',
+    'New Reaction',
+    v_reactor_name || ' reacted ' || NEW.reaction_type || ' to your photo',
+    '/hubook/albums/' || (SELECT album_id FROM album_media WHERE id = NEW.media_id),
+    now()
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+-- Create trigger on album_media_reactions
+DROP TRIGGER IF EXISTS trigger_notify_media_owner_on_reaction ON album_media_reactions;
+CREATE TRIGGER trigger_notify_media_owner_on_reaction
+  AFTER INSERT ON album_media_reactions
+  FOR EACH ROW
+  EXECUTE FUNCTION notify_media_owner_on_reaction();

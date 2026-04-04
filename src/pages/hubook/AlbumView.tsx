@@ -26,6 +26,8 @@ interface Media {
   caption: string | null;
   uploaded_at: string;
   is_album_cover: boolean;
+  reaction_count?: number;
+  top_reaction?: string;
 }
 
 export default function AlbumView() {
@@ -136,7 +138,34 @@ export default function AlbumView() {
         .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
-      setMedia(data || []);
+
+      const mediaWithReactions = await Promise.all(
+        (data || []).map(async (item) => {
+          const { data: reactions } = await supabase
+            .from('album_media_reactions')
+            .select('reaction_type')
+            .eq('media_id', item.id);
+
+          const reactionCount = reactions?.length || 0;
+          let topReaction = '';
+
+          if (reactions && reactions.length > 0) {
+            const counts: Record<string, number> = {};
+            reactions.forEach((r) => {
+              counts[r.reaction_type] = (counts[r.reaction_type] || 0) + 1;
+            });
+            topReaction = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+          }
+
+          return {
+            ...item,
+            reaction_count: reactionCount,
+            top_reaction: topReaction
+          };
+        })
+      );
+
+      setMedia(mediaWithReactions);
     } catch (error) {
       console.error('Error fetching media:', error);
     }
@@ -453,6 +482,20 @@ export default function AlbumView() {
                     </button>
                   )}
                 </>
+              )}
+              {(item.reaction_count ?? 0) > 0 && (
+                <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1 shadow-lg">
+                  <span>
+                    {item.top_reaction === 'like' && '👍'}
+                    {item.top_reaction === 'love' && '❤️'}
+                    {item.top_reaction === 'laugh' && '😂'}
+                    {item.top_reaction === 'wow' && '😮'}
+                    {item.top_reaction === 'sad' && '😢'}
+                    {item.top_reaction === 'angry' && '😠'}
+                    {item.top_reaction === 'care' && '🤗'}
+                  </span>
+                  <span>{item.reaction_count}</span>
+                </div>
               )}
               {item.is_album_cover && (
                 <div className="absolute top-2 right-2 bg-blue-600 text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1 shadow-lg">
