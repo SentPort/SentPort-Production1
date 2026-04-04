@@ -507,6 +507,7 @@ export default function AlbumView() {
           onDelete={handleDeleteMedia}
           onUpdate={fetchMedia}
           canEdit={isOwner}
+          canComment={canAccess}
         />
       )}
     </div>
