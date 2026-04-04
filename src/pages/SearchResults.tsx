@@ -23,6 +23,7 @@ import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } fro
 import { recordSpellCheckAttempt, getLearnedCorrection } from '../lib/spellCorrection';
 import { checkWikipediaSpelling } from '../lib/wikipediaService';
 import { DidYouMean } from '../components/shared/DidYouMean';
+import { addWikipediaUrlToPriorityQueue } from '../lib/priorityQueueHelper';
 
 interface SearchResult {
   id: string;
@@ -82,6 +83,7 @@ export default function SearchResults() {
   const resultsTopRef = useRef<HTMLDivElement>(null);
   const openSearchCompletedRef = useRef<boolean>(false);
   const suggestionSourceRef = useRef<'opensearch' | 'wikipedia_panel' | null>(null);
+  const autoQueuedUrlsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -511,6 +513,24 @@ export default function SearchResults() {
   const handleRelatedSearchClick = (relatedQuery: string) => {
     setSearchParams({ q: relatedQuery });
   };
+
+  const handleWikipediaLoaded = useCallback(async (wikipediaUrl: string) => {
+    if (!wikipediaUrl || autoQueuedUrlsRef.current.has(wikipediaUrl)) {
+      return;
+    }
+
+    if (paginatedResults.length === 0) {
+      console.log('[SearchResults] Zero results detected with Wikipedia panel. Auto-adding to priority queue:', wikipediaUrl);
+      autoQueuedUrlsRef.current.add(wikipediaUrl);
+
+      const result = await addWikipediaUrlToPriorityQueue(wikipediaUrl);
+      if (result.success) {
+        console.log('[SearchResults] Successfully auto-queued Wikipedia URL:', result.message, result.action);
+      } else {
+        console.log('[SearchResults] Failed to auto-queue Wikipedia URL:', result.message);
+      }
+    }
+  }, [paginatedResults]);
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
     console.log('[SearchResults] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
@@ -1263,6 +1283,7 @@ export default function SearchResults() {
                 <WikipediaKnowledgePanel
                   query={analysis?.normalizedQuery || query}
                   onSpellingSuggestion={handleWikipediaSpellingSuggestion}
+                  onWikipediaLoaded={handleWikipediaLoaded}
                 />
               </div>
             </div>

@@ -7,9 +7,10 @@ interface WikipediaKnowledgePanelProps {
   query: string;
   onClose?: () => void;
   onSpellingSuggestion?: (suggestion: string, confidence: number) => void;
+  onWikipediaLoaded?: (wikipediaUrl: string) => void;
 }
 
-export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion }: WikipediaKnowledgePanelProps) {
+export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion, onWikipediaLoaded }: WikipediaKnowledgePanelProps) {
   const [summary, setSummary] = useState<WikipediaSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,10 @@ export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion }
         if (data) {
           console.log('[WikipediaPanel] Successfully loaded data:', data.title);
           setSummary(data);
+
+          if (onWikipediaLoaded && data.content_urls?.desktop?.page) {
+            onWikipediaLoaded(data.content_urls.desktop.page);
+          }
 
           if (onSpellingSuggestion) {
             const similarity = calculateSimilarity(query.toLowerCase(), data.title.toLowerCase());
