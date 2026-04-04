@@ -193,8 +193,6 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
             media_id: currentMedia.id,
             user_id: user.id,
             reaction_type: type
-          }, {
-            onConflict: 'user_id,media_id'
           });
 
         if (error) throw error;
