@@ -11,6 +11,7 @@ interface Notification {
   post_id: string | null;
   comment_id: string | null;
   share_id: string | null;
+  album_media_comment_id: string | null;
   message: string;
   read: boolean;
   dismissed: boolean;
@@ -174,6 +175,8 @@ export default function NotificationBellDropdown() {
         return <UserPlus size={16} className="text-blue-600" />;
       case 'comment':
       case 'reply':
+      case 'album_media_comment':
+      case 'album_media_comment_reply':
         return <MessageCircle size={16} className="text-green-600" />;
       case 'reaction':
         return <Heart size={16} className="text-red-600" />;
@@ -187,10 +190,27 @@ export default function NotificationBellDropdown() {
     }
   };
 
-  const getNotificationLink = (notification: Notification) => {
+  const getNotificationLink = async (notification: Notification): Promise<string | null> => {
     if (notification.post_id) {
       return `/hubook/post/${notification.post_id}`;
     }
+
+    if (notification.album_media_comment_id) {
+      try {
+        const { data: comment } = await supabase
+          .from('album_media_comments')
+          .select('media_id')
+          .eq('id', notification.album_media_comment_id)
+          .single();
+
+        if (comment?.media_id) {
+          return `/hubook/albums/media/${comment.media_id}`;
+        }
+      } catch (error) {
+        console.error('Error fetching album media comment:', error);
+      }
+    }
+
     return null;
   };
 
@@ -217,8 +237,8 @@ export default function NotificationBellDropdown() {
     return 'Just now';
   };
 
-  const handleNotificationClick = (notification: Notification) => {
-    const link = getNotificationLink(notification);
+  const handleNotificationClick = async (notification: Notification) => {
+    const link = await getNotificationLink(notification);
     if (!notification.read) {
       markAsRead(notification.id);
     }
@@ -273,12 +293,12 @@ export default function NotificationBellDropdown() {
             ) : notifications.length > 0 ? (
               <>
                 {notifications.map((notification) => {
-                  const link = getNotificationLink(notification);
+                  const hasLink = !!(notification.post_id || notification.album_media_comment_id);
                   return (
                     <div
                       key={notification.id}
                       onClick={() => handleNotificationClick(notification)}
-                      className={`px-4 py-3 border-b border-gray-100 ${link ? 'cursor-pointer' : ''} transition-colors ${
+                      className={`px-4 py-3 border-b border-gray-100 ${hasLink ? 'cursor-pointer' : ''} transition-colors ${
                         !notification.read ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
                       }`}
                     >
