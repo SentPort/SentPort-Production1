@@ -527,21 +527,25 @@ export default function SearchResults() {
         }];
       });
 
-      recordSpellCheckAttempt(
-        query,
-        suggestion,
-        confidence,
-        results.length,
-        'wikipedia_direct'
-      ).then(logId => {
-        if (logId && isMountedRef.current) {
-          setSpellCheckLogId(logId);
-        }
-      }).catch(err => {
-        console.error('[SearchResults] Error recording Wikipedia spell check:', err);
+      setResults(currentResults => {
+        recordSpellCheckAttempt(
+          query,
+          suggestion,
+          confidence,
+          currentResults.length,
+          'wikipedia_direct'
+        ).then(logId => {
+          if (logId && isMountedRef.current) {
+            setSpellCheckLogId(logId);
+          }
+        }).catch(err => {
+          console.error('[SearchResults] Error recording Wikipedia spell check:', err);
+        });
+
+        return currentResults;
       });
     }
-  }, [query, results.length]);
+  }, [query]);
 
   // Analyze query with current results to determine what widgets to show
   // Use useMemo to recalculate whenever query or results change

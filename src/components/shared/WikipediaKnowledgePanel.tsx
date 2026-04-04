@@ -67,7 +67,7 @@ export function WikipediaKnowledgePanel({ query, onClose, onSpellingSuggestion }
     return () => {
       mounted = false;
     };
-  }, [query]);
+  }, [query, onSpellingSuggestion]);
 
   if (loading) {
     return (
