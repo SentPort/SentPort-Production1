@@ -5,6 +5,7 @@ import DeleteMediaModal from './DeleteMediaModal';
 import MediaCommentSection from './MediaCommentSection';
 import ReactionPicker, { ReactionType } from './ReactionPicker';
 import { useAuth } from '../../contexts/AuthContext';
+import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
 
 interface Media {
   id: string;
@@ -38,6 +39,9 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
   const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(null);
   const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({});
   const [loadingReaction, setLoadingReaction] = useState(false);
+  const [showReactionDetails, setShowReactionDetails] = useState(false);
+  const [reactionDetails, setReactionDetails] = useState<ReactionDetail[]>([]);
+  const [loadingReactionDetails, setLoadingReactionDetails] = useState(false);
 
   const currentMedia = media[currentIndex];
 
@@ -215,6 +219,28 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
     }
   };
 
+  const handleReactionCountClick = async () => {
+    const totalReactions = Object.values(reactionCounts).reduce((a, b) => a + b, 0);
+    if (totalReactions === 0) return;
+
+    setLoadingReactionDetails(true);
+    setShowReactionDetails(true);
+
+    try {
+      const { data, error } = await supabase.rpc('get_media_reactions_with_users', {
+        p_media_id: currentMedia.id
+      });
+
+      if (error) throw error;
+      setReactionDetails(data || []);
+    } catch (error) {
+      console.error('Error fetching reaction details:', error);
+      setReactionDetails([]);
+    } finally {
+      setLoadingReactionDetails(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex">
       <div className="flex-1 flex flex-col">
@@ -384,7 +410,11 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
                 alignRight={true}
               />
               {Object.keys(reactionCounts).length > 0 && (
-                <div className="flex items-center gap-2 ml-2 flex-wrap">
+                <button
+                  onClick={handleReactionCountClick}
+                  className="flex items-center gap-2 ml-2 flex-wrap hover:opacity-80 cursor-pointer transition-opacity"
+                  title="Click to see who reacted"
+                >
                   {Object.entries(reactionCounts).map(([type, count]) => {
                     const reactionEmojis: Record<string, string> = {
                       like: '👍',
@@ -402,7 +432,7 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
                       </div>
                     );
                   })}
-                </div>
+                </button>
               )}
             </div>
           </div>
@@ -425,6 +455,14 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
             onDelete(currentMedia.id);
           }}
           onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {showReactionDetails && (
+        <ReactionDetailsModal
+          isOpen={showReactionDetails}
+          onClose={() => setShowReactionDetails(false)}
+          reactions={reactionDetails}
         />
       )}
     </div>

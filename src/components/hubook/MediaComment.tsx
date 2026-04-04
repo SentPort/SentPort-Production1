@@ -7,6 +7,7 @@ import ReactionPicker, { ReactionType } from './ReactionPicker';
 import DeleteCommentModal from './DeleteCommentModal';
 import MentionTextarea from './MentionTextarea';
 import { saveMentions, renderMentionsAsLinks } from '../../lib/mentionHelpers';
+import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
 
 interface MediaCommentProps {
   comment: any;
@@ -28,6 +29,9 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showReactionDetails, setShowReactionDetails] = useState(false);
+  const [reactionDetails, setReactionDetails] = useState<ReactionDetail[]>([]);
+  const [loadingReactionDetails, setLoadingReactionDetails] = useState(false);
 
   useEffect(() => {
     fetchCommentData();
@@ -157,6 +161,28 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
     }
   };
 
+  const handleReactionCountClick = async () => {
+    if (reactions.length === 0) return;
+
+    setLoadingReactionDetails(true);
+    setShowReactionDetails(true);
+
+    try {
+      const { data, error } = await supabase.rpc('get_post_reactions_with_users', {
+        p_target_id: comment.id,
+        p_target_type: 'comment'
+      });
+
+      if (error) throw error;
+      setReactionDetails(data || []);
+    } catch (error) {
+      console.error('Error fetching reaction details:', error);
+      setReactionDetails([]);
+    } finally {
+      setLoadingReactionDetails(false);
+    }
+  };
+
   const reactionSummary = reactions.reduce((acc: any, reaction) => {
     acc[reaction.reaction_type] = (acc[reaction.reaction_type] || 0) + 1;
     return acc;
@@ -271,7 +297,11 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
           </div>
 
           {reactions.length > 0 && (
-            <div className="flex items-center gap-1 mt-1 px-2">
+            <button
+              onClick={handleReactionCountClick}
+              className="flex items-center gap-1 mt-1 px-2 hover:underline cursor-pointer transition-all"
+              title="Click to see who reacted"
+            >
               {Object.entries(reactionSummary)
                 .sort(([, a]: any, [, b]: any) => b - a)
                 .slice(0, 3)
@@ -301,7 +331,7 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
                   );
                 })}
               <span className="text-xs text-gray-600 ml-1">{reactions.length}</span>
-            </div>
+            </button>
           )}
 
           <div className="flex items-center gap-3 mt-1 px-2 relative z-10">
@@ -377,6 +407,14 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
         <DeleteCommentModal
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+
+      {showReactionDetails && (
+        <ReactionDetailsModal
+          isOpen={showReactionDetails}
+          onClose={() => setShowReactionDetails(false)}
+          reactions={reactionDetails}
         />
       )}
     </div>
