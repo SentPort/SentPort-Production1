@@ -11,6 +11,7 @@ import { UnitConverter } from './UnitConverter';
 import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
 import { DidYouMean } from './DidYouMean';
 import { calculateSimilarity } from '../../lib/queryPreprocessing';
+import { markSuggestionClicked } from '../../lib/spellCorrection';
 
 interface SearchResult {
   id: string;
@@ -302,28 +303,9 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
   }, [query, results.length, user]);
 
   const handleSpellingSuggestionAccepted = async (suggestion: string) => {
-    if (spellCheckLogId && user) {
-      try {
-        await supabase
-          .from('spell_check_suggestions_log')
-          .update({ was_accepted: true })
-          .eq('id', spellCheckLogId);
-
-        await supabase
-          .from('spelling_corrections')
-          .upsert({
-            misspelling: query.toLowerCase(),
-            correction: suggestion,
-            frequency: 1,
-            confidence: spellSuggestions[0]?.confidence || 0.95,
-            source: 'user_acceptance'
-          }, {
-            onConflict: 'misspelling',
-            ignoreDuplicates: false
-          });
-      } catch (err) {
-        console.error('[QuickSearchModal] Error updating spell check acceptance:', err);
-      }
+    if (spellCheckLogId) {
+      console.log('[QuickSearchModal] Recording click for suggestion:', suggestion, 'logId:', spellCheckLogId);
+      await markSuggestionClicked(spellCheckLogId, 0);
     }
 
     setQuery(suggestion);
@@ -475,6 +457,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
                 suggestions={spellSuggestions}
                 onSuggestionClick={handleSpellingSuggestionAccepted}
                 showMultiple={results.length === 0}
+                spellCheckLogId={spellCheckLogId}
               />
             </div>
           )}

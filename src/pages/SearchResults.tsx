@@ -763,6 +763,7 @@ export default function SearchResults() {
               originalQuery={query}
               suggestions={spellSuggestions}
               showMultiple={paginatedResults.length === 0}
+              spellCheckLogId={spellCheckLogId}
             />
           </div>
         )}

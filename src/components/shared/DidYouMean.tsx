@@ -1,17 +1,20 @@
 import { useNavigate } from 'react-router-dom';
+import { markSuggestionClicked } from '../../lib/spellCorrection';
 
 interface DidYouMeanProps {
   originalQuery: string;
   suggestions: Array<{ correctedQuery: string; confidence: number }>;
   onSuggestionClick?: (suggestion: string) => void;
   showMultiple?: boolean;
+  spellCheckLogId?: string | null;
 }
 
 export function DidYouMean({
   originalQuery,
   suggestions,
   onSuggestionClick,
-  showMultiple = false
+  showMultiple = false,
+  spellCheckLogId
 }: DidYouMeanProps) {
   const navigate = useNavigate();
 
@@ -22,7 +25,12 @@ export function DidYouMean({
   const topSuggestion = suggestions[0];
   const displaySuggestions = showMultiple ? suggestions.slice(0, 3) : [topSuggestion];
 
-  const handleSuggestionClick = (suggestion: string) => {
+  const handleSuggestionClick = async (suggestion: string) => {
+    if (spellCheckLogId) {
+      console.log('[DidYouMean] Recording click for suggestion:', suggestion, 'logId:', spellCheckLogId);
+      await markSuggestionClicked(spellCheckLogId, 0);
+    }
+
     if (onSuggestionClick) {
       onSuggestionClick(suggestion);
     } else {
