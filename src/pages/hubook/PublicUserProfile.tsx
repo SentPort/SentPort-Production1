@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle } from 'lucide-react';
+import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
+import Post from '../../components/hubook/Post';
+import SharedPost from '../../components/hubook/SharedPost';
+import MediaViewer from '../../components/hubook/MediaViewer';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -14,6 +17,12 @@ export default function PublicUserProfile() {
   const [mutualFriendsCount, setMutualFriendsCount] = useState(0);
   const [privacySettings, setPrivacySettings] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [feedItems, setFeedItems] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{ urls: string[]; index: number } | null>(null);
+  const [activeTab, setActiveTab] = useState<'posts' | 'photos'>('posts');
 
   useEffect(() => {
     if (userId && hubookProfile?.id === userId) {
@@ -27,6 +36,13 @@ export default function PublicUserProfile() {
       fetchPrivacySettings();
     }
   }, [userId, hubookProfile]);
+
+  useEffect(() => {
+    if (userId && privacySettings && friendship !== undefined) {
+      fetchPosts();
+      fetchPhotos();
+    }
+  }, [userId, privacySettings, friendship]);
 
   const fetchUser = async () => {
     const { data } = await supabase
@@ -214,6 +230,105 @@ export default function PublicUserProfile() {
     if (privacySettings.messaging_privacy === 'no_one') return false;
     if (privacySettings.messaging_privacy === 'friends_only' && friendship?.status !== 'accepted') return false;
     return true;
+  };
+
+  const canViewPosts = () => {
+    if (!privacySettings) return true;
+    const postVisibility = privacySettings.post_visibility_default || 'public';
+    if (postVisibility === 'public' || postVisibility === 'everyone') return true;
+    if ((postVisibility === 'friends_only' || postVisibility === 'friends') && friendship?.status === 'accepted') return true;
+    return false;
+  };
+
+  const canViewPhotos = () => {
+    if (!privacySettings) return true;
+    const photoVisibility = privacySettings.who_can_see_photos || 'everyone';
+    if (photoVisibility === 'public' || photoVisibility === 'everyone') return true;
+    if ((photoVisibility === 'friends_only' || photoVisibility === 'friends') && friendship?.status === 'accepted') return true;
+    return false;
+  };
+
+  const fetchPosts = async () => {
+    if (!userId || !canViewPosts()) {
+      setFeedItems([]);
+      return;
+    }
+
+    setPostsLoading(true);
+    try {
+      const [postsRes, sharesRes] = await Promise.all([
+        supabase
+          .from('posts')
+          .select('*')
+          .eq('author_id', userId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('shares')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+      ]);
+
+      if (postsRes.error) throw postsRes.error;
+      if (sharesRes.error) throw sharesRes.error;
+
+      const posts = postsRes.data || [];
+      const shares = sharesRes.data || [];
+
+      const sharePostIds = shares.map(s => s.post_id);
+      const postsForShares = sharePostIds.length > 0
+        ? (await supabase.from('posts').select('*').in('id', sharePostIds).eq('status', 'active')).data || []
+        : [];
+
+      const combinedItems = [
+        ...posts.map(post => ({ type: 'post', data: post, timestamp: post.created_at })),
+        ...shares.map(share => {
+          const post = postsForShares.find(p => p.id === share.post_id);
+          return post ? {
+            type: 'share',
+            data: { share, post, sharer: user },
+            timestamp: share.created_at
+          } : null;
+        }).filter(item => item !== null)
+      ].sort((a, b) => new Date(b!.timestamp).getTime() - new Date(a!.timestamp).getTime());
+
+      setFeedItems(combinedItems);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
+  const fetchPhotos = async () => {
+    if (!userId || !canViewPhotos()) {
+      setPhotos([]);
+      return;
+    }
+
+    setPhotosLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('author_id', userId)
+        .eq('status', 'active')
+        .not('media_urls', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const photosData = (data || []).filter(post =>
+        post.media_urls && post.media_urls.length > 0
+      );
+
+      setPhotos(photosData);
+    } catch (error) {
+      console.error('Error fetching photos:', error);
+    } finally {
+      setPhotosLoading(false);
+    }
   };
 
   const getFriendshipButton = () => {
@@ -406,23 +521,148 @@ export default function PublicUserProfile() {
               )}
             </div>
 
-            {user.interests && (
+            {user.interests && (Array.isArray(user.interests) ? user.interests.length > 0 : user.interests) && (
               <div className="pt-4 border-t border-gray-200">
                 <h3 className="font-semibold text-gray-900 mb-2">Interests</h3>
-                <p className="text-gray-700">{user.interests}</p>
+                {Array.isArray(user.interests) ? (
+                  <div className="flex flex-wrap gap-2">
+                    {user.interests.map((interest, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium"
+                      >
+                        {interest}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-700">{user.interests}</p>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {friendship?.status === 'accepted' && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">About {user.display_name}</h2>
-          <p className="text-gray-600">
-            You are friends with {user.display_name}. Posts and updates will appear in your news feed.
-          </p>
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="border-b border-gray-200">
+          <nav className="flex">
+            <button
+              onClick={() => setActiveTab('posts')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'posts'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Posts
+            </button>
+            <button
+              onClick={() => setActiveTab('photos')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'photos'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Photos
+            </button>
+          </nav>
         </div>
+
+        {activeTab === 'posts' && (
+          <div className="p-6">
+            {!canViewPosts() ? (
+              <div className="text-center py-12">
+                <Lock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Posts are private</h3>
+                <p className="text-gray-600">
+                  {friendship?.status === 'accepted'
+                    ? `${user.display_name} has restricted who can view their posts.`
+                    : `Only friends can view ${user.display_name}'s posts.`}
+                </p>
+              </div>
+            ) : postsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : feedItems.length === 0 ? (
+              <div className="text-center py-12">
+                <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No posts yet</h3>
+                <p className="text-gray-600">{user.display_name} hasn't shared anything yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {feedItems.map((item) => (
+                  item.type === 'post' ? (
+                    <Post key={`post-${item.data.id}`} post={item.data} onUpdate={fetchPosts} />
+                  ) : (
+                    <SharedPost
+                      key={`share-${item.data.share.id}`}
+                      share={item.data.share}
+                      post={item.data.post}
+                      sharer={item.data.sharer}
+                      onUpdate={fetchPosts}
+                    />
+                  )
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'photos' && (
+          <div className="p-6">
+            {!canViewPhotos() ? (
+              <div className="text-center py-12">
+                <Lock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Photos are private</h3>
+                <p className="text-gray-600">
+                  {friendship?.status === 'accepted'
+                    ? `${user.display_name} has restricted who can view their photos.`
+                    : `Only friends can view ${user.display_name}'s photos.`}
+                </p>
+              </div>
+            ) : photosLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : photos.length === 0 ? (
+              <div className="text-center py-12">
+                <Image className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No photos yet</h3>
+                <p className="text-gray-600">{user.display_name} hasn't shared any photos yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {photos.flatMap(post =>
+                  post.media_urls.map((url: string, urlIndex: number) => (
+                    <div
+                      key={`${post.id}-${urlIndex}`}
+                      className="aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setSelectedMedia({ urls: post.media_urls, index: urlIndex })}
+                    >
+                      <img
+                        src={url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {selectedMedia && (
+        <MediaViewer
+          mediaUrls={selectedMedia.urls}
+          initialIndex={selectedMedia.index}
+          onClose={() => setSelectedMedia(null)}
+        />
       )}
     </div>
   );
