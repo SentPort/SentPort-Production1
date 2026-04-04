@@ -87,7 +87,7 @@ export default function ReactionPicker({ onReact, currentReaction }: ReactionPic
         <div
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-10"
+          className="absolute bottom-full right-0 mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-3 z-50"
         >
           <div className="flex gap-1">
             {reactions.map((reaction) => (
