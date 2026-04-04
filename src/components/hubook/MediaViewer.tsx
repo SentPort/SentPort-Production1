@@ -325,7 +325,7 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
           </div>
         </div>
 
-        <div className="p-4 bg-black bg-opacity-80">
+        <div className="p-4 bg-black bg-opacity-80 space-y-4">
           {editingCaption && canEdit ? (
             <div className="flex items-center gap-2 max-w-4xl mx-auto">
               <input
@@ -369,47 +369,48 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
               )}
             </div>
           )}
+
+          <div className="max-w-4xl mx-auto border-t border-white border-opacity-20 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-white text-sm">Reactions</h3>
+              {Object.keys(reactionCounts).length > 0 && (
+                <span className="text-sm text-gray-300">
+                  {Object.values(reactionCounts).reduce((a, b) => a + b, 0)} reactions
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <ReactionPicker
+                onReact={handleReaction}
+                currentReaction={currentReaction}
+              />
+              {Object.keys(reactionCounts).length > 0 && (
+                <div className="flex items-center gap-2 ml-2 flex-wrap">
+                  {Object.entries(reactionCounts).map(([type, count]) => {
+                    const reactionEmojis: Record<string, string> = {
+                      like: '👍',
+                      love: '❤️',
+                      laugh: '😂',
+                      wow: '😮',
+                      sad: '😢',
+                      angry: '😠',
+                      care: '🤗'
+                    };
+                    return (
+                      <div key={type} className="flex items-center gap-1 text-sm bg-white bg-opacity-10 px-2 py-1 rounded-full">
+                        <span>{reactionEmojis[type]}</span>
+                        <span className="text-white font-medium">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="w-96 bg-white overflow-y-auto">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Reactions</h3>
-            {Object.keys(reactionCounts).length > 0 && (
-              <span className="text-sm text-gray-500">
-                {Object.values(reactionCounts).reduce((a, b) => a + b, 0)} reactions
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <ReactionPicker
-              onReact={handleReaction}
-              currentReaction={currentReaction}
-            />
-            {Object.keys(reactionCounts).length > 0 && (
-              <div className="flex items-center gap-2 ml-2">
-                {Object.entries(reactionCounts).map(([type, count]) => {
-                  const reactionEmojis: Record<string, string> = {
-                    like: '👍',
-                    love: '❤️',
-                    laugh: '😂',
-                    wow: '😮',
-                    sad: '😢',
-                    angry: '😠',
-                    care: '🤗'
-                  };
-                  return (
-                    <div key={type} className="flex items-center gap-1 text-sm">
-                      <span>{reactionEmojis[type]}</span>
-                      <span className="text-gray-600">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
         <div className="p-4">
           <MediaCommentSection
             mediaId={currentMedia.id}
