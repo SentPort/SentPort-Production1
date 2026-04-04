@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, CheckCircle, XCircle, Globe, Calendar, Trash2, Shield, CreditCard as Edit2, Lock, Phone, ChevronDown, ChevronUp, Check, X, Eye, EyeOff, AlertCircle, Settings, Star } from 'lucide-react';
+import { Mail, CheckCircle, XCircle, Globe, Calendar, Trash2, Shield, CreditCard as Edit2, Lock, Phone, ChevronDown, ChevronUp, Check, X, Eye, EyeOff, AlertCircle, Settings, Star, User } from 'lucide-react';
 import DeleteAccountModal from './DeleteAccountModal';
 import SetPrimarySubdomainModal from './SetPrimarySubdomainModal';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,6 +48,15 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
   const [phoneError, setPhoneError] = useState('');
   const [phoneSuccess, setPhoneSuccess] = useState('');
 
+  // Name editing
+  const [editingName, setEditingName] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
+  const [nameSource, setNameSource] = useState<string | null>(null);
+
   // Last password change
   const [lastPasswordChange, setLastPasswordChange] = useState<string | null>(null);
 
@@ -55,6 +64,9 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
     if (userProfile) {
       setPhoneNumber(userProfile.phone_number || '');
       setLastPasswordChange(userProfile.last_password_change || null);
+      setFirstName(userProfile.first_name || '');
+      setLastName(userProfile.last_name || '');
+      setNameSource(userProfile.name_source || null);
     }
   }, [userProfile]);
 
@@ -199,6 +211,53 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
     }
   };
 
+  const handleNameUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNameLoading(true);
+    setNameError('');
+    setNameSuccess('');
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null
+        })
+        .eq('id', userProfile?.id);
+
+      if (error) throw error;
+
+      if (firstName.trim()) {
+        setNameSuccess('Your name has been updated!');
+      } else {
+        setNameSuccess('Your name has been cleared. Platform display names will be used as fallback.');
+      }
+      setEditingName(false);
+
+      await refreshProfile();
+      setTimeout(() => setNameSuccess(''), 5000);
+    } catch (error: any) {
+      setNameError(error.message || 'Failed to update name');
+    } finally {
+      setNameLoading(false);
+    }
+  };
+
+  const getNameSourceDisplay = (source: string | null) => {
+    if (!source) return null;
+    const sourceMap: Record<string, string> = {
+      'manual': 'Your custom name',
+      'hubook': 'HuBook',
+      'blog': 'HuBlog',
+      'heddit': 'Heddit',
+      'hinsta': 'Hinsta',
+      'switter': 'Switter',
+      'hutube': 'HuTube'
+    };
+    return sourceMap[source] || source;
+  };
+
   const formatPhoneDisplay = (phone: string) => {
     if (!phone) return '';
     const cleaned = phone.replace(/\D/g, '');
@@ -255,6 +314,96 @@ export default function MyProfile({ email, isVerified, subdomain, createdAt, ful
 
           {expandedSection === 'account' && (
             <div className="px-6 py-4 bg-gray-50 space-y-6">
+              {/* Display Name */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold text-gray-700">Display Name</label>
+                  {!editingName && (
+                    <button
+                      onClick={() => setEditingName(true)}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      {firstName ? 'Edit' : 'Add'}
+                    </button>
+                  )}
+                </div>
+                {!editingName ? (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-400" />
+                      <p className="text-gray-900">
+                        {fullName || 'No name set'}
+                      </p>
+                    </div>
+                    {nameSource && (
+                      <p className="text-xs text-gray-500 ml-6">
+                        {nameSource === 'manual'
+                          ? 'Using your custom name'
+                          : `Using name from ${getNameSourceDisplay(nameSource)}`}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <form onSubmit={handleNameUpdate} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="First name"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Last name (optional)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Your custom name takes priority over platform display names. Leave blank to use platform names as fallback.
+                    </p>
+                    {nameError && (
+                      <div className="text-sm text-red-600 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        {nameError}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={nameLoading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center gap-2"
+                      >
+                        <Check className="w-4 h-4" />
+                        {nameLoading ? 'Saving...' : 'Save Name'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingName(false);
+                          setFirstName(userProfile?.first_name || '');
+                          setLastName(userProfile?.last_name || '');
+                          setNameError('');
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
+                      >
+                        <X className="w-4 h-4" />
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {nameSuccess && (
+                  <div className="mt-2 text-sm text-green-600 flex items-center gap-2">
+                    <Check className="w-4 h-4" />
+                    {nameSuccess}
+                  </div>
+                )}
+              </div>
+
               {/* Email */}
               <div>
                 <div className="flex items-center justify-between mb-2">
