@@ -189,16 +189,11 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
       } else {
         const { error } = await supabase
           .from('album_media_reactions')
-          .upsert(
-            {
-              media_id: currentMedia.id,
-              user_id: user.id,
-              reaction_type: type
-            },
-            {
-              onConflict: 'user_id,media_id'
-            }
-          );
+          .upsert({
+            media_id: currentMedia.id,
+            user_id: user.id,
+            reaction_type: type
+          });
 
         if (error) throw error;
 
