@@ -414,7 +414,7 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
         </div>
       </div>
 
-      <div className="w-96 bg-white overflow-y-auto">
+      <div className="w-96 bg-white overflow-y-auto relative z-[60]">
         <div className="p-4">
           <MediaCommentSection
             mediaId={currentMedia.id}

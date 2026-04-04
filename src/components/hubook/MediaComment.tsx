@@ -304,7 +304,7 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
             </div>
           )}
 
-          <div className="flex items-center gap-3 mt-1 px-2">
+          <div className="flex items-center gap-3 mt-1 px-2 relative z-10">
             <ReactionPicker onReact={handleReact} currentReaction={currentReaction} />
 
             {!isReply && (
