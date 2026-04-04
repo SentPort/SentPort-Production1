@@ -507,11 +507,6 @@ export default function SearchResults() {
     console.log('[SearchResults] OpenSearch completed:', openSearchCompletedRef.current);
 
     if (suggestion !== query && isMountedRef.current) {
-      if (!openSearchCompletedRef.current) {
-        console.log('[SearchResults] OpenSearch not yet completed, waiting to accept panel suggestion');
-        return;
-      }
-
       setSpellSuggestions(currentSuggestions => {
         console.log('[SearchResults] Current spell suggestions:', currentSuggestions);
 
