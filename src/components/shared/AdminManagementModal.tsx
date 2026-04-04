@@ -48,15 +48,18 @@ export default function AdminManagementModal({ onClose }: AdminManagementModalPr
     return data;
   };
 
-  const updateAdminStatus = async (userId: string, isAdmin: boolean): Promise<void> => {
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ is_admin: isAdmin })
-      .eq('id', userId);
+  const updateAdminStatus = async (email: string, isAdmin: boolean): Promise<any> => {
+    const { data, error } = await supabase
+      .rpc('update_user_admin_status', {
+        target_email: email,
+        new_admin_status: isAdmin
+      });
 
     if (error) {
       throw error;
     }
+
+    return data;
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -77,55 +80,55 @@ export default function AdminManagementModal({ onClose }: AdminManagementModalPr
     setLoading(true);
 
     try {
-      const profile = await lookupUser(email.trim());
+      const trimmedEmail = email.trim();
+      const isAdding = mode === 'add';
 
-      if (!profile) {
-        setMessage({ type: 'error', text: 'No user found with this email address' });
+      const result = await updateAdminStatus(trimmedEmail, isAdding);
+
+      if (!result.success) {
+        switch (result.error) {
+          case 'unauthorized':
+            setMessage({ type: 'error', text: result.message });
+            break;
+          case 'forbidden':
+            setMessage({ type: 'error', text: result.message });
+            break;
+          case 'not_found':
+            setMessage({ type: 'error', text: result.message });
+            break;
+          case 'email_not_verified':
+            setMessage({ type: 'error', text: result.message });
+            break;
+          case 'already_admin':
+            setMessage({ type: 'info', text: result.message });
+            break;
+          case 'not_admin':
+            setMessage({ type: 'info', text: result.message });
+            break;
+          case 'auth_record_missing':
+            setMessage({ type: 'error', text: result.message });
+            break;
+          default:
+            setMessage({ type: 'error', text: result.message || 'An error occurred. Please try again.' });
+        }
         setLoading(false);
         return;
       }
 
-      setUserProfile(profile);
-
-      if (mode === 'add') {
-        if (profile.is_admin) {
-          setMessage({ type: 'info', text: 'This user is already an admin' });
-          setLoading(false);
-          return;
-        }
-
-        await updateAdminStatus(profile.id, true);
-
-        if (!profile.is_verified) {
-          setMessage({
-            type: 'warning',
-            text: `Admin privileges granted successfully! Note: ${profile.email} is not verified. Please remind them to complete verification.`
-          });
-        } else {
-          setMessage({
-            type: 'success',
-            text: `Admin privileges granted successfully to ${profile.email}!`
-          });
-        }
-
-        setEmail('');
-        setUserProfile(null);
-      } else {
-        if (!profile.is_admin) {
-          setMessage({ type: 'info', text: 'This user is not currently an admin' });
-          setLoading(false);
-          return;
-        }
-
-        await updateAdminStatus(profile.id, false);
+      if (result.user?.auto_verified) {
         setMessage({
           type: 'success',
-          text: `Admin privileges removed successfully from ${profile.email}!`
+          text: `Admin privileges granted and account verified successfully for ${trimmedEmail}!`
         });
-
-        setEmail('');
-        setUserProfile(null);
+      } else {
+        setMessage({
+          type: 'success',
+          text: result.message
+        });
       }
+
+      setEmail('');
+      setUserProfile(null);
     } catch (error) {
       console.error('Error managing admin:', error);
       setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
