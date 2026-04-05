@@ -174,6 +174,9 @@ export default function WebCrawlerDashboard() {
   const performHealthCheck = useCallback(async (): Promise<boolean> => {
     try {
       console.log('[WebCrawlerDashboard] Performing health check...');
+      console.log('[WebCrawlerDashboard] Current user:', user?.id);
+      console.log('[WebCrawlerDashboard] Is admin:', isAdmin);
+      console.log('[WebCrawlerDashboard] Auth session:', await supabase.auth.getSession());
 
       // Simple query to test RLS and function availability
       const healthResult = await withRetry(() =>
@@ -185,20 +188,30 @@ export default function WebCrawlerDashboard() {
       );
 
       if (healthResult.error) {
-        console.error('[WebCrawlerDashboard] Health check failed:', healthResult.error);
+        console.error('[WebCrawlerDashboard] ❌ Health check failed!');
+        console.error('[WebCrawlerDashboard] Error object:', JSON.stringify(healthResult.error, null, 2));
+        console.error('[WebCrawlerDashboard] Error code:', healthResult.error.code);
+        console.error('[WebCrawlerDashboard] Error message:', healthResult.error.message);
+        console.error('[WebCrawlerDashboard] Error details:', healthResult.error.details);
+        console.error('[WebCrawlerDashboard] Error hint:', healthResult.error.hint);
+        console.error('[WebCrawlerDashboard] Full response:', healthResult);
         return false;
       }
 
-      console.log('[WebCrawlerDashboard] Health check passed');
+      console.log('[WebCrawlerDashboard] ✅ Health check passed');
+      console.log('[WebCrawlerDashboard] Response:', healthResult);
       return true;
     } catch (error) {
-      console.error('[WebCrawlerDashboard] Health check exception:', error);
+      console.error('[WebCrawlerDashboard] ❌ Health check exception:', error);
+      console.error('[WebCrawlerDashboard] Exception type:', error?.constructor?.name);
+      console.error('[WebCrawlerDashboard] Exception details:', JSON.stringify(error, null, 2));
       return false;
     }
-  }, []);
+  }, [user?.id, isAdmin]);
 
   const fetchStats = useCallback(async () => {
     try {
+      console.log('[fetchStats] Starting stats fetch...');
       const completedResult = await withRetry(() =>
         supabase
           .from('crawler_queue')
@@ -207,10 +220,15 @@ export default function WebCrawlerDashboard() {
       );
 
       if (completedResult.error) {
+        console.error('[fetchStats] ❌ Completed count query failed!');
+        console.error('[fetchStats] Error:', JSON.stringify(completedResult.error, null, 2));
+        console.error('[fetchStats] Code:', completedResult.error.code);
+        console.error('[fetchStats] Message:', completedResult.error.message);
         if (handleDatabaseError(completedResult.error, 'fetching completed count')) return;
         console.error('Error fetching completed count:', completedResult.error);
         return;
       }
+      console.log('[fetchStats] ✅ Completed count:', completedResult.count);
 
       const failedResult = await withRetry(() =>
         supabase
