@@ -167,3 +167,11 @@ CREATE POLICY "Post owner or admin can delete views"
   FOR DELETE
   TO authenticated
   USING (EXISTS (SELECT 1 FROM blog_posts WHERE blog_posts.id = blog_views.post_id AND (blog_posts.account_id = auth.uid() OR is_user_admin(auth.uid()))));
+
+-- Grant execute permissions to all roles
+GRANT EXECUTE ON FUNCTION is_user_admin(uuid) TO authenticated, anon, service_role;
+
+-- Force PostgREST to reload its schema cache
+-- This is critical after DROP...CASCADE operations that recreate functions
+NOTIFY pgrst, 'reload schema';
+NOTIFY pgrst, 'reload config';
