@@ -4,7 +4,6 @@ import { Settings as SettingsIcon, Save, Loader2, Bell, Mail, Clock, RotateCcw }
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
-import HuBookLayout from '../../components/hubook/HuBookLayout';
 
 interface NotificationPreferences {
   friend_requests_enabled: boolean;
@@ -141,19 +140,16 @@ export default function NotificationSettingsPage() {
   if (loading) {
     return (
       <PlatformGuard platform="hubook">
-        <HuBookLayout>
-          <div className="flex items-center justify-center min-h-screen">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-          </div>
-        </HuBookLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
       </PlatformGuard>
     );
   }
 
   return (
     <PlatformGuard platform="hubook">
-      <HuBookLayout>
-        <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <SettingsIcon className="text-blue-600" size={32} />
@@ -503,7 +499,6 @@ export default function NotificationSettingsPage() {
             </div>
           </div>
         </div>
-      </HuBookLayout>
     </PlatformGuard>
   );
 }
