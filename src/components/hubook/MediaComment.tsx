@@ -231,7 +231,7 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
                   </button>
 
                   {showMenu && (
-                    <div className="absolute left-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 text-sm">
+                    <div className="absolute left-0 bottom-full mb-1 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10 text-sm">
                       <button
                         onClick={() => {
                           setIsEditing(true);
