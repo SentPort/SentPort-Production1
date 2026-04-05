@@ -160,13 +160,13 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
       const albumNameMatch = content.match(/to (.+)$/);
       if (albumNameMatch && albumNameMatch[1]) {
         const albumName = albumNameMatch[1];
-        // Get everything up to (but not including) "to [Album Name]"
+        // Get everything up to and including "to " (but not the album name)
         const toIndex = content.lastIndexOf('to ');
-        const beforeTo = content.substring(0, toIndex);
+        const beforeAlbumName = content.substring(0, toIndex + 3);
 
         return (
           <span>
-            {beforeTo}to{' '}
+            {beforeAlbumName}
             <button
               onClick={(e) => {
                 e.stopPropagation();
