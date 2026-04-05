@@ -157,16 +157,14 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
     // Check if this is an album upload post
     if (post.source_type === 'album_upload' && post.source_album_id) {
       // Parse album name from content (format: "added X photo(s)/video(s) to [Album Name]")
-      const albumNameMatch = content.match(/to (.+)$/);
-      if (albumNameMatch && albumNameMatch[1]) {
-        const albumName = albumNameMatch[1];
-        // Get everything up to and including "to " (but not the album name)
-        const toIndex = content.lastIndexOf('to ');
-        const beforeAlbumName = content.substring(0, toIndex + 3);
+      const albumNameMatch = content.match(/^(.+?) to (.+)$/);
+      if (albumNameMatch) {
+        const textBeforeTo = albumNameMatch[1]; // e.g., "added a photo"
+        const albumName = albumNameMatch[2]; // e.g., "My Photos"
 
         return (
           <span>
-            {beforeAlbumName}
+            {textBeforeTo} to{' '}
             <button
               onClick={(e) => {
                 e.stopPropagation();
