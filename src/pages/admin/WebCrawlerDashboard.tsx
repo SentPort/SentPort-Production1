@@ -120,6 +120,8 @@ export default function WebCrawlerDashboard() {
   const [linkCollectionEnabled, setLinkCollectionEnabled] = useState<boolean | null>(null);
   const [togglingLinkCollection, setTogglingLinkCollection] = useState(false);
   const [showContentTypeRulesManager, setShowContentTypeRulesManager] = useState(false);
+  const [databaseHealthy, setDatabaseHealthy] = useState<boolean>(true);
+  const [healthCheckAttempts, setHealthCheckAttempts] = useState(0);
 
   // Track user ID to prevent unnecessary reloads on auth token refresh
   const lastUserIdRef = useRef<string | null>(null);
@@ -167,6 +169,33 @@ export default function WebCrawlerDashboard() {
 
     return false;
   }, [user?.id, isAdmin]);
+
+  // Health check to verify database connectivity and RLS policies
+  const performHealthCheck = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log('[WebCrawlerDashboard] Performing health check...');
+
+      // Simple query to test RLS and function availability
+      const healthResult = await withRetry(() =>
+        supabase
+          .from('crawler_queue')
+          .select('id', { count: 'exact', head: true })
+          .limit(1),
+        { maxRetries: 2, initialDelayMs: 500 }
+      );
+
+      if (healthResult.error) {
+        console.error('[WebCrawlerDashboard] Health check failed:', healthResult.error);
+        return false;
+      }
+
+      console.log('[WebCrawlerDashboard] Health check passed');
+      return true;
+    } catch (error) {
+      console.error('[WebCrawlerDashboard] Health check exception:', error);
+      return false;
+    }
+  }, []);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -669,12 +698,28 @@ export default function WebCrawlerDashboard() {
         loadingDataRef.current = true;
 
         try {
+          // Perform health check first
+          const isHealthy = await performHealthCheck();
+          setDatabaseHealthy(isHealthy);
+
+          if (!isHealthy) {
+            setHealthCheckAttempts(prev => prev + 1);
+            console.warn('[WebCrawlerDashboard] Health check failed, will retry on next load');
+            // Don't throw - let the component show a helpful message
+            // The retry logic in individual queries will handle transient errors
+          }
+
           await fetchStats();
           await fetchQueueStatusCounts();
           await fetchQueueItems();
           await fetchCrawlerHistory();
           await fetchAutoCrawlerStatus();
           await fetchLinkCollectionStatus();
+
+          // If we got here successfully, reset health check attempts
+          if (isHealthy) {
+            setHealthCheckAttempts(0);
+          }
         } finally {
           loadingDataRef.current = false;
         }
@@ -685,7 +730,7 @@ export default function WebCrawlerDashboard() {
       setCurrentPage(1);
       setPageInput('1');
     }
-  }, [user?.id, isAdmin, sessionExpired, fetchStats, fetchQueueStatusCounts, fetchQueueItems, fetchCrawlerHistory, fetchAutoCrawlerStatus, fetchLinkCollectionStatus]);
+  }, [user?.id, isAdmin, sessionExpired, performHealthCheck, fetchStats, fetchQueueStatusCounts, fetchQueueItems, fetchCrawlerHistory, fetchAutoCrawlerStatus, fetchLinkCollectionStatus]);
 
   // Handle filter changes (separate from auth changes)
   useEffect(() => {
@@ -1599,6 +1644,21 @@ export default function WebCrawlerDashboard() {
               >
                 ×
               </button>
+            </div>
+          </div>
+        )}
+
+        {!databaseHealthy && healthCheckAttempts > 0 && (
+          <div className="mb-6 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 animate-pulse" />
+              <div className="flex-1">
+                <p className="text-yellow-300 font-medium">Database Connection Issue</p>
+                <p className="text-yellow-200/80 text-sm mt-1">
+                  The database may be updating or experiencing temporary connectivity issues.
+                  The system will automatically retry. If this persists, try refreshing the page.
+                </p>
+              </div>
             </div>
           </div>
         )}

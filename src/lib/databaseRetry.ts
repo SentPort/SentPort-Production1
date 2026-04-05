@@ -22,9 +22,24 @@ function isTransientAuthError(error: any): boolean {
 
   const errorMessage = error.message?.toLowerCase() || '';
   const errorCode = error.code || '';
+  const errorDetails = error.details || '';
+  const errorHint = error.hint || '';
+
+  // Empty error messages from HTTP 500 are likely PostgREST caching issues
+  // Treat as transient to allow retry during schema updates or connection pool resets
+  if (!errorMessage && !errorDetails && !errorHint && !errorCode) {
+    console.warn('[databaseRetry] Empty error detected (likely PostgREST cache issue), treating as transient');
+    return true;
+  }
 
   // RLS/permission errors during token refresh
   if (errorCode === 'PGRST301') return true;
+
+  // HTTP 500 errors are often transient (database restarts, schema updates, connection pool issues)
+  if (errorCode === '500' || error.status === 500 || errorCode === 'PGRST000') {
+    console.warn('[databaseRetry] HTTP 500 error detected, treating as transient');
+    return true;
+  }
 
   // Common transient auth errors
   const transientPatterns = [
@@ -35,6 +50,9 @@ function isTransientAuthError(error: any): boolean {
     'authentication',
     'not authenticated',
     'session',
+    'function does not exist',
+    'connection',
+    'timeout',
   ];
 
   return transientPatterns.some(pattern => errorMessage.includes(pattern));
@@ -99,6 +117,17 @@ export async function withRetry<T>(
       }
 
       lastError = result.error;
+
+      // Log detailed error information for debugging
+      if (attempt === 0) {
+        console.error('[databaseRetry] Query error details:', {
+          message: result.error.message || '(empty)',
+          code: result.error.code || '(none)',
+          details: result.error.details || '(none)',
+          hint: result.error.hint || '(none)',
+          status: result.error.status || '(none)',
+        });
+      }
 
       // If it's a permanent error, don't retry
       if (isPermanentSessionError(result.error)) {
