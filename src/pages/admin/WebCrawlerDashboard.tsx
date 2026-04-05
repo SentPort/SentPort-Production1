@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isAuthError, getErrorMessage, logAuthDebug } from '../../lib/authHelpers';
 import { normalizeUrl } from '../../lib/urlHelpers';
 import { withRetry, isPermanentSessionError } from '../../lib/databaseRetry';
+import { fetchCrawlerQueueCountsWithFallback } from '../../lib/crawlerAdminHelpers';
 import Header from '../../components/Header';
 import SessionExpiredModal from '../../components/shared/SessionExpiredModal';
 import ContentTypeRulesManager from '../../components/admin/ContentTypeRulesManager';
@@ -211,59 +212,24 @@ export default function WebCrawlerDashboard() {
 
   const fetchStats = useCallback(async () => {
     try {
-      console.log('[fetchStats] Starting stats fetch...');
-      const completedResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'completed')
-      );
+      console.log('[fetchStats] Starting stats fetch with admin bypass fallback...');
 
-      if (completedResult.error) {
-        console.error('[fetchStats] ❌ Completed count query failed!');
-        console.error('[fetchStats] Error:', JSON.stringify(completedResult.error, null, 2));
-        console.error('[fetchStats] Code:', completedResult.error.code);
-        console.error('[fetchStats] Message:', completedResult.error.message);
-        if (handleDatabaseError(completedResult.error, 'fetching completed count')) return;
-        console.error('Error fetching completed count:', completedResult.error);
-        return;
+      const { counts, usedFallback } = await fetchCrawlerQueueCountsWithFallback();
+
+      if (usedFallback) {
+        console.log('[fetchStats] ✅ Used admin bypass function due to RLS issues');
+      } else {
+        console.log('[fetchStats] ✅ Direct query succeeded');
       }
-      console.log('[fetchStats] ✅ Completed count:', completedResult.count);
-
-      const failedResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'failed')
-      );
-
-      if (failedResult.error) {
-        if (handleDatabaseError(failedResult.error, 'fetching failed count')) return;
-        console.error('Error fetching failed count:', failedResult.error);
-        return;
-      }
-
-      const pendingResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending')
-      );
-
-      if (pendingResult.error) {
-        if (handleDatabaseError(pendingResult.error, 'fetching pending count')) return;
-        console.error('Error fetching pending count:', pendingResult.error);
-        return;
-      }
-
-      const totalCrawled = (completedResult.count || 0) + (failedResult.count || 0);
 
       setStats({
-        total_crawled: totalCrawled,
-        successful: completedResult.count || 0,
-        failed: failedResult.count || 0,
-        in_queue: pendingResult.count || 0
+        total_crawled: counts.completed_count + counts.failed_count,
+        successful: counts.completed_count,
+        failed: counts.failed_count,
+        in_queue: counts.pending_count
       });
+
+      console.log('[fetchStats] Stats updated:', counts);
     } catch (error) {
       console.error('Exception in fetchStats:', error);
     }
@@ -271,53 +237,22 @@ export default function WebCrawlerDashboard() {
 
   const fetchQueueStatusCounts = useCallback(async () => {
     try {
-      const pendingResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending')
-      );
+      console.log('[fetchQueueStatusCounts] Starting with admin bypass fallback...');
 
-      if (pendingResult.error) {
-        console.error('Error fetching pending count:', pendingResult.error);
-        return;
+      const { counts, usedFallback } = await fetchCrawlerQueueCountsWithFallback();
+
+      if (usedFallback) {
+        console.log('[fetchQueueStatusCounts] Used admin bypass function due to RLS issues');
+      } else {
+        console.log('[fetchQueueStatusCounts] Direct query succeeded');
       }
 
-      const processingResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'processing')
-      );
-
-      if (processingResult.error) {
-        console.error('Error fetching processing count:', processingResult.error);
-        return;
-      }
-
-      const completedResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'completed')
-      );
-
-      if (completedResult.error) {
-        console.error('Error fetching completed count:', completedResult.error);
-        return;
-      }
-
-      const failedResult = await withRetry(() =>
-        supabase
-          .from('crawler_queue')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'failed')
-      );
-
-      if (failedResult.error) {
-        console.error('Error fetching failed count:', failedResult.error);
-        return;
-      }
+      setQueueStatusCounts({
+        pending: counts.pending_count,
+        processing: 0,
+        completed: counts.completed_count,
+        failed: counts.failed_count
+      });
 
       const priorityCrawlResult = await withRetry(() =>
         supabase
@@ -333,12 +268,6 @@ export default function WebCrawlerDashboard() {
         setPriorityCrawlCount(priorityCrawlResult.count || 0);
       }
 
-      setQueueStatusCounts({
-        pending: pendingResult.count || 0,
-        processing: processingResult.count || 0,
-        completed: completedResult.count || 0,
-        failed: failedResult.count || 0
-      });
     } catch (error) {
       console.error('Exception in fetchQueueStatusCounts:', error);
     }
