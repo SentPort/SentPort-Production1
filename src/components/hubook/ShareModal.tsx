@@ -50,7 +50,8 @@ export default function ShareModal({ post, author, media = [], onClose, onSucces
         user_id: hubookProfile.id,
         post_id: post.id,
         shared_to: 'feed',
-        share_text: shareComment.trim() || null
+        share_comment: shareComment.trim() || null,
+        privacy: sharePrivacy
       });
 
       if (shareError) {
