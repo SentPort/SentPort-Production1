@@ -34,31 +34,33 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
-            table: 'notifications',
+            table: 'hubook_notifications',
             filter: `user_id=eq.${hubookProfile.id}`
           },
           async (payload) => {
             // Refetch notification count when any notification changes
             fetchNotificationCount();
 
-            // Show toast for new notifications
-            const newNotification = payload.new;
+            // Show toast for new notifications if it's an INSERT event
+            if (payload.eventType === 'INSERT') {
+              const newNotification = payload.new;
 
-            // Fetch user data for the notification
-            if (newNotification.related_user_id) {
-              const { data: userData } = await supabase
-                .from('hubook_profiles')
-                .select('display_name, profile_photo_url')
-                .eq('id', newNotification.related_user_id)
-                .single();
+              // Fetch user data for the notification
+              if (newNotification.actor_id) {
+                const { data: userData } = await supabase
+                  .from('hubook_profiles')
+                  .select('display_name, profile_photo_url')
+                  .eq('id', newNotification.actor_id)
+                  .single();
 
-              if (userData) {
-                setNotificationToasts(prev => [...prev, {
-                  notification: newNotification,
-                  user: userData
-                }]);
+                if (userData) {
+                  setNotificationToasts(prev => [...prev, {
+                    notification: newNotification,
+                    user: userData
+                  }]);
+                }
               }
             }
           }
@@ -117,10 +119,11 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
     if (!hubookProfile) return;
 
     const { count } = await supabase
-      .from('notifications')
+      .from('hubook_notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', hubookProfile.id)
-      .eq('is_read', false);
+      .eq('read', false)
+      .eq('dismissed', false);
 
     setUnreadNotifications(count || 0);
   };
