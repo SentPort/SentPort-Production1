@@ -317,19 +317,47 @@ export default function PublicUserProfile() {
 
     setPhotosLoading(true);
     try {
+      // Fetch posts that have albums with media
       const { data, error } = await supabase
         .from('posts')
-        .select('*')
+        .select(`
+          id,
+          content,
+          created_at,
+          source_album_id,
+          hubook_albums!posts_source_album_id_fkey (
+            id,
+            album_media (
+              id,
+              media_url,
+              media_type,
+              caption,
+              display_order
+            )
+          )
+        `)
         .eq('author_id', userId)
         .eq('status', 'active')
-        .not('media_urls', 'is', null)
+        .not('source_album_id', 'is', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const photosData = (data || []).filter(post =>
-        post.media_urls && post.media_urls.length > 0
-      );
+      // Transform data to include media_urls array for compatibility
+      const photosData = (data || [])
+        .filter(post => {
+          const albums = post.hubook_albums as any;
+          return albums && albums.album_media && albums.album_media.length > 0;
+        })
+        .map(post => {
+          const albums = post.hubook_albums as any;
+          return {
+            ...post,
+            media_urls: albums.album_media
+              .sort((a: any, b: any) => a.display_order - b.display_order)
+              .map((media: any) => media.media_url)
+          };
+        });
 
       setPhotos(photosData);
     } catch (error) {
