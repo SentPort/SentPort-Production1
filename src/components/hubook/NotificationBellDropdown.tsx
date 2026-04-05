@@ -174,11 +174,11 @@ export default function NotificationBellDropdown() {
       case 'friend_accepted':
         return <UserPlus size={16} className="text-blue-600" />;
       case 'comment':
-      case 'reply':
+      case 'comment_reply':
       case 'album_media_comment':
-      case 'album_media_comment_reply':
         return <MessageCircle size={16} className="text-green-600" />;
       case 'reaction':
+      case 'album_media_reaction':
         return <Heart size={16} className="text-red-600" />;
       case 'share':
         return <Share2 size={16} className="text-purple-600" />;

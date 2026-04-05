@@ -205,9 +205,11 @@ export default function NotificationsPage() {
       case 'friend_accepted':
         return <UserPlus size={16} className="text-blue-600" />;
       case 'comment':
-      case 'reply':
+      case 'comment_reply':
+      case 'album_media_comment':
         return <MessageCircle size={16} className="text-green-600" />;
       case 'reaction':
+      case 'album_media_reaction':
         return <Heart size={16} className="text-red-600" />;
       case 'share':
         return <Share2 size={16} className="text-purple-600" />;
@@ -253,10 +255,10 @@ export default function NotificationsPage() {
         filtered = notifications.filter(n => n.type === 'friend_request' || n.type === 'friend_accepted');
         break;
       case 'comments':
-        filtered = notifications.filter(n => n.type === 'comment' || n.type === 'reply');
+        filtered = notifications.filter(n => n.type === 'comment' || n.type === 'comment_reply' || n.type === 'album_media_comment');
         break;
       case 'reactions':
-        filtered = notifications.filter(n => n.type === 'reaction');
+        filtered = notifications.filter(n => n.type === 'reaction' || n.type === 'album_media_reaction');
         break;
       case 'shares':
         filtered = notifications.filter(n => n.type === 'share');

@@ -6,6 +6,7 @@ import MediaCommentSection from './MediaCommentSection';
 import ReactionPicker, { ReactionType } from './ReactionPicker';
 import { useAuth } from '../../contexts/AuthContext';
 import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
+import PhotoTagging from './PhotoTagging';
 
 interface Media {
   id: string;
@@ -436,6 +437,17 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
               )}
             </div>
           </div>
+
+          {currentMedia.media_type === 'photo' && (
+            <div className="max-w-4xl mx-auto border-t border-white border-opacity-20 pt-4">
+              <div className="bg-white bg-opacity-10 rounded-lg p-3">
+                <PhotoTagging
+                  mediaId={currentMedia.id}
+                  canTag={canEdit || canComment}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
