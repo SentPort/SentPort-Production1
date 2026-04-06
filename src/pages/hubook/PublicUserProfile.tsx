@@ -374,7 +374,7 @@ export default function PublicUserProfile() {
           content,
           created_at,
           source_album_id,
-          hubook_albums!posts_source_album_id_fkey (
+          albums!posts_source_album_id_fkey (
             id,
             album_media (
               id,
@@ -395,11 +395,11 @@ export default function PublicUserProfile() {
       // Transform data to include media_urls array for compatibility
       const photosData = (data || [])
         .filter(post => {
-          const albums = post.hubook_albums as any;
+          const albums = post.albums as any;
           return albums && albums.album_media && albums.album_media.length > 0;
         })
         .map(post => {
-          const albums = post.hubook_albums as any;
+          const albums = post.albums as any;
           return {
             ...post,
             media_urls: albums.album_media
