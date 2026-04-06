@@ -41,6 +41,8 @@ export default function MessagesPage() {
         return;
       }
 
+      setSelectedConversation(conversationParam);
+
       const fetchConversationWithRetry = async (attempt = 0): Promise<boolean> => {
         const { data: specificConversation, error: convError } = await supabase
           .from('conversation_participants')
@@ -73,7 +75,6 @@ export default function MessagesPage() {
             });
           }
 
-          setSelectedConversation(conversationParam);
           return true;
         }
 
@@ -87,13 +88,12 @@ export default function MessagesPage() {
         return false;
       };
 
-      const success = await fetchConversationWithRetry();
-
-      if (!success) {
-        console.error('Failed to load conversation after retries');
-      }
-
-      setLoadingNewConversation(false);
+      fetchConversationWithRetry().then(success => {
+        if (!success) {
+          console.log('Conversation details loading in background, but message input is ready');
+        }
+        setLoadingNewConversation(false);
+      });
     };
 
     handleConversationParam();
