@@ -82,7 +82,7 @@ export default function Friends() {
     await createFriendAcceptedNotification(
       requesterId,
       hubookProfile.id,
-      hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+      hubookProfile.display_name || 'Someone'
     );
 
     fetchFriends();

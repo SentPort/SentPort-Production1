@@ -152,7 +152,7 @@ export default function PublicUserProfile() {
         await createFriendRequestNotification(
           userId,
           hubookProfile.id,
-          hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+          hubookProfile.display_name || 'Someone'
         );
 
         setSuccessMessage('Friend request sent successfully!');
@@ -190,7 +190,7 @@ export default function PublicUserProfile() {
     await createFriendAcceptedNotification(
       friendship.requester_id,
       hubookProfile.id,
-      hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+      hubookProfile.display_name || 'Someone'
     );
 
     fetchFriendship();
