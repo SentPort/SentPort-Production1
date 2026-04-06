@@ -43,19 +43,25 @@ export default function PublicUserProfile() {
   }, [userId, hubookProfile]);
 
   useEffect(() => {
-    if (userId && privacySettings && friendship !== undefined) {
+    if (userId && user && privacySettings && friendship !== undefined) {
       fetchPosts();
       fetchPhotos();
       fetchAlbums();
     }
-  }, [userId, privacySettings, friendship]);
+  }, [userId, user, privacySettings, friendship]);
 
   const fetchUser = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('hubook_profiles')
       .select('*')
       .eq('id', userId)
       .single();
+
+    if (error || !data) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
 
     setUser(data);
     setLoading(false);

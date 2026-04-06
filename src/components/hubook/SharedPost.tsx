@@ -87,6 +87,8 @@ export default function SharedPost({ share, post, sharer, onUpdate }: SharedPost
 
   const isOwnShare = hubookProfile?.id === share.user_id;
 
+  if (!sharer) return null;
+
   return (
     <div className="bg-white rounded-lg shadow-sm mb-4">
       <div className="px-4 pt-4 pb-2 border-b border-gray-100">
