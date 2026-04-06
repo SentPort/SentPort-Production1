@@ -24,6 +24,32 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
   const [showMediaUploader, setShowMediaUploader] = useState(false);
   const hadContentRef = useRef(false);
   const mountPathRef = useRef(location.pathname);
+  const privacyLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const loadUserPrivacyDefault = async () => {
+      if (!hubookProfile || privacyLoadedRef.current) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_privacy_settings')
+          .select('post_visibility_default')
+          .eq('user_id', hubookProfile.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data && data.post_visibility_default) {
+          setPrivacy(data.post_visibility_default as 'public' | 'friends' | 'private');
+        }
+        privacyLoadedRef.current = true;
+      } catch (error) {
+        console.error('Error loading privacy default:', error);
+      }
+    };
+
+    loadUserPrivacyDefault();
+  }, [hubookProfile]);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -31,7 +57,9 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
       try {
         const data = JSON.parse(saved);
         setContent(data.content || '');
-        setPrivacy(data.privacy || 'public');
+        if (data.privacy) {
+          setPrivacy(data.privacy);
+        }
         setMediaUrls(data.mediaUrls || []);
         if (data.mediaUrls && data.mediaUrls.length > 0) {
           setShowMediaUploader(true);
@@ -112,8 +140,16 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
       sessionStorage.removeItem(STORAGE_KEY);
       setContent('');
       setMediaUrls([]);
-      setPrivacy('public');
       setShowMediaUploader(false);
+
+      const { data } = await supabase
+        .from('user_privacy_settings')
+        .select('post_visibility_default')
+        .eq('user_id', hubookProfile.id)
+        .maybeSingle();
+
+      setPrivacy(data?.post_visibility_default || 'public');
+
       await onPostCreated?.();
     } catch (error) {
       console.error('Error creating post:', error);

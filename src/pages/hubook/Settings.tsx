@@ -489,7 +489,7 @@ export default function Settings() {
                 <option value="friends">Friends - Only friends can see</option>
                 <option value="private">Private - Only me</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">Choose the default visibility for new posts</p>
+              <p className="text-xs text-gray-500 mt-1">This sets the initial privacy level when creating new posts. You can change it for individual posts using the dropdown next to the Post button.</p>
             </div>
           </div>
 
