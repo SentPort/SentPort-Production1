@@ -197,64 +197,26 @@ export default function PublicUserProfile() {
     setSuccessMessage(null);
 
     try {
-      const { data: existingConversations } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', hubookProfile.id);
+      const { data: conversationId, error } = await supabase
+        .rpc('find_or_create_conversation', {
+          user_a_id: userId,
+          user_b_id: hubookProfile.id
+        });
 
-      if (existingConversations) {
-        for (const conv of existingConversations) {
-          const { data: participants } = await supabase
-            .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conv.conversation_id);
-
-          if (participants?.length === 2) {
-            const userIds = participants.map(p => p.user_id);
-            if (userIds.includes(hubookProfile.id) && userIds.includes(userId)) {
-              navigate(`/hubook/messages?conversation=${conv.conversation_id}`);
-              setMessageLoading(false);
-              return;
-            }
-          }
+      if (error) {
+        console.error('Conversation error:', error);
+        if (error.message.includes('permission to message')) {
+          setErrorMessage('This user has restricted who can message them.');
+        } else {
+          setErrorMessage('Failed to start conversation. Please try again.');
         }
-      }
-
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
-        .insert({})
-        .select()
-        .single();
-
-      if (convError) {
-        console.error('Conversation creation error:', convError);
-        setErrorMessage('Failed to create conversation. Please try again.');
         setTimeout(() => setErrorMessage(null), 5000);
         setMessageLoading(false);
         return;
       }
 
-      if (newConv) {
-        const { error: participantError } = await supabase
-          .from('conversation_participants')
-          .insert([
-            { conversation_id: newConv.id, user_id: hubookProfile.id },
-            { conversation_id: newConv.id, user_id: userId }
-          ]);
-
-        if (participantError) {
-          console.error('Participant error:', participantError);
-          if (participantError.message.includes('can_message_user') ||
-              participantError.message.includes('messaging privacy')) {
-            setErrorMessage('This user has restricted who can message them.');
-          } else {
-            setErrorMessage('Failed to start conversation. Please try again.');
-          }
-          setTimeout(() => setErrorMessage(null), 5000);
-          setMessageLoading(false);
-        } else {
-          navigate(`/hubook/messages?conversation=${newConv.id}`);
-        }
+      if (conversationId) {
+        navigate(`/hubook/messages?conversation=${conversationId}`);
       }
     } catch (err) {
       console.error('Unexpected error starting conversation:', err);
