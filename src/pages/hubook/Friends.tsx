@@ -110,7 +110,7 @@ export default function Friends() {
       }
 
       if (conversationId) {
-        navigate(`/hubook/messages?conversation=${conversationId}`);
+        navigate(`/hubook/messages?conversation=${conversationId}&recipient=${friendId}`);
       }
     } catch (err) {
       console.error('Unexpected error starting conversation:', err);

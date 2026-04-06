@@ -216,7 +216,7 @@ export default function PublicUserProfile() {
       }
 
       if (conversationId) {
-        navigate(`/hubook/messages?conversation=${conversationId}`);
+        navigate(`/hubook/messages?conversation=${conversationId}&recipient=${userId}`);
       }
     } catch (err) {
       console.error('Unexpected error starting conversation:', err);

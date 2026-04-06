@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Send } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Send, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useHuBook } from '../../contexts/HuBookContext';
@@ -9,11 +9,13 @@ import { SearchWithHistory } from '../../components/shared/SearchWithHistory';
 export default function MessagesPage() {
   const [searchParams] = useSearchParams();
   const conversationParam = searchParams.get('conversation');
+  const recipientParam = searchParams.get('recipient');
   const { user } = useAuth();
   const { hubookProfile } = useHuBook();
   const [conversations, setConversations] = useState<any[]>([]);
   const [conversationParticipants, setConversationParticipants] = useState<Map<string, any[]>>(new Map());
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [recipientProfile, setRecipientProfile] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,27 @@ export default function MessagesPage() {
       loadConversations();
     }
   }, [user]);
+
+  useEffect(() => {
+    const loadRecipientProfile = async () => {
+      if (!recipientParam) {
+        setRecipientProfile(null);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('hubook_profiles')
+        .select('*')
+        .eq('id', recipientParam)
+        .maybeSingle();
+
+      if (profile) {
+        setRecipientProfile(profile);
+      }
+    };
+
+    loadRecipientProfile();
+  }, [recipientParam]);
 
   useEffect(() => {
     const handleConversationParam = async () => {
@@ -267,13 +290,51 @@ export default function MessagesPage() {
         {selectedConversation ? (
           <>
             <div className="p-4 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">
-                {(() => {
-                  const participants = conversationParticipants.get(selectedConversation) || [];
-                  const otherUser = participants[0]?.hubook_profiles;
-                  return otherUser?.display_name || 'Messages';
-                })()}
-              </h3>
+              {(() => {
+                const participants = conversationParticipants.get(selectedConversation) || [];
+                const otherUser = participants[0]?.hubook_profiles || recipientProfile;
+
+                if (!otherUser) {
+                  return (
+                    <div className="flex items-center gap-3 animate-pulse">
+                      <div className="w-12 h-12 rounded-full bg-gray-200"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex items-center gap-3">
+                    <Link to={`/hubook/user/${otherUser.id}`} className="flex-shrink-0">
+                      {otherUser.profile_photo_url ? (
+                        <img
+                          src={otherUser.profile_photo_url}
+                          alt={otherUser.display_name}
+                          className="w-12 h-12 rounded-full object-cover hover:opacity-80 transition-opacity"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold hover:opacity-80 transition-opacity">
+                          {otherUser.display_name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                      )}
+                    </Link>
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        to={`/hubook/user/${otherUser.id}`}
+                        className="font-semibold text-gray-900 hover:text-blue-600 transition-colors block"
+                      >
+                        {otherUser.display_name}
+                      </Link>
+                      {otherUser.work && (
+                        <p className="text-sm text-gray-600 truncate">{otherUser.work}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
