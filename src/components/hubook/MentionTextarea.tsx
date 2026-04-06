@@ -161,7 +161,7 @@ export default function MentionTextarea({
         lineHeight: '1.75rem',
         position: 'relative' as const,
         background: 'transparent',
-        color: 'transparent',
+        color: 'rgb(17, 24, 39)',
         caretColor: '#000'
       }
     },
