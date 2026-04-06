@@ -4,6 +4,8 @@ import Post from './Post';
 import { useNavigate } from 'react-router-dom';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
+import HuBookMentionTextarea from './HuBookMentionTextarea';
+import HuBookContentRenderer from './HuBookContentRenderer';
 
 interface SharedPostProps {
   share: any;
@@ -125,41 +127,36 @@ export default function SharedPost({ share, post, sharer, onUpdate }: SharedPost
 
 {isEditing ? (
               <div className="mt-2">
-                <textarea
+                <HuBookMentionTextarea
                   value={editComment}
-                  onChange={(e) => setEditComment(e.target.value.slice(0, 500))}
+                  onChange={setEditComment}
                   placeholder="Add a comment about this post (optional)"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  rows={3}
                   maxLength={500}
+                  rows={3}
                 />
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm text-gray-500">
-                    {editComment.length}/500
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCancelEdit}
-                      disabled={isSaving}
-                      className="px-4 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleEditShare}
-                      disabled={isSaving}
-                      className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                    className="px-4 py-1.5 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleEditShare}
+                    disabled={isSaving}
+                    className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
                 </div>
               </div>
             ) : (
               share.share_text && (
-                <p className="text-gray-700 mt-2 whitespace-pre-wrap">
-                  {share.share_text}
-                </p>
+                <HuBookContentRenderer
+                  content={share.share_text}
+                  className="text-gray-700 mt-2"
+                />
               )
             )}
           </div>

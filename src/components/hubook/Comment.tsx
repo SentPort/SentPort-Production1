@@ -5,8 +5,9 @@ import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import ReactionPicker, { ReactionType } from './ReactionPicker';
 import DeleteCommentModal from './DeleteCommentModal';
-import CustomMentionTextarea from './CustomMentionTextarea';
-import { saveMentions, renderMentionsAsLinks } from '../../lib/mentionHelpers';
+import HuBookMentionTextarea from './HuBookMentionTextarea';
+import HuBookContentRenderer from './HuBookContentRenderer';
+import { saveHuBookMentions } from '../../lib/hubookMentionHelpers';
 import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
 
 interface CommentProps {
@@ -117,7 +118,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
       if (insertError) throw insertError;
 
       if (newComment) {
-        await saveMentions('comment', newComment.id, replyText.trim(), hubookProfile.id);
+        await saveHuBookMentions('comment', newComment.id, replyText.trim(), hubookProfile.user_id);
       }
 
       setReplyText('');
@@ -260,7 +261,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
 
             {isEditing ? (
               <div className="mt-2">
-                <CustomMentionTextarea
+                <HuBookMentionTextarea
                   value={editContent}
                   onChange={setEditContent}
                   placeholder="Edit comment..."
@@ -286,9 +287,9 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
                 </div>
               </div>
             ) : (
-              <p
+              <HuBookContentRenderer
+                content={comment.content}
                 className="text-gray-900 text-sm"
-                dangerouslySetInnerHTML={{ __html: renderMentionsAsLinks(comment.content) }}
               />
             )}
             {!isEditing && comment.is_edited && (
@@ -355,7 +356,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
           {showReplyInput && (
             <div className="mt-2">
               <div className="bg-gray-100 rounded-2xl p-2">
-                <CustomMentionTextarea
+                <HuBookMentionTextarea
                   value={replyText}
                   onChange={setReplyText}
                   placeholder="Write a reply..."

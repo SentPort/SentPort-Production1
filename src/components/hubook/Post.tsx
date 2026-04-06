@@ -9,8 +9,8 @@ import ReportModal from './ReportModal';
 import ShareModal from './ShareModal';
 import HuBookNotification from './HuBookNotification';
 import DeletePostModal from './DeletePostModal';
-import CustomMentionTextarea from './CustomMentionTextarea';
-import { renderMentionsAsLinks } from '../../lib/mentionHelpers';
+import HuBookMentionTextarea from './HuBookMentionTextarea';
+import HuBookContentRenderer from './HuBookContentRenderer';
 import SharedContentCard from '../shared/SharedContentCard';
 import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
 
@@ -383,7 +383,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
 
         {isEditing ? (
           <div className="mb-4">
-            <CustomMentionTextarea
+            <HuBookMentionTextarea
               value={editContent}
               onChange={setEditContent}
               placeholder="Edit your post..."
@@ -412,9 +412,9 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
             {post.shared_from_platform ? (
               <>
                 {post.share_comment && (
-                  <p
-                    className="text-gray-900 mb-3 whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: renderMentionsAsLinks(post.share_comment) }}
+                  <HuBookContentRenderer
+                    content={post.share_comment}
+                    className="text-gray-900 mb-3"
                   />
                 )}
                 <SharedContentCard
@@ -430,9 +430,13 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
                 />
               </>
             ) : (
-              <p className="text-gray-900 mb-4 whitespace-pre-wrap">
-                {renderPostContent(post.content)}
-              </p>
+              <div className="text-gray-900 mb-4">
+                {post.source_type === 'album_upload' && post.source_album_id ? (
+                  renderPostContent(post.content)
+                ) : (
+                  <HuBookContentRenderer content={post.content} />
+                )}
+              </div>
             )}
             {post.is_edited && (
               <span className="text-sm text-gray-500 -mt-2 mb-4 block">(edited)</span>
