@@ -151,7 +151,10 @@ export default function MentionTextarea({
         height: '100%',
         pointerEvents: 'none' as const,
         whiteSpace: 'pre-wrap' as const,
-        wordWrap: 'break-word' as const
+        wordWrap: 'break-word' as const,
+        color: 'rgb(17, 24, 39)',
+        fontSize: '1.125rem',
+        lineHeight: '1.75rem'
       },
       input: {
         padding: 9,
@@ -161,7 +164,7 @@ export default function MentionTextarea({
         lineHeight: '1.75rem',
         position: 'relative' as const,
         background: 'transparent',
-        color: 'rgb(17, 24, 39)',
+        color: 'transparent',
         caretColor: '#000'
       }
     },
