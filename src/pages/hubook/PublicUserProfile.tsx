@@ -216,7 +216,21 @@ export default function PublicUserProfile() {
       }
 
       if (conversationId) {
-        navigate(`/hubook/messages?conversation=${conversationId}`);
+        // Verify conversation participants exist before redirecting
+        const { data: verification } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (verification) {
+          navigate(`/hubook/messages?conversation=${conversationId}`);
+        } else {
+          // Wait a bit and try again (in case of DB propagation delay)
+          await new Promise(resolve => setTimeout(resolve, 300));
+          navigate(`/hubook/messages?conversation=${conversationId}`);
+        }
       }
     } catch (err) {
       console.error('Unexpected error starting conversation:', err);

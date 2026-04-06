@@ -97,45 +97,37 @@ export default function Friends() {
   const startConversation = async (friendId: string) => {
     if (!hubookProfile || !user) return;
 
-    // Check if conversation already exists
-    const { data: existingConversations } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
+    try {
+      const { data: conversationId, error } = await supabase
+        .rpc('find_or_create_conversation', {
+          user_a_id: user.id,
+          user_b_id: friendId
+        });
 
-    if (existingConversations) {
-      for (const conv of existingConversations) {
-        const { data: participants } = await supabase
+      if (error) {
+        console.error('Conversation error:', error);
+        return;
+      }
+
+      if (conversationId) {
+        // Verify conversation participants exist before redirecting
+        const { data: verification } = await supabase
           .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conv.conversation_id);
+          .select('conversation_id')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-        if (participants?.length === 2) {
-          const userIds = participants.map(p => p.user_id);
-          if (userIds.includes(user.id) && userIds.includes(friendId)) {
-            navigate(`/hubook/messages?conversation=${conv.conversation_id}`);
-            return;
-          }
+        if (verification) {
+          navigate(`/hubook/messages?conversation=${conversationId}`);
+        } else {
+          // Wait a bit and try again (in case of DB propagation delay)
+          await new Promise(resolve => setTimeout(resolve, 300));
+          navigate(`/hubook/messages?conversation=${conversationId}`);
         }
       }
-    }
-
-    // Create new conversation
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert({})
-      .select()
-      .single();
-
-    if (!convError && newConv) {
-      await supabase
-        .from('conversation_participants')
-        .insert([
-          { conversation_id: newConv.id, user_id: user.id },
-          { conversation_id: newConv.id, user_id: friendId }
-        ]);
-
-      navigate(`/hubook/messages?conversation=${newConv.id}`);
+    } catch (err) {
+      console.error('Unexpected error starting conversation:', err);
     }
   };
 

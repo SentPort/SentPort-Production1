@@ -42,12 +42,16 @@ export default function MessagesPage() {
       }
 
       const fetchConversationWithRetry = async (attempt = 0): Promise<boolean> => {
-        const { data: specificConversation } = await supabase
+        const { data: specificConversation, error: convError } = await supabase
           .from('conversation_participants')
-          .select('conversation_id, conversations(*)')
+          .select('conversation_id, conversations!conversation_participants_conversation_id_fkey(*)')
           .eq('user_id', user.id)
           .eq('conversation_id', conversationParam)
           .maybeSingle();
+
+        if (convError) {
+          console.error('Error fetching conversation:', convError);
+        }
 
         if (specificConversation?.conversations) {
           setConversations(prev => {
@@ -73,8 +77,9 @@ export default function MessagesPage() {
           return true;
         }
 
-        if (attempt < 3) {
-          const delay = [100, 300, 500][attempt];
+        if (attempt < 4) {
+          const delay = [500, 1000, 1500, 2000][attempt];
+          console.log(`Retry attempt ${attempt + 1}, waiting ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return fetchConversationWithRetry(attempt + 1);
         }
@@ -126,7 +131,7 @@ export default function MessagesPage() {
 
     const { data: participantData } = await supabase
       .from('conversation_participants')
-      .select('conversation_id, conversations(*)')
+      .select('conversation_id, conversations!conversation_participants_conversation_id_fkey(*)')
       .eq('user_id', user.id)
       .order('joined_at', { ascending: false });
 
