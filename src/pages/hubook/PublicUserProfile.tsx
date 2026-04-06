@@ -6,7 +6,6 @@ import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
 import SharedPost from '../../components/hubook/SharedPost';
 import MediaViewer from '../../components/hubook/MediaViewer';
-import { createFriendRequestNotification, createFriendAcceptedNotification } from '../../lib/hubookNotifications';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -155,12 +154,6 @@ export default function PublicUserProfile() {
         }
         setTimeout(() => setErrorMessage(null), 5000);
       } else {
-        await createFriendRequestNotification(
-          userId,
-          hubookProfile.id,
-          hubookProfile.display_name || 'Someone'
-        );
-
         setSuccessMessage('Friend request sent successfully!');
         setTimeout(() => setSuccessMessage(null), 3000);
         fetchFriendship();
@@ -192,12 +185,6 @@ export default function PublicUserProfile() {
       .from('friendships')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', friendship.id);
-
-    await createFriendAcceptedNotification(
-      friendship.requester_id,
-      hubookProfile.id,
-      hubookProfile.display_name || 'Someone'
-    );
 
     fetchFriendship();
   };

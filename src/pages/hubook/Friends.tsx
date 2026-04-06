@@ -4,7 +4,6 @@ import { Users, UserPlus, UserMinus, MessageCircle, Search } from 'lucide-react'
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { createFriendAcceptedNotification } from '../../lib/hubookNotifications';
 
 export default function Friends() {
   const navigate = useNavigate();
@@ -78,12 +77,6 @@ export default function Friends() {
       .from('friendships')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', friendshipId);
-
-    await createFriendAcceptedNotification(
-      requesterId,
-      hubookProfile.id,
-      hubookProfile.display_name || 'Someone'
-    );
 
     fetchFriends();
     fetchRequests();
