@@ -3,7 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import MediaComment from './MediaComment';
-import MentionTextarea from './MentionTextarea';
+import CustomMentionTextarea from './CustomMentionTextarea';
 import { saveMentions } from '../../lib/mentionHelpers';
 
 interface MediaCommentSectionProps {
@@ -110,7 +110,7 @@ export default function MediaCommentSection({ mediaId, canComment }: MediaCommen
                 </div>
                 <div className="flex-1">
                   <div className="bg-gray-100 rounded-2xl p-2">
-                    <MentionTextarea
+                    <CustomMentionTextarea
                       value={newComment}
                       onChange={setNewComment}
                       placeholder="Write a comment..."

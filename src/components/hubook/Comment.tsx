@@ -5,7 +5,7 @@ import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import ReactionPicker, { ReactionType } from './ReactionPicker';
 import DeleteCommentModal from './DeleteCommentModal';
-import MentionTextarea from './MentionTextarea';
+import CustomMentionTextarea from './CustomMentionTextarea';
 import { saveMentions, renderMentionsAsLinks } from '../../lib/mentionHelpers';
 import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
 
@@ -260,7 +260,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
 
             {isEditing ? (
               <div className="mt-2">
-                <MentionTextarea
+                <CustomMentionTextarea
                   value={editContent}
                   onChange={setEditContent}
                   placeholder="Edit comment..."
@@ -355,7 +355,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
           {showReplyInput && (
             <div className="mt-2">
               <div className="bg-gray-100 rounded-2xl p-2">
-                <MentionTextarea
+                <CustomMentionTextarea
                   value={replyText}
                   onChange={setReplyText}
                   placeholder="Write a reply..."

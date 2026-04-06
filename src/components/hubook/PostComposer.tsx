@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import MediaUploader from './MediaUploader';
-import MentionTextarea from './MentionTextarea';
+import CustomMentionTextarea from './CustomMentionTextarea';
 import { saveMentions } from '../../lib/mentionHelpers';
 
 interface PostComposerProps {
@@ -139,7 +139,7 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
             </div>
           )}
 
-          <MentionTextarea
+          <CustomMentionTextarea
             value={content}
             onChange={setContent}
             placeholder={placeholder || `What's on your mind, ${hubookProfile?.display_name}?`}

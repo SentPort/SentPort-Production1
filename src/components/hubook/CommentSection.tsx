@@ -3,7 +3,7 @@ import { Send } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import Comment from './Comment';
-import MentionTextarea from './MentionTextarea';
+import CustomMentionTextarea from './CustomMentionTextarea';
 import { saveMentions, renderMentionsAsLinks } from '../../lib/mentionHelpers';
 
 interface CommentSectionProps {
@@ -82,7 +82,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           )}
 
           <div className="flex-1 flex gap-2">
-            <MentionTextarea
+            <CustomMentionTextarea
               value={newComment}
               onChange={setNewComment}
               placeholder="Write a comment..."

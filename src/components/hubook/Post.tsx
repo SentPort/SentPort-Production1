@@ -9,7 +9,7 @@ import ReportModal from './ReportModal';
 import ShareModal from './ShareModal';
 import HuBookNotification from './HuBookNotification';
 import DeletePostModal from './DeletePostModal';
-import MentionTextarea from './MentionTextarea';
+import CustomMentionTextarea from './CustomMentionTextarea';
 import { renderMentionsAsLinks } from '../../lib/mentionHelpers';
 import SharedContentCard from '../shared/SharedContentCard';
 import ReactionDetailsModal, { ReactionDetail } from './ReactionDetailsModal';
@@ -383,7 +383,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
 
         {isEditing ? (
           <div className="mb-4">
-            <MentionTextarea
+            <CustomMentionTextarea
               value={editContent}
               onChange={setEditContent}
               placeholder="Edit your post..."
