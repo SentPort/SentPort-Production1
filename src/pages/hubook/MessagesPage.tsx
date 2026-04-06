@@ -25,10 +25,53 @@ export default function MessagesPage() {
   }, [user]);
 
   useEffect(() => {
-    if (conversationParam && conversations.length > 0) {
-      setSelectedConversation(conversationParam);
-    }
-  }, [conversationParam, conversations]);
+    const handleConversationParam = async () => {
+      if (!conversationParam || !user) return;
+
+      const conversationExists = conversations.some(c => c.id === conversationParam);
+
+      if (conversationExists) {
+        setSelectedConversation(conversationParam);
+      } else if (conversations.length > 0) {
+        const { data: specificConversation } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id, conversations(*)')
+          .eq('user_id', user.id)
+          .eq('conversation_id', conversationParam)
+          .maybeSingle();
+
+        if (specificConversation?.conversations) {
+          setConversations(prev => {
+            const exists = prev.some(c => c.id === specificConversation.conversations.id);
+            if (exists) return prev;
+            return [specificConversation.conversations, ...prev];
+          });
+
+          const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('user_id, hubook_profiles!conversation_participants_user_id_fkey(*)')
+            .eq('conversation_id', specificConversation.conversations.id);
+
+          if (participants) {
+            setConversationParticipants(prev => {
+              const newMap = new Map(prev);
+              newMap.set(specificConversation.conversations.id, participants.filter(p => p.user_id !== user.id));
+              return newMap;
+            });
+          }
+
+          setSelectedConversation(conversationParam);
+        } else {
+          await loadConversations();
+          setSelectedConversation(conversationParam);
+        }
+      } else {
+        setSelectedConversation(conversationParam);
+      }
+    };
+
+    handleConversationParam();
+  }, [conversationParam, conversations, user]);
 
   useEffect(() => {
     if (selectedConversation) {
