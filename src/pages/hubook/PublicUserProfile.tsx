@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
 import SharedPost from '../../components/hubook/SharedPost';
 import MediaViewer from '../../components/hubook/MediaViewer';
+import { createFriendRequestNotification, createFriendAcceptedNotification } from '../../lib/hubookNotifications';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -24,6 +25,9 @@ export default function PublicUserProfile() {
   const [photosLoading, setPhotosLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ urls: string[]; index: number } | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'photos'>('posts');
+  const [friendRequestLoading, setFriendRequestLoading] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (userId && hubookProfile?.id === userId) {
@@ -118,25 +122,49 @@ export default function PublicUserProfile() {
   };
 
   const sendFriendRequest = async () => {
-    if (!hubookProfile || !userId) return;
+    if (!hubookProfile || !userId || friendRequestLoading) return;
 
-    const { error } = await supabase
-      .from('friendships')
-      .insert({
-        requester_id: hubookProfile.id,
-        addressee_id: userId,
-        status: 'pending'
-      });
+    setFriendRequestLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (error) {
-      if (error.message.includes('restricted who can send them friend requests')) {
-        setErrorMessage('This user has restricted who can send them friend requests.');
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .insert({
+          requester_id: hubookProfile.id,
+          addressee_id: userId,
+          status: 'pending'
+        });
+
+      if (error) {
+        console.error('Friend request error:', error);
+        if (error.message.includes('restricted who can send them friend requests') ||
+            error.message.includes('can_send_friend_request')) {
+          setErrorMessage('This user has restricted who can send them friend requests.');
+        } else if (error.message.includes('duplicate') || error.code === '23505') {
+          setErrorMessage('A friend request already exists.');
+        } else {
+          setErrorMessage('Failed to send friend request. Please try again.');
+        }
+        setTimeout(() => setErrorMessage(null), 5000);
       } else {
-        setErrorMessage('Failed to send friend request. Please try again.');
+        await createFriendRequestNotification(
+          userId,
+          hubookProfile.id,
+          hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+        );
+
+        setSuccessMessage('Friend request sent successfully!');
+        setTimeout(() => setSuccessMessage(null), 3000);
+        fetchFriendship();
       }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      setErrorMessage('An unexpected error occurred. Please try again.');
       setTimeout(() => setErrorMessage(null), 5000);
-    } else {
-      fetchFriendship();
+    } finally {
+      setFriendRequestLoading(false);
     }
   };
 
@@ -152,73 +180,94 @@ export default function PublicUserProfile() {
   };
 
   const acceptFriendRequest = async () => {
-    if (!friendship) return;
+    if (!friendship || !hubookProfile) return;
 
     await supabase
       .from('friendships')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', friendship.id);
 
+    await createFriendAcceptedNotification(
+      friendship.requester_id,
+      hubookProfile.id,
+      hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+    );
+
     fetchFriendship();
   };
 
   const startConversation = async () => {
-    if (!hubookProfile || !userId) return;
+    if (!hubookProfile || !userId || messageLoading) return;
 
-    // Check if conversation already exists
-    const { data: existingConversations } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', hubookProfile.id);
+    setMessageLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (existingConversations) {
-      for (const conv of existingConversations) {
-        const { data: participants } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conv.conversation_id);
+    try {
+      const { data: existingConversations } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', hubookProfile.id);
 
-        if (participants?.length === 2) {
-          const userIds = participants.map(p => p.user_id);
-          if (userIds.includes(hubookProfile.id) && userIds.includes(userId)) {
-            navigate(`/hubook/messages?conversation=${conv.conversation_id}`);
-            return;
+      if (existingConversations) {
+        for (const conv of existingConversations) {
+          const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conv.conversation_id);
+
+          if (participants?.length === 2) {
+            const userIds = participants.map(p => p.user_id);
+            if (userIds.includes(hubookProfile.id) && userIds.includes(userId)) {
+              navigate(`/hubook/messages?conversation=${conv.conversation_id}`);
+              setMessageLoading(false);
+              return;
+            }
           }
         }
       }
-    }
 
-    // Create new conversation
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert({})
-      .select()
-      .single();
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({})
+        .select()
+        .single();
 
-    if (convError) {
-      if (convError.message.includes('restricted who can send them messages')) {
-        setErrorMessage('This user has restricted who can message them.');
-      } else {
-        setErrorMessage('Failed to start conversation. Please try again.');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
-      return;
-    }
-
-    if (newConv) {
-      const { error: participantError } = await supabase
-        .from('conversation_participants')
-        .insert([
-          { conversation_id: newConv.id, user_id: hubookProfile.id },
-          { conversation_id: newConv.id, user_id: userId }
-        ]);
-
-      if (participantError) {
-        setErrorMessage('Failed to start conversation. Please try again.');
+      if (convError) {
+        console.error('Conversation creation error:', convError);
+        setErrorMessage('Failed to create conversation. Please try again.');
         setTimeout(() => setErrorMessage(null), 5000);
-      } else {
-        navigate(`/hubook/messages?conversation=${newConv.id}`);
+        setMessageLoading(false);
+        return;
       }
+
+      if (newConv) {
+        const { error: participantError } = await supabase
+          .from('conversation_participants')
+          .insert([
+            { conversation_id: newConv.id, user_id: hubookProfile.id },
+            { conversation_id: newConv.id, user_id: userId }
+          ]);
+
+        if (participantError) {
+          console.error('Participant error:', participantError);
+          if (participantError.message.includes('can_message_user') ||
+              participantError.message.includes('messaging privacy')) {
+            setErrorMessage('This user has restricted who can message them.');
+          } else {
+            setErrorMessage('Failed to start conversation. Please try again.');
+          }
+          setTimeout(() => setErrorMessage(null), 5000);
+          setMessageLoading(false);
+        } else {
+          navigate(`/hubook/messages?conversation=${newConv.id}`);
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error starting conversation:', err);
+      setErrorMessage('An unexpected error occurred. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
+      setMessageLoading(false);
     }
   };
 
@@ -444,10 +493,11 @@ export default function PublicUserProfile() {
       return (
         <button
           onClick={sendFriendRequest}
-          className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          disabled={friendRequestLoading}
+          className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <UserPlus className="w-5 h-5" />
-          Add Friend
+          <UserPlus className={`w-5 h-5 ${friendRequestLoading ? 'animate-pulse' : ''}`} />
+          {friendRequestLoading ? 'Sending...' : 'Add Friend'}
         </button>
       );
     }
@@ -562,15 +612,22 @@ export default function PublicUserProfile() {
                     {errorMessage}
                   </div>
                 )}
+                {successMessage && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+                    <UserCheck className="w-4 h-4" />
+                    {successMessage}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   {getFriendshipButton()}
                   {canSendMessage() ? (
                     <button
                       onClick={startConversation}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+                      disabled={messageLoading}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <MessageCircle className="w-5 h-5" />
-                      Message
+                      <MessageCircle className={`w-5 h-5 ${messageLoading ? 'animate-pulse' : ''}`} />
+                      {messageLoading ? 'Starting...' : 'Message'}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed" title="This user has restricted messaging">

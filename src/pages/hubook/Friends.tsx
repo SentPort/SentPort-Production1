@@ -4,6 +4,7 @@ import { Users, UserPlus, UserMinus, MessageCircle, Search } from 'lucide-react'
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { createFriendAcceptedNotification } from '../../lib/hubookNotifications';
 
 export default function Friends() {
   const navigate = useNavigate();
@@ -70,11 +71,19 @@ export default function Friends() {
     setSentRequests(sentRes.data || []);
   };
 
-  const handleAcceptRequest = async (friendshipId: string) => {
+  const handleAcceptRequest = async (friendshipId: string, requesterId: string) => {
+    if (!hubookProfile) return;
+
     await supabase
       .from('friendships')
       .update({ status: 'accepted', updated_at: new Date().toISOString() })
       .eq('id', friendshipId);
+
+    await createFriendAcceptedNotification(
+      requesterId,
+      hubookProfile.id,
+      hubookProfile.full_name || hubookProfile.display_name || 'Someone'
+    );
 
     fetchFriends();
     fetchRequests();
@@ -296,7 +305,7 @@ export default function Friends() {
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleAcceptRequest(request.id)}
+                        onClick={() => handleAcceptRequest(request.id, request.requester_id)}
                         className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
                       >
                         Accept
