@@ -138,18 +138,31 @@ export default function MentionTextarea({
     '&multiLine': {
       control: {
         fontFamily: 'inherit',
-        minHeight: rows * 24
+        minHeight: rows * 24,
+        position: 'relative' as const
       },
       highlighter: {
         padding: 9,
-        border: '0'
+        border: '0',
+        position: 'absolute' as const,
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none' as const,
+        whiteSpace: 'pre-wrap' as const,
+        wordWrap: 'break-word' as const
       },
       input: {
         padding: 9,
         border: '0',
         outline: 'none',
         fontSize: '1.125rem',
-        lineHeight: '1.75rem'
+        lineHeight: '1.75rem',
+        position: 'relative' as const,
+        background: 'transparent',
+        color: 'transparent',
+        caretColor: '#000'
       }
     },
     suggestions: {
