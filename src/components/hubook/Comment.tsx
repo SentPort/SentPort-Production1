@@ -118,7 +118,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
       if (insertError) throw insertError;
 
       if (newComment) {
-        await saveHuBookMentions('comment', newComment.id, replyText.trim(), hubookProfile.user_id);
+        await saveHuBookMentions('comment', newComment.id, replyText.trim(), hubookProfile.id);
       }
 
       setReplyText('');

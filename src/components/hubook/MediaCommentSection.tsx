@@ -64,7 +64,7 @@ export default function MediaCommentSection({ mediaId, canComment }: MediaCommen
       if (error) throw error;
 
       if (comment) {
-        await saveHuBookMentions('album_media_comment', comment.id, newComment.trim(), hubookProfile.user_id);
+        await saveHuBookMentions('album_media_comment', comment.id, newComment.trim(), hubookProfile.id);
       }
 
       setNewComment('');

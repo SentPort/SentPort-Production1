@@ -9,7 +9,6 @@ export interface HuBookUserSuggestion {
   id: string;
   display_name: string;
   profile_photo_url: string | null;
-  user_id: string;
 }
 
 export function parseHuBookMentions(content: string): HuBookUserMentionData[] {
@@ -40,13 +39,13 @@ export async function searchUsersForMention(
 
   let queryBuilder = supabase
     .from('hubook_profiles')
-    .select('id, display_name, profile_photo_url, user_id')
+    .select('id, display_name, profile_photo_url')
     .ilike('display_name', searchTerm)
     .order('display_name', { ascending: true })
     .limit(limit);
 
   if (excludeUserId) {
-    queryBuilder = queryBuilder.neq('user_id', excludeUserId);
+    queryBuilder = queryBuilder.neq('id', excludeUserId);
   }
 
   const { data, error } = await queryBuilder;
@@ -57,6 +56,11 @@ export async function searchUsersForMention(
   }
 
   return data || [];
+}
+
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
 }
 
 export async function saveHuBookMentions(
@@ -76,7 +80,13 @@ export async function saveHuBookMentions(
   );
 
   const mentionRecords = uniqueMentions
-    .filter(mention => mention.userId !== mentioningUserId)
+    .filter(mention => {
+      if (!isValidUUID(mention.userId)) {
+        console.warn('Invalid UUID in mention:', mention.userId);
+        return false;
+      }
+      return mention.userId !== mentioningUserId;
+    })
     .map(mention => ({
       content_type: contentType,
       content_id: contentId,
@@ -112,5 +122,5 @@ export function stripHuBookMentionMarkup(content: string): string {
 }
 
 export function createUserMentionMarkup(user: HuBookUserSuggestion): string {
-  return `@[${user.display_name}](${user.user_id})`;
+  return `@[${user.display_name}](${user.id})`;
 }

@@ -118,7 +118,7 @@ export default function MediaComment({ comment, mediaId, onUpdate, isReply = fal
       if (insertError) throw insertError;
 
       if (newComment) {
-        await saveHuBookMentions('album_media_comment', newComment.id, replyText.trim(), hubookProfile.user_id);
+        await saveHuBookMentions('album_media_comment', newComment.id, replyText.trim(), hubookProfile.id);
       }
 
       setReplyText('');

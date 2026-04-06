@@ -91,7 +91,7 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
       if (postError) throw postError;
 
       if (post) {
-        await saveHuBookMentions('post', post.id, content.trim(), hubookProfile.user_id);
+        await saveHuBookMentions('post', post.id, content.trim(), hubookProfile.id);
       }
 
       if (mediaUrls.length > 0 && post) {
@@ -131,21 +131,22 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
             <img
               src={hubookProfile.profile_photo_url}
               alt={hubookProfile.display_name}
-              className="w-10 h-10 rounded-full object-cover"
+              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
               {hubookProfile?.display_name.charAt(0).toUpperCase()}
             </div>
           )}
 
-          <HuBookMentionTextarea
-            value={content}
-            onChange={setContent}
-            placeholder={placeholder || `What's on your mind, ${hubookProfile?.display_name}?`}
-            className="flex-1"
-            rows={3}
-          />
+          <div className="flex-1">
+            <HuBookMentionTextarea
+              value={content}
+              onChange={setContent}
+              placeholder={placeholder || `What's on your mind, ${hubookProfile?.display_name}?`}
+              rows={3}
+            />
+          </div>
         </div>
 
         {showMediaUploader && (

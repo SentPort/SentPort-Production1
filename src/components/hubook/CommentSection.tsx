@@ -52,7 +52,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       if (error) throw error;
 
       if (data) {
-        await saveHuBookMentions('comment', data.id, newComment.trim(), hubookProfile.user_id);
+        await saveHuBookMentions('comment', data.id, newComment.trim(), hubookProfile.id);
       }
 
       setNewComment('');
