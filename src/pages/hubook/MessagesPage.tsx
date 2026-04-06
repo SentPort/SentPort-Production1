@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -17,6 +17,8 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingNewConversation, setLoadingNewConversation] = useState(false);
+  const processedConversationParam = useRef<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -26,13 +28,20 @@ export default function MessagesPage() {
 
   useEffect(() => {
     const handleConversationParam = async () => {
-      if (!conversationParam || !user) return;
+      if (!conversationParam || !user || processedConversationParam.current === conversationParam) return;
+
+      setLoadingNewConversation(true);
+      processedConversationParam.current = conversationParam;
 
       const conversationExists = conversations.some(c => c.id === conversationParam);
 
       if (conversationExists) {
         setSelectedConversation(conversationParam);
-      } else if (conversations.length > 0) {
+        setLoadingNewConversation(false);
+        return;
+      }
+
+      const fetchConversationWithRetry = async (attempt = 0): Promise<boolean> => {
         const { data: specificConversation } = await supabase
           .from('conversation_participants')
           .select('conversation_id, conversations(*)')
@@ -61,17 +70,29 @@ export default function MessagesPage() {
           }
 
           setSelectedConversation(conversationParam);
-        } else {
-          await loadConversations();
-          setSelectedConversation(conversationParam);
+          return true;
         }
-      } else {
-        setSelectedConversation(conversationParam);
+
+        if (attempt < 3) {
+          const delay = [100, 300, 500][attempt];
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchConversationWithRetry(attempt + 1);
+        }
+
+        return false;
+      };
+
+      const success = await fetchConversationWithRetry();
+
+      if (!success) {
+        console.error('Failed to load conversation after retries');
       }
+
+      setLoadingNewConversation(false);
     };
 
     handleConversationParam();
-  }, [conversationParam, conversations, user]);
+  }, [conversationParam, user]);
 
   useEffect(() => {
     if (selectedConversation) {
@@ -135,10 +156,7 @@ export default function MessagesPage() {
 
     const { data } = await supabase
       .from('messages')
-      .select(`
-        *,
-        user_profiles!messages_sender_id_fkey(full_name, id)
-      `)
+      .select('*')
       .eq('conversation_id', selectedConversation)
       .order('created_at', { ascending: true });
 
@@ -171,10 +189,12 @@ export default function MessagesPage() {
     }
   };
 
-  if (loading) {
+  if (loading || loadingNewConversation) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="text-gray-600">Loading messages...</div>
+        <div className="text-gray-600">
+          {loadingNewConversation ? 'Loading your conversation...' : 'Loading messages...'}
+        </div>
       </div>
     );
   }
