@@ -285,7 +285,7 @@ export default function CustomMentionTextarea({
   // Render text with mentions highlighted
   const renderTextWithMentions = () => {
     const mentions = parseMentions(value);
-    if (mentions.length === 0) return value;
+    if (mentions.length === 0) return <span style={{ color: 'transparent' }}>{value}</span>;
 
     const parts: JSX.Element[] = [];
     let lastIndex = 0;
@@ -293,7 +293,7 @@ export default function CustomMentionTextarea({
     mentions.forEach((mention, i) => {
       if (mention.start > lastIndex) {
         parts.push(
-          <span key={`text-${i}`} className="opacity-0">
+          <span key={`text-${i}`} style={{ color: 'transparent' }}>
             {value.substring(lastIndex, mention.start)}
           </span>
         );
@@ -313,7 +313,7 @@ export default function CustomMentionTextarea({
 
     if (lastIndex < value.length) {
       parts.push(
-        <span key="text-end" className="opacity-0">
+        <span key="text-end" style={{ color: 'transparent' }}>
           {value.substring(lastIndex)}
         </span>
       );
@@ -333,8 +333,7 @@ export default function CustomMentionTextarea({
             fontSize: '1.125rem',
             lineHeight: '1.75rem',
             fontFamily: 'inherit',
-            wordWrap: 'break-word',
-            color: 'transparent'
+            wordWrap: 'break-word'
           }}
         >
           {renderTextWithMentions()}
@@ -350,12 +349,13 @@ export default function CustomMentionTextarea({
           placeholder={placeholder}
           rows={rows}
           disabled={disabled}
-          className="w-full resize-none text-gray-900 placeholder-gray-500 relative bg-transparent border-0 focus:ring-0 focus:outline-none"
+          className="w-full resize-none placeholder-gray-500 relative bg-transparent border-0 focus:ring-0 focus:outline-none"
           style={{
             padding: '9px',
             fontSize: '1.125rem',
             lineHeight: '1.75rem',
-            caretColor: '#000'
+            caretColor: '#000',
+            color: 'transparent'
           }}
         />
       </div>
