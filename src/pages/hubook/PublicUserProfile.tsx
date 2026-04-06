@@ -67,12 +67,12 @@ export default function PublicUserProfile() {
   };
 
   const fetchPrivacySettings = async () => {
-    if (!userId) return;
+    if (!userId || !user) return;
 
     const { data } = await supabase
       .from('user_privacy_settings')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.user_id)
       .maybeSingle();
 
     setPrivacySettings(data || {
@@ -190,7 +190,7 @@ export default function PublicUserProfile() {
   };
 
   const startConversation = async () => {
-    if (!hubookProfile || !userId || messageLoading) return;
+    if (!hubookProfile || !userId || messageLoading || !user) return;
 
     setMessageLoading(true);
     setErrorMessage(null);
@@ -199,8 +199,8 @@ export default function PublicUserProfile() {
     try {
       const { data: conversationId, error } = await supabase
         .rpc('find_or_create_conversation', {
-          user_a_id: userId,
-          user_b_id: hubookProfile.id
+          user_a_id: hubookProfile.user_id,
+          user_b_id: user.user_id
         });
 
       if (error) {

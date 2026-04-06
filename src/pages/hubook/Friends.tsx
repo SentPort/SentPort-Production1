@@ -94,14 +94,14 @@ export default function Friends() {
     fetchFriends();
   };
 
-  const startConversation = async (friendId: string) => {
+  const startConversation = async (friendUserId: string) => {
     if (!hubookProfile || !user) return;
 
     try {
       const { data: conversationId, error } = await supabase
         .rpc('find_or_create_conversation', {
           user_a_id: user.id,
-          user_b_id: friendId
+          user_b_id: friendUserId
         });
 
       if (error) {
@@ -110,7 +110,7 @@ export default function Friends() {
       }
 
       if (conversationId) {
-        navigate(`/hubook/messages?conversation=${conversationId}&recipient=${friendId}`);
+        navigate(`/hubook/messages?conversation=${conversationId}&recipient=${friendUserId}`);
       }
     } catch (err) {
       console.error('Unexpected error starting conversation:', err);
@@ -226,7 +226,7 @@ export default function Friends() {
 
                     <div className="flex gap-2">
                       <button
-                        onClick={() => startConversation(friend.id)}
+                        onClick={() => startConversation(friend.user_id)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Send message"
                       >
