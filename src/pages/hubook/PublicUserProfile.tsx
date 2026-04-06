@@ -564,22 +564,20 @@ export default function PublicUserProfile() {
                 )}
                 <div className="flex gap-2">
                   {getFriendshipButton()}
-                  {friendship?.status === 'accepted' ? (
-                    canSendMessage() ? (
-                      <button
-                        onClick={startConversation}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        <MessageCircle className="w-5 h-5" />
-                        Message
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed" title="This user has restricted messaging">
-                        <Lock className="w-5 h-5" />
-                        Messaging Restricted
-                      </div>
-                    )
-                  ) : null}
+                  {canSendMessage() ? (
+                    <button
+                      onClick={startConversation}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                      Message
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed" title="This user has restricted messaging">
+                      <Lock className="w-5 h-5" />
+                      Messaging Restricted
+                    </div>
+                  )}
                 </div>
               </div>
             )}
