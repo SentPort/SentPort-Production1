@@ -180,6 +180,12 @@ export default function MessagesPage() {
     }
   }, [selectedConversation]);
 
+  useEffect(() => {
+    if (messages.length > 0 && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
   const loadConversations = async () => {
     if (!user) return;
 
@@ -576,7 +582,7 @@ export default function MessagesPage() {
               })()}
             </div>
 
-            <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => {
                 const isOwn = message.sender_id === user?.id;
                 const reactionCounts = getReactionCounts(message.id);
@@ -585,12 +591,12 @@ export default function MessagesPage() {
                 return (
                   <div
                     key={message.id}
-                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'} relative`}
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                     onMouseEnter={() => setHoveredMessage(message.id)}
                     onMouseLeave={() => setHoveredMessage(null)}
                   >
-                    <div className="flex flex-col gap-1 max-w-xs relative">
-                      <div className="flex items-end gap-2 relative">
+                    <div className="flex flex-col gap-1 max-w-xs">
+                      <div className="flex items-end gap-2">
                         {!isOwn && hoveredMessage === message.id && (
                           <MessageReactionPicker
                             messageId={message.id}
@@ -601,7 +607,7 @@ export default function MessagesPage() {
                         <div
                           className={`${
                             isOwn ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-900'
-                          } rounded-2xl px-4 py-2 flex-1`}
+                          } rounded-2xl px-4 py-2 break-words`}
                         >
                           <p className="text-sm">{message.content}</p>
                           <p className={`text-xs mt-1 ${isOwn ? 'text-blue-100' : 'text-gray-600'}`}>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Smile } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,6 +15,18 @@ export function MessageReactionPicker({ messageId, userReaction, onReactionChang
   const { user } = useAuth();
   const [showPicker, setShowPicker] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (showPicker && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPickerPosition({
+        top: rect.top - 50,
+        left: rect.left
+      });
+    }
+  }, [showPicker]);
 
   const handleReaction = async (emoji: string) => {
     if (!user || loading) return;
@@ -56,22 +68,29 @@ export function MessageReactionPicker({ messageId, userReaction, onReactionChang
   };
 
   return (
-    <div className="relative z-50">
+    <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setShowPicker(!showPicker)}
-        className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+        className="p-1 rounded-full hover:bg-gray-100 transition-colors z-10"
         title="Add reaction"
       >
         <Smile className="w-4 h-4 text-gray-500" />
       </button>
 
-      {showPicker && (
+      {showPicker && pickerPosition && (
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[100]"
             onClick={() => setShowPicker(false)}
           />
-          <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl p-2 flex gap-1 z-50 whitespace-nowrap">
+          <div
+            className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-2 flex gap-1 z-[101] whitespace-nowrap"
+            style={{
+              top: `${pickerPosition.top}px`,
+              left: `${pickerPosition.left}px`
+            }}
+          >
             {AVAILABLE_EMOJIS.map(emoji => (
               <button
                 key={emoji}
