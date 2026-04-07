@@ -274,8 +274,14 @@ export default function PublicUserProfile() {
           .order('created_at', { ascending: false })
       ]);
 
-      if (postsRes.error) throw postsRes.error;
-      if (sharesRes.error) throw sharesRes.error;
+      if (postsRes.error) {
+        console.error('Error fetching posts:', postsRes.error);
+        throw postsRes.error;
+      }
+      if (sharesRes.error) {
+        console.error('Error fetching shares:', sharesRes.error);
+        throw sharesRes.error;
+      }
 
       const posts = postsRes.data || [];
       const shares = sharesRes.data || [];
@@ -337,7 +343,10 @@ export default function PublicUserProfile() {
         .not('source_album_id', 'is', null)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching photos:', error);
+        throw error;
+      }
 
       // Transform data to include media_urls array for compatibility
       const photosData = (data || [])
@@ -376,8 +385,12 @@ export default function PublicUserProfile() {
         .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
-      if (albumsError) throw albumsError;
+      if (albumsError) {
+        console.error('Error fetching albums:', albumsError);
+        throw albumsError;
+      }
 
+      // RLS policies now handle privacy filtering, but we keep this as a frontend safeguard
       const visibleAlbums = (albumsData || []).filter(album =>
         canViewAlbum(album.privacy)
       );
