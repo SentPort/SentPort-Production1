@@ -239,19 +239,11 @@ export default function PublicUserProfile() {
   };
 
   const canViewPosts = () => {
-    if (!privacySettings) return true;
-    const postVisibility = privacySettings.post_visibility_default || 'public';
-    if (postVisibility === 'public' || postVisibility === 'everyone') return true;
-    if ((postVisibility === 'friends_only' || postVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    return false;
+    return true;
   };
 
   const canViewPhotos = () => {
-    if (!privacySettings) return true;
-    const photoVisibility = privacySettings.who_can_see_photos || 'everyone';
-    if (photoVisibility === 'public' || photoVisibility === 'everyone') return true;
-    if ((photoVisibility === 'friends_only' || photoVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    return false;
+    return true;
   };
 
   const canViewAlbum = (albumPrivacy: string) => {
