@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image, Globe } from 'lucide-react';
+import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image, Globe, Ban, XCircle } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
@@ -28,6 +28,9 @@ export default function PublicUserProfile() {
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
 
   useEffect(() => {
     if (userId && hubookProfile?.id === userId) {
@@ -38,6 +41,7 @@ export default function PublicUserProfile() {
       fetchUser();
       fetchFriendship();
       fetchMutualFriends();
+      checkBlockStatus();
     }
   }, [userId, hubookProfile]);
 
@@ -130,6 +134,83 @@ export default function PublicUserProfile() {
 
     const mutual = [...myFriendIds].filter((id) => theirFriendIds.has(id));
     setMutualFriendsCount(mutual.length);
+  };
+
+  const checkBlockStatus = async () => {
+    if (!hubookProfile || !userId) return;
+
+    const { data } = await supabase
+      .from('hubook_blocked_users')
+      .select('id')
+      .eq('blocker_id', hubookProfile.id)
+      .eq('blocked_id', userId)
+      .maybeSingle();
+
+    setIsBlocked(!!data);
+  };
+
+  const handleBlock = async () => {
+    if (!hubookProfile || !userId || blockLoading) return;
+
+    setBlockLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from('hubook_blocked_users')
+        .insert({
+          blocker_id: hubookProfile.id,
+          blocked_id: userId
+        });
+
+      if (error) throw error;
+
+      setIsBlocked(true);
+      setShowBlockConfirm(false);
+      setSuccessMessage('User blocked successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+      if (friendship) {
+        await supabase
+          .from('friendships')
+          .delete()
+          .eq('id', friendship.id);
+        setFriendship(null);
+      }
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      setErrorMessage('Failed to block user. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setBlockLoading(false);
+    }
+  };
+
+  const handleUnblock = async () => {
+    if (!hubookProfile || !userId || blockLoading) return;
+
+    setBlockLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from('hubook_blocked_users')
+        .delete()
+        .eq('blocker_id', hubookProfile.id)
+        .eq('blocked_id', userId);
+
+      if (error) throw error;
+
+      setIsBlocked(false);
+      setSuccessMessage('User unblocked successfully');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      setErrorMessage('Failed to unblock user. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setBlockLoading(false);
+    }
   };
 
   const sendFriendRequest = async () => {
@@ -724,6 +805,27 @@ export default function PublicUserProfile() {
                       Messaging Restricted
                     </div>
                   )}
+                  {isBlocked ? (
+                    <button
+                      onClick={handleUnblock}
+                      disabled={blockLoading}
+                      className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                      title="Unblock this user"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Unblock
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setShowBlockConfirm(true)}
+                      disabled={blockLoading}
+                      className="flex items-center gap-1.5 px-3 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                      title="Block this user"
+                    >
+                      <Ban className="w-4 h-4" />
+                      Block
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -959,6 +1061,46 @@ export default function PublicUserProfile() {
           initialIndex={selectedMedia.index}
           onClose={() => setSelectedMedia(null)}
         />
+      )}
+
+      {showBlockConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Ban className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Block {user?.display_name}?</h3>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Blocking this user will prevent them from:
+            </p>
+            <ul className="list-disc list-inside text-gray-700 mb-6 space-y-1">
+              <li>Seeing your profile and posts</li>
+              <li>Sending you friend requests</li>
+              <li>Messaging you</li>
+              <li>Commenting on your posts</li>
+            </ul>
+            <p className="text-sm text-gray-600 mb-6">
+              If you're currently friends, blocking will remove the friendship.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBlockConfirm(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBlock}
+                disabled={blockLoading}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {blockLoading ? 'Blocking...' : 'Block User'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useHuBook } from '../../contexts/HuBookContext';
-import { Save, User, MapPin, Briefcase, GraduationCap, Heart, Tag, Camera, Shield } from 'lucide-react';
+import { Save, User, MapPin, Briefcase, GraduationCap, Heart, Tag, Camera, Shield, Ban, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ProfilePhotoModal from '../../components/hubook/ProfilePhotoModal';
 
@@ -11,6 +11,9 @@ export default function Settings() {
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false);
   const [showCoverPhotoModal, setShowCoverPhotoModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(false);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     display_name: hubookProfile?.display_name || '',
@@ -64,6 +67,62 @@ export default function Settings() {
 
     loadPrivacySettings();
   }, [hubookProfile]);
+
+  useEffect(() => {
+    loadBlockedUsers();
+  }, [hubookProfile]);
+
+  const loadBlockedUsers = async () => {
+    if (!hubookProfile) return;
+
+    setLoadingBlocked(true);
+    try {
+      const { data, error } = await supabase
+        .from('hubook_blocked_users')
+        .select(`
+          id,
+          blocked_id,
+          created_at,
+          hubook_profiles!hubook_blocked_users_blocked_id_fkey (
+            id,
+            display_name,
+            profile_photo_url
+          )
+        `)
+        .eq('blocker_id', hubookProfile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setBlockedUsers(data || []);
+    } catch (error) {
+      console.error('Error loading blocked users:', error);
+    } finally {
+      setLoadingBlocked(false);
+    }
+  };
+
+  const handleUnblock = async (blockId: string, displayName: string) => {
+    setUnblockingId(blockId);
+    try {
+      const { error } = await supabase
+        .from('hubook_blocked_users')
+        .delete()
+        .eq('id', blockId);
+
+      if (error) throw error;
+
+      setBlockedUsers(prev => prev.filter(b => b.id !== blockId));
+      setNotification({ type: 'success', message: `${displayName} has been unblocked` });
+      setTimeout(() => setNotification(null), 3000);
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      setNotification({ type: 'error', message: 'Failed to unblock user. Please try again.' });
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setUnblockingId(null);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -521,6 +580,76 @@ export default function Settings() {
           photoType="cover"
         />
       )}
+
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden mt-6">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Ban className="w-6 h-6" />
+            Blocked Users
+          </h1>
+          <p className="text-gray-600 mt-1">Manage users you've blocked</p>
+        </div>
+
+        <div className="p-6">
+          {loadingBlocked ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : blockedUsers.length === 0 ? (
+            <div className="text-center py-8">
+              <Ban className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">You haven't blocked anyone yet</p>
+              <p className="text-sm text-gray-500 mt-1">Blocked users can't see your profile, message you, or interact with your content</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {blockedUsers.map((blocked) => {
+                const profile = blocked.hubook_profiles;
+                return (
+                  <div key={blocked.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {profile?.profile_photo_url ? (
+                        <img
+                          src={profile.profile_photo_url}
+                          alt={profile.display_name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white font-bold text-lg">
+                          {profile?.display_name?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-gray-900">{profile?.display_name || 'Unknown User'}</p>
+                        <p className="text-sm text-gray-500">
+                          Blocked {new Date(blocked.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleUnblock(blocked.id, profile?.display_name || 'this user')}
+                      disabled={unblockingId === blocked.id}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {unblockingId === blocked.id ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          Unblocking...
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4" />
+                          Unblock
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
