@@ -108,7 +108,7 @@ export default function MediaCommentSection({ mediaId, canComment }: MediaCommen
                     </div>
                   )}
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="bg-gray-100 rounded-2xl p-2">
                     <HuBookMentionTextarea
                       value={newComment}
@@ -116,6 +116,7 @@ export default function MediaCommentSection({ mediaId, canComment }: MediaCommen
                       placeholder="Write a comment..."
                       rows={2}
                       className="text-sm"
+                      hideHelperText={true}
                     />
                   </div>
                   {newComment.trim() && (

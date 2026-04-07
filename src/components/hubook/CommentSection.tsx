@@ -81,21 +81,23 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             </div>
           )}
 
-          <div className="flex-1 flex gap-2 items-center min-w-0">
+          <div className="flex-1 min-w-0">
             <HuBookMentionTextarea
               value={newComment}
               onChange={setNewComment}
               placeholder="Write a comment..."
-              className="flex-1 px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white min-w-0"
+              className="w-full px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              hideHelperText={true}
+              rows={1}
             />
-            <button
-              type="submit"
-              disabled={!newComment.trim() || loading}
-              className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            >
-              <Send className="w-5 h-5" />
-            </button>
           </div>
+          <button
+            type="submit"
+            disabled={!newComment.trim() || loading}
+            className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </form>
 

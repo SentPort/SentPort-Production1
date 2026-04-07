@@ -14,6 +14,7 @@ interface HuBookMentionTextareaProps {
   maxLength?: number;
   rows?: number;
   className?: string;
+  hideHelperText?: boolean;
 }
 
 export default function HuBookMentionTextarea({
@@ -22,7 +23,8 @@ export default function HuBookMentionTextarea({
   placeholder = 'Write something...',
   maxLength,
   rows = 3,
-  className = ''
+  className = '',
+  hideHelperText = false
 }: HuBookMentionTextareaProps) {
   const [markupValue, setMarkupValue] = useState(value);
   const [displayValue, setDisplayValue] = useState(() => stripHuBookMentionMarkup(value));
@@ -253,9 +255,11 @@ export default function HuBookMentionTextarea({
         </div>
       )}
 
-      <div className="mt-1 text-xs text-blue-600">
-        <span className="font-medium">Tip:</span> Type @ to mention someone
-      </div>
+      {!hideHelperText && (
+        <div className="mt-1 text-xs text-blue-600">
+          <span className="font-medium">Tip:</span> Type @ to mention someone
+        </div>
+      )}
     </div>
   );
 }

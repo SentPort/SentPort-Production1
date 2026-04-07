@@ -267,6 +267,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
                   placeholder="Edit comment..."
                   rows={2}
                   className="text-sm"
+                  hideHelperText={true}
                 />
                 <div className="flex gap-2 mt-1">
                   <button
@@ -362,6 +363,7 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
                   placeholder="Write a reply..."
                   rows={2}
                   className="text-sm w-full"
+                  hideHelperText={true}
                 />
               </div>
               <div className="flex gap-2 mt-2">

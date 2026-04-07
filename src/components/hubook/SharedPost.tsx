@@ -135,6 +135,7 @@ export default function SharedPost({ share, post, sharer, onUpdate }: SharedPost
                   placeholder="Add a comment about this post (optional)"
                   maxLength={500}
                   rows={3}
+                  hideHelperText={true}
                 />
                 <div className="flex gap-2 mt-2">
                   <button

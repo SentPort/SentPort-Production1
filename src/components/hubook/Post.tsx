@@ -388,6 +388,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
               onChange={setEditContent}
               placeholder="Edit your post..."
               rows={4}
+              hideHelperText={true}
             />
             <div className="flex gap-2 mt-2">
               <button
