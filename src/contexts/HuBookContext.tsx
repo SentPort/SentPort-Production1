@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 
 export interface HuBookProfile {
   id: string;
+  user_id: string;
   display_name: string;
   sex: 'male' | 'female';
   age: number;
@@ -67,12 +68,13 @@ export function HuBookProvider({ children }: { children: ReactNode }) {
   }, [user?.id, userProfile?.id]);
 
   const createHuBookProfile = async (profile: Partial<HuBookProfile>) => {
-    if (!userProfile) throw new Error('Must be signed in');
+    if (!user || !userProfile) throw new Error('Must be signed in');
 
     const { data, error } = await supabase
       .from('hubook_profiles')
       .insert({
         id: userProfile.id,
+        user_id: user.id,
         display_name: profile.display_name,
         sex: profile.sex,
         age: profile.age,
