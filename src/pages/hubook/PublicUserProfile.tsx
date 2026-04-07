@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
 import SharedPost from '../../components/hubook/SharedPost';
 import MediaViewer from '../../components/hubook/MediaViewer';
+import CoverRenderer from '../../components/shared/CoverRenderer';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -77,7 +78,11 @@ export default function PublicUserProfile() {
 
     setPrivacySettings(data || {
       friend_request_privacy: 'everyone',
-      messaging_privacy: 'everyone'
+      messaging_privacy: 'everyone',
+      profile_visibility: 'public',
+      post_visibility_default: 'public',
+      who_can_see_photos: 'everyone',
+      who_can_see_friends_list: 'everyone'
     });
   };
 
@@ -240,16 +245,16 @@ export default function PublicUserProfile() {
 
   const canViewPosts = () => {
     if (!privacySettings) return true;
-    const postVisibility = privacySettings.post_visibility_default || 'public';
-    if (postVisibility === 'public' || postVisibility === 'everyone') return true;
+    const postVisibility = privacySettings.post_visibility_default;
+    if (!postVisibility || postVisibility === 'public' || postVisibility === 'everyone') return true;
     if ((postVisibility === 'friends_only' || postVisibility === 'friends') && friendship?.status === 'accepted') return true;
     return false;
   };
 
   const canViewPhotos = () => {
     if (!privacySettings) return true;
-    const photoVisibility = privacySettings.who_can_see_photos || 'everyone';
-    if (photoVisibility === 'public' || photoVisibility === 'everyone') return true;
+    const photoVisibility = privacySettings.who_can_see_photos;
+    if (!photoVisibility || photoVisibility === 'public' || photoVisibility === 'everyone') return true;
     if ((photoVisibility === 'friends_only' || photoVisibility === 'friends') && friendship?.status === 'accepted') return true;
     return false;
   };
@@ -531,7 +536,23 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
+        {user.cover_photo_url ? (
+          <div className="h-48 relative overflow-hidden">
+            <img
+              src={user.cover_photo_url}
+              alt="Cover"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ) : user.cover_design_data ? (
+          <CoverRenderer
+            designData={user.cover_design_data}
+            aspectRatio={25}
+            className="h-48"
+          />
+        ) : (
+          <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
+        )}
 
         <div className="px-6 pb-6">
           <div className="flex items-end justify-between -mt-16 mb-4">
