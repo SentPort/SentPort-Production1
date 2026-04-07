@@ -253,13 +253,23 @@ export default function PublicUserProfile() {
   };
 
   const fetchPosts = async () => {
+    console.log('🔍 [DEBUG] fetchPosts called with userId:', userId);
+    console.log('🔍 [DEBUG] canViewPosts():', canViewPosts());
+
     if (!userId || !canViewPosts()) {
+      console.log('🔍 [DEBUG] Exiting early - userId or canViewPosts check failed');
       setFeedItems([]);
       return;
     }
 
     setPostsLoading(true);
     try {
+      // Check auth state
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      console.log('🔍 [DEBUG] Auth user:', authUser?.id);
+      console.log('🔍 [DEBUG] Current hubookProfile:', hubookProfile?.id);
+
+      console.log('🔍 [DEBUG] Executing posts query with author_id:', userId);
       const [postsRes, sharesRes] = await Promise.all([
         supabase
           .from('posts')
@@ -274,17 +284,33 @@ export default function PublicUserProfile() {
           .order('created_at', { ascending: false })
       ]);
 
+      console.log('🔍 [DEBUG] Posts query result:', {
+        data: postsRes.data,
+        error: postsRes.error,
+        count: postsRes.data?.length
+      });
+      console.log('🔍 [DEBUG] Shares query result:', {
+        data: sharesRes.data,
+        error: sharesRes.error,
+        count: sharesRes.data?.length
+      });
+
       if (postsRes.error) {
-        console.error('Error fetching posts:', postsRes.error);
+        console.error('❌ Error fetching posts:', postsRes.error);
+        console.error('❌ Error details:', JSON.stringify(postsRes.error, null, 2));
         throw postsRes.error;
       }
       if (sharesRes.error) {
-        console.error('Error fetching shares:', sharesRes.error);
+        console.error('❌ Error fetching shares:', sharesRes.error);
+        console.error('❌ Error details:', JSON.stringify(sharesRes.error, null, 2));
         throw sharesRes.error;
       }
 
       const posts = postsRes.data || [];
       const shares = sharesRes.data || [];
+
+      console.log('🔍 [DEBUG] Posts count:', posts.length);
+      console.log('🔍 [DEBUG] Shares count:', shares.length);
 
       const sharePostIds = shares.map(s => s.post_id);
       const postsForShares = sharePostIds.length > 0
@@ -303,22 +329,31 @@ export default function PublicUserProfile() {
         }).filter(item => item !== null)
       ].sort((a, b) => new Date(b!.timestamp).getTime() - new Date(a!.timestamp).getTime());
 
+      console.log('🔍 [DEBUG] Combined feed items count:', combinedItems.length);
+      console.log('🔍 [DEBUG] Feed items:', combinedItems);
+
       setFeedItems(combinedItems);
     } catch (error) {
-      console.error('Error fetching posts:', error);
+      console.error('❌ [ERROR] Error fetching posts:', error);
+      console.error('❌ [ERROR] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     } finally {
       setPostsLoading(false);
     }
   };
 
   const fetchPhotos = async () => {
+    console.log('📸 [DEBUG] fetchPhotos called with userId:', userId);
+    console.log('📸 [DEBUG] canViewPhotos():', canViewPhotos());
+
     if (!userId || !canViewPhotos()) {
+      console.log('📸 [DEBUG] Exiting early - userId or canViewPhotos check failed');
       setPhotos([]);
       return;
     }
 
     setPhotosLoading(true);
     try {
+      console.log('📸 [DEBUG] Executing photos query with author_id:', userId);
       // Fetch posts that have albums with media
       const { data, error } = await supabase
         .from('posts')
@@ -343,8 +378,15 @@ export default function PublicUserProfile() {
         .not('source_album_id', 'is', null)
         .order('created_at', { ascending: false });
 
+      console.log('📸 [DEBUG] Photos query result:', {
+        data,
+        error,
+        count: data?.length
+      });
+
       if (error) {
-        console.error('Error fetching photos:', error);
+        console.error('❌ Error fetching photos:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
 
@@ -364,29 +406,43 @@ export default function PublicUserProfile() {
           };
         });
 
+      console.log('📸 [DEBUG] Transformed photos count:', photosData.length);
       setPhotos(photosData);
     } catch (error) {
-      console.error('Error fetching photos:', error);
+      console.error('❌ [ERROR] Error fetching photos:', error);
+      console.error('❌ [ERROR] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     } finally {
       setPhotosLoading(false);
     }
   };
 
   const fetchAlbums = async () => {
+    console.log('💿 [DEBUG] fetchAlbums called with userId:', userId);
+    console.log('💿 [DEBUG] canViewPhotos():', canViewPhotos());
+
     if (!userId || !canViewPhotos()) {
+      console.log('💿 [DEBUG] Exiting early - userId or canViewPhotos check failed');
       setAlbums([]);
       return;
     }
 
     try {
+      console.log('💿 [DEBUG] Executing albums query with owner_id:', userId);
       const { data: albumsData, error: albumsError } = await supabase
         .from('albums')
         .select('*')
         .eq('owner_id', userId)
         .order('created_at', { ascending: false });
 
+      console.log('💿 [DEBUG] Albums query result:', {
+        data: albumsData,
+        error: albumsError,
+        count: albumsData?.length
+      });
+
       if (albumsError) {
-        console.error('Error fetching albums:', albumsError);
+        console.error('❌ Error fetching albums:', albumsError);
+        console.error('❌ Error details:', JSON.stringify(albumsError, null, 2));
         throw albumsError;
       }
 
@@ -394,6 +450,8 @@ export default function PublicUserProfile() {
       const visibleAlbums = (albumsData || []).filter(album =>
         canViewAlbum(album.privacy)
       );
+
+      console.log('💿 [DEBUG] Visible albums after privacy filter:', visibleAlbums.length);
 
       const albumsWithCounts = await Promise.all(
         visibleAlbums.map(async (album) => {
@@ -525,15 +583,52 @@ export default function PublicUserProfile() {
     );
   }
 
+  const runDebugTest = async () => {
+    console.log('🧪 [TEST] Running debug test...');
+    console.log('🧪 [TEST] Current userId:', userId);
+    console.log('🧪 [TEST] Current user profile:', user);
+    console.log('🧪 [TEST] Privacy settings:', privacySettings);
+    console.log('🧪 [TEST] Friendship status:', friendship);
+    console.log('🧪 [TEST] Current feedItems count:', feedItems.length);
+
+    // Test auth state
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    console.log('🧪 [TEST] Authenticated user:', authUser);
+
+    // Test direct query
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('author_id', userId)
+      .eq('status', 'active');
+
+    console.log('🧪 [TEST] Direct query result:', { data, error, count: data?.length });
+
+    // Re-fetch all data
+    await fetchPosts();
+    await fetchPhotos();
+    await fetchAlbums();
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
-      <Link
-        to="/hubook"
-        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        Back to HuBook
-      </Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link
+          to="/hubook"
+          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Back to HuBook
+        </Link>
+
+        {/* Debug Test Button */}
+        <button
+          onClick={runDebugTest}
+          className="px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors border border-red-300"
+        >
+          🐛 Debug Test (Check Console)
+        </button>
+      </div>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
         <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
