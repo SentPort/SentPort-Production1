@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
 import SharedPost from '../../components/hubook/SharedPost';
 import MediaViewer from '../../components/hubook/MediaViewer';
+import CoverRenderer from '../../components/shared/CoverRenderer';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -648,7 +649,23 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
+        <div className="h-48 relative overflow-hidden">
+          {user.cover_design_data ? (
+            <CoverRenderer
+              designData={user.cover_design_data}
+              aspectRatio={56.25}
+              className="rounded-t-lg"
+            />
+          ) : user.cover_photo_url ? (
+            <img
+              src={user.cover_photo_url}
+              alt="Cover"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-blue-400 to-blue-600" />
+          )}
+        </div>
 
         <div className="px-6 pb-6">
           <div className="flex items-end justify-between -mt-16 mb-4">
