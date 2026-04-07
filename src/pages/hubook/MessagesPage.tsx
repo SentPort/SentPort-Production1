@@ -79,21 +79,29 @@ export default function MessagesPage() {
         }
 
         if (specificConversation?.conversations) {
+          const conv = specificConversation.conversations as any;
           setConversations(prev => {
-            const exists = prev.some(c => c.id === specificConversation.conversations.id);
+            const exists = prev.some(c => c.id === conv.id);
             if (exists) return prev;
-            return [specificConversation.conversations, ...prev];
+            return [conv, ...prev];
           });
 
           const { data: participants } = await supabase
             .from('conversation_participants')
-            .select('user_id, hubook_profiles!conversation_participants_user_id_fkey(*)')
-            .eq('conversation_id', specificConversation.conversations.id);
+            .select('user_id, user_profiles!conversation_participants_user_id_fkey(id, hubook_profiles(*))')
+            .eq('conversation_id', conv.id);
 
           if (participants) {
+            const transformedParticipants = participants
+              .filter((p: any) => p.user_id !== user.id)
+              .map((p: any) => ({
+                user_id: p.user_id,
+                hubook_profiles: p.user_profiles?.hubook_profiles || null
+              }));
+
             setConversationParticipants(prev => {
               const newMap = new Map(prev);
-              newMap.set(specificConversation.conversations.id, participants.filter(p => p.user_id !== user.id));
+              newMap.set(conv.id, transformedParticipants);
               return newMap;
             });
           }
@@ -159,7 +167,7 @@ export default function MessagesPage() {
       .order('joined_at', { ascending: false });
 
     if (participantData) {
-      const convs = participantData.map(p => p.conversations);
+      const convs = participantData.map((p: any) => p.conversations);
       setConversations(convs);
 
       // Load participants for each conversation
@@ -167,11 +175,17 @@ export default function MessagesPage() {
       for (const conv of convs) {
         const { data: participants } = await supabase
           .from('conversation_participants')
-          .select('user_id, hubook_profiles!conversation_participants_user_id_fkey(*)')
-          .eq('conversation_id', conv.id);
+          .select('user_id, user_profiles!conversation_participants_user_id_fkey(id, hubook_profiles(*))')
+          .eq('conversation_id', (conv as any).id);
 
         if (participants) {
-          participantsMap.set(conv.id, participants.filter(p => p.user_id !== user.id));
+          const transformedParticipants = participants
+            .filter((p: any) => p.user_id !== user.id)
+            .map((p: any) => ({
+              user_id: p.user_id,
+              hubook_profiles: p.user_profiles?.hubook_profiles || null
+            }));
+          participantsMap.set((conv as any).id, transformedParticipants);
         }
       }
       setConversationParticipants(participantsMap);
