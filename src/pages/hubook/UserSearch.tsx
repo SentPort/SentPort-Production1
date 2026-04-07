@@ -26,6 +26,7 @@ export default function UserSearch() {
   const { hubookProfile } = useHuBook();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [friendships, setFriendships] = useState<Map<string, any>>(new Map());
   const [privacySettings, setPrivacySettings] = useState<Map<string, any>>(new Map());
   const [filterTier, setFilterTier] = useState<number | null>(null);
@@ -65,6 +66,7 @@ export default function UserSearch() {
     if (!user) return;
 
     setLoading(true);
+    setError(null);
     try {
       const { data, error } = await supabase.rpc('search_hubook_users_tiered', {
         search_query: searchQuery.trim(),
@@ -72,7 +74,13 @@ export default function UserSearch() {
         result_limit: 100
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Search error:', error);
+        setError(error.message || 'An error occurred while searching. Please try again.');
+        setResults([]);
+        return;
+      }
+
       setResults(data || []);
 
       // Load privacy settings for all users
@@ -88,8 +96,9 @@ export default function UserSearch() {
         });
         setPrivacySettings(privacyMap);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Search error:', error);
+      setError(error?.message || 'An unexpected error occurred. Please try again.');
       setResults([]);
     } finally {
       setLoading(false);
@@ -338,6 +347,20 @@ export default function UserSearch() {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Searching...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-16">
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg inline-block">
+              <X className="w-12 h-12 text-red-500 mx-auto mb-2" />
+              <h3 className="text-xl font-semibold text-red-900 mb-2">Search Error</h3>
+              <p className="text-red-700 mb-4">{error}</p>
+              <button
+                onClick={() => searchUsers(query)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           </div>
         ) : results.length === 0 ? (
