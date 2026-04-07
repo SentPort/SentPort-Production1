@@ -37,17 +37,22 @@ export default function PublicUserProfile() {
       fetchUser();
       fetchFriendship();
       fetchMutualFriends();
-      fetchPrivacySettings();
     }
   }, [userId, hubookProfile]);
 
   useEffect(() => {
     if (userId && user) {
+      fetchPrivacySettings();
+    }
+  }, [userId, user]);
+
+  useEffect(() => {
+    if (userId && user && privacySettings && friendship !== undefined) {
       fetchPosts();
       fetchPhotos();
       fetchAlbums();
     }
-  }, [userId, user]);
+  }, [userId, user, privacySettings, friendship]);
 
   const fetchUser = async () => {
     const { data, error } = await supabase
@@ -239,10 +244,38 @@ export default function PublicUserProfile() {
   };
 
   const canViewPosts = () => {
+    if (!privacySettings) return true;
+
+    const postVisibility = privacySettings.post_visibility_default;
+
+    if (!postVisibility || postVisibility === 'public') return true;
+
+    if (postVisibility === 'friends') {
+      return friendship?.status === 'accepted';
+    }
+
+    if (postVisibility === 'only_me') {
+      return false;
+    }
+
     return true;
   };
 
   const canViewPhotos = () => {
+    if (!privacySettings) return true;
+
+    const photoVisibility = privacySettings.who_can_see_photos;
+
+    if (!photoVisibility || photoVisibility === 'everyone') return true;
+
+    if (photoVisibility === 'friends') {
+      return friendship?.status === 'accepted';
+    }
+
+    if (photoVisibility === 'only_me') {
+      return false;
+    }
+
     return true;
   };
 
@@ -250,6 +283,20 @@ export default function PublicUserProfile() {
     if (albumPrivacy === 'public') return true;
     if (albumPrivacy === 'friends' && friendship?.status === 'accepted') return true;
     return false;
+  };
+
+  const canViewIndividualPost = (post: any) => {
+    if (!post.privacy || post.privacy === 'public') return true;
+
+    if (post.privacy === 'friends') {
+      return friendship?.status === 'accepted';
+    }
+
+    if (post.privacy === 'only_me' || post.privacy === 'private') {
+      return false;
+    }
+
+    return true;
   };
 
   const fetchPosts = async () => {
@@ -312,15 +359,21 @@ export default function PublicUserProfile() {
       console.log('🔍 [DEBUG] Posts count:', posts.length);
       console.log('🔍 [DEBUG] Shares count:', shares.length);
 
+      const filteredPosts = posts.filter(post => canViewIndividualPost(post));
+      console.log('🔍 [DEBUG] Filtered posts count (after privacy check):', filteredPosts.length);
+
       const sharePostIds = shares.map(s => s.post_id);
       const postsForShares = sharePostIds.length > 0
         ? (await supabase.from('posts').select('*').in('id', sharePostIds).eq('status', 'active')).data || []
         : [];
 
+      const filteredPostsForShares = postsForShares.filter(post => canViewIndividualPost(post));
+      console.log('🔍 [DEBUG] Filtered shared posts count (after privacy check):', filteredPostsForShares.length);
+
       const combinedItems = [
-        ...posts.map(post => ({ type: 'post', data: post, timestamp: post.created_at })),
+        ...filteredPosts.map(post => ({ type: 'post', data: post, timestamp: post.created_at })),
         ...shares.map(share => {
-          const post = postsForShares.find(p => p.id === share.post_id);
+          const post = filteredPostsForShares.find(p => p.id === share.post_id);
           return post ? {
             type: 'share',
             data: { share, post, sharer: user },
