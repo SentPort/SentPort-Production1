@@ -56,7 +56,7 @@ export function MessageReactionPicker({ messageId, userReaction, onReactionChang
   };
 
   return (
-    <div className="relative">
+    <div className="relative z-50">
       <button
         onClick={() => setShowPicker(!showPicker)}
         className="p-1 rounded-full hover:bg-gray-100 transition-colors"
@@ -68,10 +68,10 @@ export function MessageReactionPicker({ messageId, userReaction, onReactionChang
       {showPicker && (
         <>
           <div
-            className="fixed inset-0 z-10"
+            className="fixed inset-0 z-40"
             onClick={() => setShowPicker(false)}
           />
-          <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-1 z-20">
+          <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl p-2 flex gap-1 z-50 whitespace-nowrap">
             {AVAILABLE_EMOJIS.map(emoji => (
               <button
                 key={emoji}
