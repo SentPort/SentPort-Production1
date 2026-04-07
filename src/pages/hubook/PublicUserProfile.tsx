@@ -805,24 +805,26 @@ export default function PublicUserProfile() {
                       Messaging Restricted
                     </div>
                   )}
+                </div>
+                <div className="flex justify-end mt-6">
                   {isBlocked ? (
                     <button
                       onClick={handleUnblock}
                       disabled={blockLoading}
-                      className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white text-xs font-medium rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
                       title="Unblock this user"
                     >
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-3.5 h-3.5" />
                       Unblock
                     </button>
                   ) : (
                     <button
                       onClick={() => setShowBlockConfirm(true)}
                       disabled={blockLoading}
-                      className="flex items-center gap-1.5 px-3 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors disabled:opacity-50"
                       title="Block this user"
                     >
-                      <Ban className="w-4 h-4" />
+                      <Ban className="w-3.5 h-3.5" />
                       Block
                     </button>
                   )}
