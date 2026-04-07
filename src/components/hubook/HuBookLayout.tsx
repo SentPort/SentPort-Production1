@@ -1,14 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Users, Image, MessageCircle, Settings, Bell, UserPlus, Menu, X, Home } from 'lucide-react';
+import { User, Users, Image, MessageCircle, Settings, Bell, UserPlus, Menu, X, Home, Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
-import { SearchWithHistory } from '../shared/SearchWithHistory';
 import FlaggedContentNotificationWrapper from '../shared/FlaggedContentNotificationWrapper';
 import WelcomeModal from './WelcomeModal';
 import UniversalNavigationDropdown from '../shared/UniversalNavigationDropdown';
 import NotificationToast from './NotificationToast';
 import NotificationBellDropdown from './NotificationBellDropdown';
+import UserSearchDropdown from './UserSearchDropdown';
 
 export default function HuBookLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -20,6 +20,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [notificationToasts, setNotificationToasts] = useState<Array<{ notification: any; user: any }>>([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
   useEffect(() => {
     if (hubookProfile) {
@@ -168,9 +169,6 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
     setSuggestions(suggested);
   };
 
-  const handleSearch = (query: string) => {
-    navigate(`/hubook/search?q=${encodeURIComponent(query)}`);
-  };
 
   const sendFriendRequest = async (userId: string) => {
     if (!hubookProfile) return;
@@ -216,14 +214,23 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
                 </span>
               </Link>
 
-              <div className="flex-1 max-w-xl">
-                <SearchWithHistory
-                  platform="hubook"
-                  onSearch={handleSearch}
-                  placeholder="Search HuBook..."
-                  variant="platform"
-                  inputClassName="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
+              <div className="flex-1 max-w-xl relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
+                  <input
+                    type="text"
+                    placeholder="Search for people on HuBook..."
+                    onClick={() => setShowSearchDropdown(true)}
+                    readOnly
+                    className="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all cursor-pointer"
+                  />
+                </div>
+                {showSearchDropdown && (
+                  <UserSearchDropdown
+                    onClose={() => setShowSearchDropdown(false)}
+                    onNavigate={() => setShowSearchDropdown(false)}
+                  />
+                )}
               </div>
             </div>
 
