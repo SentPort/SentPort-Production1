@@ -6,7 +6,6 @@ import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
 import SharedPost from '../../components/hubook/SharedPost';
 import MediaViewer from '../../components/hubook/MediaViewer';
-import CoverRenderer from '../../components/shared/CoverRenderer';
 
 export default function PublicUserProfile() {
   const { userId } = useParams<{ userId: string }>();
@@ -73,16 +72,12 @@ export default function PublicUserProfile() {
     const { data } = await supabase
       .from('user_privacy_settings')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.user_id)
       .maybeSingle();
 
     setPrivacySettings(data || {
       friend_request_privacy: 'everyone',
-      messaging_privacy: 'everyone',
-      profile_visibility: 'public',
-      post_visibility_default: 'public',
-      who_can_see_photos: 'everyone',
-      who_can_see_friends_list: 'everyone'
+      messaging_privacy: 'everyone'
     });
   };
 
@@ -245,34 +240,24 @@ export default function PublicUserProfile() {
 
   const canViewPosts = () => {
     if (!privacySettings) return true;
-    const postVisibility = privacySettings.post_visibility_default;
-    if (!postVisibility || postVisibility === 'public' || postVisibility === 'everyone') return true;
+    const postVisibility = privacySettings.post_visibility_default || 'public';
+    if (postVisibility === 'public' || postVisibility === 'everyone') return true;
     if ((postVisibility === 'friends_only' || postVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    if (postVisibility === 'private' || postVisibility === 'no_one') return false;
-    return true;
+    return false;
   };
 
   const canViewPhotos = () => {
     if (!privacySettings) return true;
-    const photoVisibility = privacySettings.who_can_see_photos;
-    if (!photoVisibility || photoVisibility === 'public' || photoVisibility === 'everyone') return true;
+    const photoVisibility = privacySettings.who_can_see_photos || 'everyone';
+    if (photoVisibility === 'public' || photoVisibility === 'everyone') return true;
     if ((photoVisibility === 'friends_only' || photoVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    if (photoVisibility === 'private' || photoVisibility === 'no_one') return false;
-    return true;
+    return false;
   };
 
-  const canViewIndividualPost = (postPrivacy: string | null | undefined) => {
-    if (!postPrivacy || postPrivacy === 'public' || postPrivacy === 'everyone') return true;
-    if ((postPrivacy === 'friends' || postPrivacy === 'friends_only') && friendship?.status === 'accepted') return true;
-    if (postPrivacy === 'private' || postPrivacy === 'no_one') return false;
-    return true;
-  };
-
-  const canViewAlbum = (albumPrivacy: string | null | undefined) => {
-    if (!albumPrivacy || albumPrivacy === 'public' || albumPrivacy === 'everyone') return true;
-    if ((albumPrivacy === 'friends' || albumPrivacy === 'friends_only') && friendship?.status === 'accepted') return true;
-    if (albumPrivacy === 'private' || albumPrivacy === 'no_one') return false;
-    return true;
+  const canViewAlbum = (albumPrivacy: string) => {
+    if (albumPrivacy === 'public') return true;
+    if (albumPrivacy === 'friends' && friendship?.status === 'accepted') return true;
+    return false;
   };
 
   const fetchPosts = async () => {
@@ -300,7 +285,7 @@ export default function PublicUserProfile() {
       if (postsRes.error) throw postsRes.error;
       if (sharesRes.error) throw sharesRes.error;
 
-      const posts = (postsRes.data || []).filter(post => canViewIndividualPost(post.privacy));
+      const posts = postsRes.data || [];
       const shares = sharesRes.data || [];
 
       const sharePostIds = shares.map(s => s.post_id);
@@ -312,7 +297,7 @@ export default function PublicUserProfile() {
         ...posts.map(post => ({ type: 'post', data: post, timestamp: post.created_at })),
         ...shares.map(share => {
           const post = postsForShares.find(p => p.id === share.post_id);
-          return post && canViewIndividualPost(post.privacy) ? {
+          return post ? {
             type: 'share',
             data: { share, post, sharer: user },
             timestamp: share.created_at
@@ -343,11 +328,9 @@ export default function PublicUserProfile() {
           id,
           content,
           created_at,
-          privacy,
           source_album_id,
           albums!posts_source_album_id_fkey (
             id,
-            privacy,
             album_media (
               id,
               media_url,
@@ -365,14 +348,10 @@ export default function PublicUserProfile() {
       if (error) throw error;
 
       // Transform data to include media_urls array for compatibility
-      // Filter by both post privacy AND album privacy
       const photosData = (data || [])
         .filter(post => {
           const albums = post.albums as any;
-          if (!albums || !albums.album_media || albums.album_media.length === 0) return false;
-          if (!canViewIndividualPost(post.privacy)) return false;
-          if (!canViewAlbum(albums.privacy)) return false;
-          return true;
+          return albums && albums.album_media && albums.album_media.length > 0;
         })
         .map(post => {
           const albums = post.albums as any;
@@ -552,27 +531,9 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="relative z-0">
-          {user.cover_photo_url ? (
-            <div className="h-48 relative overflow-hidden">
-              <img
-                src={user.cover_photo_url}
-                alt="Cover"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ) : user.cover_design_data ? (
-            <CoverRenderer
-              designData={user.cover_design_data}
-              aspectRatio={25}
-              className="h-48"
-            />
-          ) : (
-            <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
-          )}
-        </div>
+        <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
 
-        <div className="px-6 pb-6 relative z-10">
+        <div className="px-6 pb-6">
           <div className="flex items-end justify-between -mt-16 mb-4">
             <div className="flex items-end gap-4">
               {user.profile_photo_url ? (
