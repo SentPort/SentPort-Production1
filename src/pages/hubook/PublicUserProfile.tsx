@@ -248,7 +248,8 @@ export default function PublicUserProfile() {
     const postVisibility = privacySettings.post_visibility_default;
     if (!postVisibility || postVisibility === 'public' || postVisibility === 'everyone') return true;
     if ((postVisibility === 'friends_only' || postVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    return false;
+    if (postVisibility === 'private' || postVisibility === 'no_one') return false;
+    return true;
   };
 
   const canViewPhotos = () => {
@@ -256,7 +257,8 @@ export default function PublicUserProfile() {
     const photoVisibility = privacySettings.who_can_see_photos;
     if (!photoVisibility || photoVisibility === 'public' || photoVisibility === 'everyone') return true;
     if ((photoVisibility === 'friends_only' || photoVisibility === 'friends') && friendship?.status === 'accepted') return true;
-    return false;
+    if (photoVisibility === 'private' || photoVisibility === 'no_one') return false;
+    return true;
   };
 
   const canViewIndividualPost = (postPrivacy: string | null | undefined) => {
@@ -550,25 +552,27 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        {user.cover_photo_url ? (
-          <div className="h-48 relative overflow-hidden">
-            <img
-              src={user.cover_photo_url}
-              alt="Cover"
-              className="w-full h-full object-cover"
+        <div className="relative z-0">
+          {user.cover_photo_url ? (
+            <div className="h-48 relative overflow-hidden">
+              <img
+                src={user.cover_photo_url}
+                alt="Cover"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : user.cover_design_data ? (
+            <CoverRenderer
+              designData={user.cover_design_data}
+              aspectRatio={25}
+              className="h-48"
             />
-          </div>
-        ) : user.cover_design_data ? (
-          <CoverRenderer
-            designData={user.cover_design_data}
-            aspectRatio={25}
-            className="h-48"
-          />
-        ) : (
-          <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
-        )}
+          ) : (
+            <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
+          )}
+        </div>
 
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 relative z-10">
           <div className="flex items-end justify-between -mt-16 mb-4">
             <div className="flex items-end gap-4">
               {user.profile_photo_url ? (
