@@ -354,14 +354,14 @@ export default function Comment({ comment, postId, onUpdate, isReply = false }: 
           </div>
 
           {showReplyInput && (
-            <div className="mt-2">
-              <div className="bg-gray-100 rounded-2xl p-2">
+            <div className="mt-2 mr-2">
+              <div className="bg-gray-100 rounded-2xl px-4 py-2">
                 <HuBookMentionTextarea
                   value={replyText}
                   onChange={setReplyText}
                   placeholder="Write a reply..."
                   rows={2}
-                  className="text-sm"
+                  className="text-sm w-full"
                 />
               </div>
               <div className="flex gap-2 mt-2">

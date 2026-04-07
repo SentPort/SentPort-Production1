@@ -66,32 +66,32 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   };
 
   return (
-    <div className="p-4">
+    <div className="px-4 py-3">
       <form onSubmit={handleSubmitComment} className="mb-4">
-        <div className="flex gap-2">
+        <div className="flex gap-3 items-start">
           {hubookProfile?.profile_photo_url ? (
             <img
               src={hubookProfile.profile_photo_url}
               alt={hubookProfile.display_name}
-              className="w-8 h-8 rounded-full object-cover"
+              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-sm font-semibold">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
               {hubookProfile?.display_name.charAt(0).toUpperCase()}
             </div>
           )}
 
-          <div className="flex-1 flex gap-2">
+          <div className="flex-1 flex gap-2 items-center min-w-0">
             <HuBookMentionTextarea
               value={newComment}
               onChange={setNewComment}
               placeholder="Write a comment..."
-              className="flex-1 px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              className="flex-1 px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white min-w-0"
             />
             <button
               type="submit"
               disabled={!newComment.trim() || loading}
-              className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
             >
               <Send className="w-5 h-5" />
             </button>
