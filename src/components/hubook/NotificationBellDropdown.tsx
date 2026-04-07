@@ -11,7 +11,9 @@ interface Notification {
   post_id: string | null;
   comment_id: string | null;
   share_id: string | null;
+  album_media_id: string | null;
   album_media_comment_id: string | null;
+  friendship_id: string | null;
   message: string;
   read: boolean;
   dismissed: boolean;
@@ -195,19 +197,71 @@ export default function NotificationBellDropdown() {
       return `/hubook/post/${notification.post_id}`;
     }
 
+    if (notification.comment_id) {
+      try {
+        const { data, error } = await supabase
+          .rpc('get_post_id_from_comment', { comment_uuid: notification.comment_id });
+
+        if (!error && data) {
+          return `/hubook/post/${data}`;
+        }
+      } catch (error) {
+        console.error('Error resolving post from comment:', error);
+      }
+    }
+
+    if (notification.album_media_id) {
+      return `/hubook/albums/media/${notification.album_media_id}`;
+    }
+
     if (notification.album_media_comment_id) {
       try {
         const { data: comment } = await supabase
           .from('album_media_comments')
           .select('media_id')
           .eq('id', notification.album_media_comment_id)
-          .single();
+          .maybeSingle();
 
         if (comment?.media_id) {
           return `/hubook/albums/media/${comment.media_id}`;
         }
       } catch (error) {
         console.error('Error fetching album media comment:', error);
+      }
+    }
+
+    if (notification.share_id) {
+      try {
+        const { data: share } = await supabase
+          .from('shares')
+          .select('target_id')
+          .eq('id', notification.share_id)
+          .maybeSingle();
+
+        if (share?.target_id) {
+          return `/hubook/post/${share.target_id}`;
+        }
+      } catch (error) {
+        console.error('Error fetching share:', error);
+      }
+    }
+
+    if (notification.friendship_id) {
+      try {
+        const { data: friendship } = await supabase
+          .from('friendships')
+          .select('requester_id, addressee_id')
+          .eq('id', notification.friendship_id)
+          .maybeSingle();
+
+        if (friendship) {
+          const otherUserId = friendship.requester_id === user?.id
+            ? friendship.addressee_id
+            : friendship.requester_id;
+          return `/hubook/profile/${otherUserId}`;
+        }
+      } catch (error) {
+        console.error('Error fetching friendship:', error);
       }
     }
 
@@ -293,7 +347,14 @@ export default function NotificationBellDropdown() {
             ) : notifications.length > 0 ? (
               <>
                 {notifications.map((notification) => {
-                  const hasLink = !!(notification.post_id || notification.album_media_comment_id);
+                  const hasLink = !!(
+                    notification.post_id ||
+                    notification.comment_id ||
+                    notification.album_media_id ||
+                    notification.album_media_comment_id ||
+                    notification.share_id ||
+                    notification.friendship_id
+                  );
                   return (
                     <div
                       key={notification.id}
