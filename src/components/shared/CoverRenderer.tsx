@@ -48,16 +48,18 @@ interface CoverDesignData {
 
 interface CoverRendererProps {
   designData: CoverDesignData | null;
-  aspectRatio: number;
+  aspectRatio?: number;
   className?: string;
   fallbackColor?: string;
+  useFixedHeight?: boolean;
 }
 
 export default function CoverRenderer({
   designData,
-  aspectRatio,
+  aspectRatio = 56.25,
   className = '',
-  fallbackColor = '#1F2937'
+  fallbackColor = '#1F2937',
+  useFixedHeight = false
 }: CoverRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +69,7 @@ export default function CoverRenderer({
         className={className}
         style={{
           width: '100%',
-          paddingBottom: `${aspectRatio}%`,
+          ...(useFixedHeight ? { height: '100%' } : { paddingBottom: `${aspectRatio}%` }),
           background: fallbackColor,
           position: 'relative'
         }}
@@ -124,7 +126,7 @@ export default function CoverRenderer({
       className={`relative overflow-hidden ${className}`}
       style={{
         width: '100%',
-        paddingBottom: `${aspectRatio}%`,
+        ...(useFixedHeight ? { height: '100%' } : { paddingBottom: `${aspectRatio}%` }),
         ...getBackgroundStyle()
       }}
     >

@@ -80,12 +80,12 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="relative h-64 group cursor-pointer" onClick={() => setShowCoverPhotoModal(true)}>
+        <div className="relative h-64 overflow-hidden group cursor-pointer" onClick={() => setShowCoverPhotoModal(true)}>
           {hubookProfile.cover_design_data ? (
             <CoverRenderer
               designData={hubookProfile.cover_design_data}
-              aspectRatio={56.25}
-              className="rounded-t-lg"
+              useFixedHeight={true}
+              className="absolute inset-0"
             />
           ) : hubookProfile.cover_photo_url ? (
             <img

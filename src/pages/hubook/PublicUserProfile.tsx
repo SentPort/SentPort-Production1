@@ -649,12 +649,12 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="h-64 relative">
+        <div className="h-64 relative overflow-hidden">
           {user.cover_design_data ? (
             <CoverRenderer
               designData={user.cover_design_data}
-              aspectRatio={56.25}
-              className="rounded-t-lg"
+              useFixedHeight={true}
+              className="absolute inset-0"
             />
           ) : user.cover_photo_url ? (
             <img
