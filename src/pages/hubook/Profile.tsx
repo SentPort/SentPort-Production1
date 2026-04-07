@@ -104,8 +104,8 @@ export default function Profile() {
         </div>
 
         <div className="px-6 pb-6">
-          <div className="flex items-end gap-6 -mt-20">
-            <div className="relative group cursor-pointer" onClick={() => setShowProfilePhotoModal(true)}>
+          <div className="flex gap-6 -mt-20">
+            <div className="relative group cursor-pointer flex-shrink-0" onClick={() => setShowProfilePhotoModal(true)}>
               {hubookProfile.profile_photo_url ? (
                 <img
                   src={hubookProfile.profile_photo_url}
@@ -124,8 +124,8 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="flex-1 pt-6">
-              <h1 className="text-3xl font-bold text-gray-900">{hubookProfile.display_name}</h1>
+            <div className="flex-1 pt-24">
+              <h1 className="text-3xl font-bold text-gray-900 leading-tight">{hubookProfile.display_name}</h1>
               <p className="text-gray-600 mt-1">
                 {hubookProfile.sex === 'male' ? 'Male' : 'Female'}, {hubookProfile.age} years old
               </p>

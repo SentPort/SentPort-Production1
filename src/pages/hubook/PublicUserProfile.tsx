@@ -668,22 +668,22 @@ export default function PublicUserProfile() {
         </div>
 
         <div className="px-6 pb-6">
-          <div className="flex items-end justify-between -mt-20 mb-4">
-            <div className="flex items-end gap-4">
+          <div className="flex justify-between -mt-20 mb-4">
+            <div className="flex gap-4">
               {user.profile_photo_url ? (
                 <img
                   src={user.profile_photo_url}
                   alt={user.display_name}
-                  className="w-40 h-40 rounded-full border-4 border-white object-cover bg-white relative z-10"
+                  className="w-40 h-40 rounded-full border-4 border-white object-cover bg-white relative z-10 flex-shrink-0"
                 />
               ) : (
-                <div className="w-40 h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-5xl relative z-10">
+                <div className="w-40 h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-5xl relative z-10 flex-shrink-0">
                   {user.display_name.charAt(0).toUpperCase()}
                 </div>
               )}
 
-              <div className="mb-2">
-                <h1 className="text-3xl font-bold text-gray-900">{user.display_name}</h1>
+              <div className="pt-24 flex-1">
+                <h1 className="text-3xl font-bold text-gray-900 leading-tight">{user.display_name}</h1>
                 {mutualFriendsCount > 0 && (
                   <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
                     <Users className="w-4 h-4" />
@@ -694,7 +694,7 @@ export default function PublicUserProfile() {
             </div>
 
             {hubookProfile?.id !== user.id && (
-              <div className="mb-2 flex flex-col gap-2">
+              <div className="pt-24 flex flex-col gap-2">
                 {errorMessage && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
                     <AlertCircle className="w-4 h-4" />
@@ -707,7 +707,7 @@ export default function PublicUserProfile() {
                     {successMessage}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-shrink-0">
                   {getFriendshipButton()}
                   {canSendMessage() ? (
                     <button
