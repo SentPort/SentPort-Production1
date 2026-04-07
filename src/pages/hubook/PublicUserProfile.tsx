@@ -42,12 +42,12 @@ export default function PublicUserProfile() {
   }, [userId, hubookProfile]);
 
   useEffect(() => {
-    if (userId && user && privacySettings && friendship !== undefined) {
+    if (userId && user) {
       fetchPosts();
       fetchPhotos();
       fetchAlbums();
     }
-  }, [userId, user, privacySettings, friendship]);
+  }, [userId, user]);
 
   const fetchUser = async () => {
     const { data, error } = await supabase
@@ -583,52 +583,16 @@ export default function PublicUserProfile() {
     );
   }
 
-  const runDebugTest = async () => {
-    console.log('🧪 [TEST] Running debug test...');
-    console.log('🧪 [TEST] Current userId:', userId);
-    console.log('🧪 [TEST] Current user profile:', user);
-    console.log('🧪 [TEST] Privacy settings:', privacySettings);
-    console.log('🧪 [TEST] Friendship status:', friendship);
-    console.log('🧪 [TEST] Current feedItems count:', feedItems.length);
-
-    // Test auth state
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    console.log('🧪 [TEST] Authenticated user:', authUser);
-
-    // Test direct query
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('author_id', userId)
-      .eq('status', 'active');
-
-    console.log('🧪 [TEST] Direct query result:', { data, error, count: data?.length });
-
-    // Re-fetch all data
-    await fetchPosts();
-    await fetchPhotos();
-    await fetchAlbums();
-  };
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <Link
-          to="/hubook"
-          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to HuBook
-        </Link>
-
-        {/* Debug Test Button */}
-        <button
-          onClick={runDebugTest}
-          className="px-4 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-colors border border-red-300"
-        >
-          🐛 Debug Test (Check Console)
-        </button>
-      </div>
+      <Link
+        to="/hubook"
+        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4 inline-block"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Back to HuBook
+      </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
         <div className="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
