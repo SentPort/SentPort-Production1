@@ -73,7 +73,7 @@ export default function PublicUserProfile() {
     const { data } = await supabase
       .from('user_privacy_settings')
       .select('*')
-      .eq('user_id', user.user_id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     setPrivacySettings(data || {
@@ -259,10 +259,18 @@ export default function PublicUserProfile() {
     return false;
   };
 
-  const canViewAlbum = (albumPrivacy: string) => {
-    if (albumPrivacy === 'public') return true;
-    if (albumPrivacy === 'friends' && friendship?.status === 'accepted') return true;
-    return false;
+  const canViewIndividualPost = (postPrivacy: string | null | undefined) => {
+    if (!postPrivacy || postPrivacy === 'public' || postPrivacy === 'everyone') return true;
+    if ((postPrivacy === 'friends' || postPrivacy === 'friends_only') && friendship?.status === 'accepted') return true;
+    if (postPrivacy === 'private' || postPrivacy === 'no_one') return false;
+    return true;
+  };
+
+  const canViewAlbum = (albumPrivacy: string | null | undefined) => {
+    if (!albumPrivacy || albumPrivacy === 'public' || albumPrivacy === 'everyone') return true;
+    if ((albumPrivacy === 'friends' || albumPrivacy === 'friends_only') && friendship?.status === 'accepted') return true;
+    if (albumPrivacy === 'private' || albumPrivacy === 'no_one') return false;
+    return true;
   };
 
   const fetchPosts = async () => {
@@ -290,7 +298,7 @@ export default function PublicUserProfile() {
       if (postsRes.error) throw postsRes.error;
       if (sharesRes.error) throw sharesRes.error;
 
-      const posts = postsRes.data || [];
+      const posts = (postsRes.data || []).filter(post => canViewIndividualPost(post.privacy));
       const shares = sharesRes.data || [];
 
       const sharePostIds = shares.map(s => s.post_id);
@@ -302,7 +310,7 @@ export default function PublicUserProfile() {
         ...posts.map(post => ({ type: 'post', data: post, timestamp: post.created_at })),
         ...shares.map(share => {
           const post = postsForShares.find(p => p.id === share.post_id);
-          return post ? {
+          return post && canViewIndividualPost(post.privacy) ? {
             type: 'share',
             data: { share, post, sharer: user },
             timestamp: share.created_at
@@ -333,9 +341,11 @@ export default function PublicUserProfile() {
           id,
           content,
           created_at,
+          privacy,
           source_album_id,
           albums!posts_source_album_id_fkey (
             id,
+            privacy,
             album_media (
               id,
               media_url,
@@ -353,10 +363,14 @@ export default function PublicUserProfile() {
       if (error) throw error;
 
       // Transform data to include media_urls array for compatibility
+      // Filter by both post privacy AND album privacy
       const photosData = (data || [])
         .filter(post => {
           const albums = post.albums as any;
-          return albums && albums.album_media && albums.album_media.length > 0;
+          if (!albums || !albums.album_media || albums.album_media.length === 0) return false;
+          if (!canViewIndividualPost(post.privacy)) return false;
+          if (!canViewAlbum(albums.privacy)) return false;
+          return true;
         })
         .map(post => {
           const albums = post.albums as any;
