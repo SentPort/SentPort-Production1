@@ -156,6 +156,17 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
       )
     );
 
+    const { data: blockedUsers } = await supabase
+      .from('hubook_blocked_users')
+      .select('blocker_id, blocked_id')
+      .or(`blocker_id.eq.${hubookProfile.id},blocked_id.eq.${hubookProfile.id}`);
+
+    const blockedUserIds = new Set(
+      (blockedUsers || []).map((b) =>
+        b.blocker_id === hubookProfile.id ? b.blocked_id : b.blocker_id
+      )
+    );
+
     const { data: allUsers } = await supabase
       .from('hubook_profiles')
       .select('*')
@@ -163,7 +174,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
       .limit(20);
 
     const suggested = (allUsers || [])
-      .filter((user) => !myFriendIds.has(user.id))
+      .filter((user) => !myFriendIds.has(user.id) && !blockedUserIds.has(user.id))
       .slice(0, 5);
 
     setSuggestions(suggested);
