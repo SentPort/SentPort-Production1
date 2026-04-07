@@ -649,7 +649,7 @@ export default function PublicUserProfile() {
       </Link>
 
       <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="h-48 relative overflow-hidden">
+        <div className="h-64 relative">
           {user.cover_design_data ? (
             <CoverRenderer
               designData={user.cover_design_data}
@@ -668,16 +668,16 @@ export default function PublicUserProfile() {
         </div>
 
         <div className="px-6 pb-6">
-          <div className="flex items-end justify-between -mt-16 mb-4">
+          <div className="flex items-end justify-between -mt-20 mb-4">
             <div className="flex items-end gap-4">
               {user.profile_photo_url ? (
                 <img
                   src={user.profile_photo_url}
                   alt={user.display_name}
-                  className="w-32 h-32 rounded-full border-4 border-white object-cover bg-white"
+                  className="w-40 h-40 rounded-full border-4 border-white object-cover bg-white relative z-10"
                 />
               ) : (
-                <div className="w-32 h-32 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-4xl">
+                <div className="w-40 h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-5xl relative z-10">
                   {user.display_name.charAt(0).toUpperCase()}
                 </div>
               )}
