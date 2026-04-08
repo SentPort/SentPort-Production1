@@ -133,9 +133,9 @@ export default function MediaUploader({ onMediaChange, maxFiles = 10 }: MediaUpl
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {mediaItems.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
           {mediaItems.map((item) => (
             <div key={item.id} className="relative group aspect-square">
               {item.type === 'image' ? (
@@ -146,13 +146,13 @@ export default function MediaUploader({ onMediaChange, maxFiles = 10 }: MediaUpl
                 />
               ) : (
                 <div className="w-full h-full bg-gray-900 rounded-lg flex items-center justify-center">
-                  <VideoIcon className="w-12 h-12 text-white" />
+                  <VideoIcon className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
                 </div>
               )}
 
               {item.uploading && (
                 <div className="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-white animate-spin" />
+                  <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-white animate-spin" />
                 </div>
               )}
 
@@ -165,7 +165,7 @@ export default function MediaUploader({ onMediaChange, maxFiles = 10 }: MediaUpl
               <button
                 type="button"
                 onClick={() => handleRemove(item.id)}
-                className="absolute top-2 right-2 bg-gray-900 bg-opacity-75 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-gray-900 bg-opacity-75 text-white rounded-full p-1.5 sm:p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-red-600 active:bg-red-700 touch-manipulation min-w-[32px] min-h-[32px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                 disabled={item.uploading}
               >
                 <X className="w-4 h-4" />
@@ -181,14 +181,15 @@ export default function MediaUploader({ onMediaChange, maxFiles = 10 }: MediaUpl
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
+            className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center cursor-pointer hover:border-blue-500 active:border-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors touch-manipulation"
           >
-            <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 font-medium mb-1">
-              Click to upload or drag and drop
+            <Upload className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400 mx-auto mb-2 sm:mb-3" />
+            <p className="text-sm sm:text-base text-gray-600 font-medium mb-1">
+              <span className="hidden sm:inline">Click to upload or drag and drop</span>
+              <span className="sm:hidden">Tap to select photos or videos</span>
             </p>
-            <p className="text-sm text-gray-500">
-              Images or videos (max {maxFiles} files, 100MB each)
+            <p className="text-xs sm:text-sm text-gray-500">
+              Max {maxFiles} files, 100MB each
             </p>
           </div>
 
@@ -205,26 +206,26 @@ export default function MediaUploader({ onMediaChange, maxFiles = 10 }: MediaUpl
             <button
               type="button"
               onClick={() => setShowUrlInput(!showUrlInput)}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-sm text-blue-600 hover:text-blue-700 active:text-blue-800 font-medium touch-manipulation py-2"
             >
               {showUrlInput ? 'Hide URL input' : 'Or add media by URL'}
             </button>
           </div>
 
           {showUrlInput && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="url"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder="Enter image or video URL"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation"
               />
               <button
                 type="button"
                 onClick={handleUrlAdd}
                 disabled={!urlInput.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 text-white text-sm sm:text-base rounded-lg hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px] sm:min-h-0"
               >
                 Add
               </button>

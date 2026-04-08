@@ -79,8 +79,8 @@ export default function Profile() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div className="relative h-64 overflow-hidden group cursor-pointer" onClick={() => setShowCoverPhotoModal(true)}>
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-4 sm:mb-6">
+        <div className="relative h-40 sm:h-48 md:h-64 overflow-hidden group cursor-pointer touch-manipulation" onClick={() => setShowCoverPhotoModal(true)}>
           {hubookProfile.cover_design_data ? (
             <CoverRenderer
               designData={hubookProfile.cover_design_data}
@@ -103,30 +103,30 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="px-6 pb-6">
-          <div className="flex gap-6 -mt-20">
-            <div className="relative group cursor-pointer flex-shrink-0" onClick={() => setShowProfilePhotoModal(true)}>
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 -mt-12 sm:-mt-16 md:-mt-20">
+            <div className="relative group cursor-pointer flex-shrink-0 touch-manipulation self-center sm:self-start" onClick={() => setShowProfilePhotoModal(true)}>
               {hubookProfile.profile_photo_url ? (
                 <img
                   src={hubookProfile.profile_photo_url}
                   alt={hubookProfile.display_name}
-                  className="w-40 h-40 rounded-full border-4 border-white object-cover"
+                  className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full border-4 border-white object-cover shadow-lg"
                 />
               ) : (
-                <div className="w-40 h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold text-5xl">
+                <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-bold text-3xl sm:text-4xl md:text-5xl shadow-lg">
                   {hubookProfile.display_name.charAt(0).toUpperCase()}
                 </div>
               )}
               <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white rounded-full p-2 shadow-lg">
-                  <Camera className="w-5 h-5 text-gray-700" />
+                  <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 pt-24">
-              <h1 className="text-3xl font-bold text-gray-900 leading-tight">{hubookProfile.display_name}</h1>
-              <p className="text-gray-600 mt-1">
+            <div className="flex-1 pt-0 sm:pt-16 md:pt-24 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{hubookProfile.display_name}</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
                 {hubookProfile.sex === 'male' ? 'Male' : 'Female'}, {hubookProfile.age} years old
               </p>
             </div>
@@ -134,9 +134,9 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">About</h2>
 
             {hubookProfile.bio && (

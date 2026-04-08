@@ -160,22 +160,22 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
       <form onSubmit={handleSubmit}>
-        <div className="flex gap-3 mb-4">
+        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4">
           {hubookProfile?.profile_photo_url ? (
             <img
               src={hubookProfile.profile_photo_url}
               alt={hubookProfile.display_name}
-              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold flex-shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold flex-shrink-0 text-sm sm:text-base">
               {hubookProfile?.display_name.charAt(0).toUpperCase()}
             </div>
           )}
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <HuBookMentionTextarea
               value={content}
               onChange={setContent}
@@ -186,7 +186,7 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
         </div>
 
         {showMediaUploader && (
-          <div className="mb-4">
+          <div className="mb-3 sm:mb-4">
             <MediaUploader
               onMediaChange={handleMediaChange}
               maxFiles={10}
@@ -194,27 +194,27 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
           </div>
         )}
 
-        <div className="border-t border-gray-200 pt-4 flex items-center justify-between">
+        <div className="border-t border-gray-200 pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0">
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setShowMediaUploader(!showMediaUploader)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors touch-manipulation min-h-[44px] sm:min-h-0 ${
                 showMediaUploader
                   ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : 'text-gray-600 hover:bg-gray-100 active:bg-gray-200'
               }`}
             >
               <ImageIcon className="w-5 h-5 text-green-500" />
-              <span className="hidden sm:inline font-medium">Photo/Video</span>
+              <span className="text-sm sm:text-base font-medium">Photo/Video</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <select
               value={privacy}
               onChange={(e) => setPrivacy(e.target.value as any)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="flex-1 sm:flex-none px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm touch-manipulation min-h-[44px] sm:min-h-0"
             >
               {privacyOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -226,7 +226,7 @@ export default function PostComposer({ onPostCreated, placeholder }: PostCompose
             <button
               type="submit"
               disabled={!content.trim() || loading}
-              className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 sm:px-6 py-2 bg-blue-600 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation min-h-[44px] sm:min-h-0 whitespace-nowrap"
             >
               {loading ? 'Posting...' : 'Post'}
             </button>

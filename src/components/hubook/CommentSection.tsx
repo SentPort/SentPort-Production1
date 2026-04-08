@@ -66,17 +66,17 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   };
 
   return (
-    <div className="px-4 py-3">
+    <div className="px-3 sm:px-4 py-3">
       <form onSubmit={handleSubmitComment} className="mb-4">
-        <div className="flex gap-3 items-start">
+        <div className="flex gap-2 sm:gap-3 items-start">
           {hubookProfile?.profile_photo_url ? (
             <img
               src={hubookProfile.profile_photo_url}
               alt={hubookProfile.display_name}
-              className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xs sm:text-sm font-semibold flex-shrink-0">
               {hubookProfile?.display_name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -86,7 +86,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               value={newComment}
               onChange={setNewComment}
               placeholder="Write a comment..."
-              className="w-full px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white touch-manipulation"
               hideHelperText={true}
               rows={1}
             />
@@ -94,9 +94,9 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           <button
             type="submit"
             disabled={!newComment.trim() || loading}
-            className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0 touch-manipulation min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </form>

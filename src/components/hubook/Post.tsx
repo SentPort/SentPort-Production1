@@ -264,32 +264,32 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
   if (!author) return null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm mb-4">
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex gap-3">
+    <div className="bg-white rounded-lg shadow-sm mb-3 sm:mb-4">
+      <div className="p-3 sm:p-4">
+        <div className="flex items-start justify-between mb-3 sm:mb-4">
+          <div className="flex gap-2 sm:gap-3 flex-1 min-w-0">
             <button
               onClick={() => navigate(hubookProfile?.id === author.id ? '/hubook/profile' : `/hubook/user/${author.id}`)}
-              className="cursor-pointer hover:opacity-80 transition-opacity"
+              className="cursor-pointer hover:opacity-80 transition-opacity touch-manipulation flex-shrink-0"
             >
               {author.profile_photo_url ? (
                 <img
                   src={author.profile_photo_url}
                   alt={author.display_name}
-                  className="w-10 h-10 rounded-full object-cover"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white font-semibold text-sm sm:text-base">
                   {author.display_name.charAt(0).toUpperCase()}
                 </div>
               )}
             </button>
 
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => navigate(hubookProfile?.id === author.id ? '/hubook/profile' : `/hubook/user/${author.id}`)}
-                  className="font-semibold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer"
+                  className="font-semibold text-sm sm:text-base text-gray-900 hover:text-blue-600 transition-colors cursor-pointer touch-manipulation truncate"
                 >
                   {author.display_name}
                 </button>
@@ -321,23 +321,23 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
           {!isEmbedded && (
             <>
               {isOwnPost ? (
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <button
                     onClick={() => setShowMenu(!showMenu)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className="p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
                   >
                     <MoreHorizontal className="w-5 h-5 text-gray-600" />
                   </button>
 
                   {showMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10 animate-in fade-in slide-in-from-top-2 duration-200">
                       {!post.is_auto_generated && (
                         <button
                           onClick={() => {
                             setIsEditing(true);
                             setShowMenu(false);
                           }}
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2"
+                          className="w-full px-4 py-3 text-left hover:bg-gray-100 active:bg-gray-200 flex items-center gap-2 text-sm sm:text-base touch-manipulation"
                         >
                           <Edit className="w-4 h-4" />
                           Edit Post
@@ -348,7 +348,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
                           setShowDeleteModal(true);
                           setShowMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2 text-red-600"
+                        className="w-full px-4 py-3 text-left hover:bg-gray-100 active:bg-gray-200 flex items-center gap-2 text-red-600 text-sm sm:text-base touch-manipulation"
                       >
                         <Trash2 className="w-4 h-4" />
                         Delete Post
@@ -446,7 +446,7 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
         )}
 
         {media.length > 0 && (
-          <div className={`grid gap-2 mb-4 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-1 sm:gap-2 mb-3 sm:mb-4 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {media.map((item, index) => {
               // Check if this is an album update post with clickable media
               const isAlbumMedia = post.source_type === 'album_upload' && post.source_album_id && item.album_media_id;
@@ -537,34 +537,34 @@ export default function Post({ post, onUpdate, isPinned = false, isEmbedded = fa
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 gap-2 sm:gap-0">
+          <div className="flex gap-1 justify-between sm:justify-start">
             <ReactionPicker onReact={handleReact} currentReaction={currentReaction} />
 
             <button
               onClick={() => setShowComments(!showComments)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation min-h-[44px] sm:min-h-0"
             >
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-sm font-medium">Comment</span>
+              <MessageCircle className="w-4 h-4 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm font-medium">Comment</span>
             </button>
 
             <button
               onClick={handleShareClick}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation min-h-[44px] sm:min-h-0"
             >
-              <Share2 className="w-4 h-4" />
-              <span className="text-sm font-medium">Share</span>
+              <Share2 className="w-4 h-4 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm font-medium">Share</span>
             </button>
           </div>
 
           {!isOwnPost && (
             <button
               onClick={() => setShowReportModal(true)}
-              className="text-xs text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1"
+              className="text-xs sm:text-xs text-gray-500 hover:text-red-600 active:text-red-700 transition-colors flex items-center gap-1 justify-center sm:justify-start py-2 sm:py-0 touch-manipulation"
             >
               <Flag className="w-3 h-3" />
-              Report Fake Content
+              <span>Report Fake Content</span>
             </button>
           )}
         </div>

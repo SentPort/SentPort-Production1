@@ -35,6 +35,16 @@ export default function MessagesPage() {
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
   const processedConversationParam = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -473,9 +483,11 @@ export default function MessagesPage() {
         onSelectUser={handleStartNewConversation}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-12rem)] min-h-[600px]">
-        <div className="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex-shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-12rem)] md:min-h-[600px]">
+        <div className={`md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden ${
+          isMobile && selectedConversation ? 'hidden' : ''
+        }`}>
+          <div className="p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex gap-2 mb-3">
               <SearchWithHistory
                 platform="hubook_messages"
@@ -584,10 +596,12 @@ export default function MessagesPage() {
           </div>
         </div>
 
-      <div className="md:col-span-2 bg-white rounded-lg shadow-sm flex flex-col">
+      <div className={`md:col-span-2 bg-white rounded-lg shadow-sm flex flex-col ${
+        isMobile && !selectedConversation ? 'hidden' : ''
+      }`}>
         {selectedConversation ? (
           <>
-            <div className="p-4 border-b border-gray-200">
+            <div className="p-3 sm:p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
               {(() => {
                 const participants = conversationParticipants.get(selectedConversation) || [];
                 const otherUser = participants[0]?.hubook_profiles || recipientProfile;
@@ -596,7 +610,7 @@ export default function MessagesPage() {
                 if (!otherUser) {
                   return (
                     <div className="flex items-center gap-3 animate-pulse">
-                      <div className="w-12 h-12 rounded-full bg-gray-200"></div>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gray-200"></div>
                       <div className="flex-1">
                         <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
                         <div className="h-3 bg-gray-200 rounded w-24"></div>
@@ -607,15 +621,26 @@ export default function MessagesPage() {
 
                 return (
                   <div className="flex items-center gap-3">
+                    {isMobile && (
+                      <button
+                        onClick={() => {
+                          setSelectedConversation(null);
+                          navigate('/hubook/messages');
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation -ml-2"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+                    )}
                     <Link to={`/hubook/user/${otherUser.id}`} className="flex-shrink-0">
                       {otherUser.profile_photo_url ? (
                         <img
                           src={otherUser.profile_photo_url}
                           alt={otherUser.display_name}
-                          className="w-12 h-12 rounded-full object-cover hover:opacity-80 transition-opacity"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover hover:opacity-80 transition-opacity"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold hover:opacity-80 transition-opacity">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold hover:opacity-80 transition-opacity text-sm sm:text-base">
                           {otherUser.display_name?.charAt(0).toUpperCase() || 'U'}
                         </div>
                       )}
@@ -623,12 +648,12 @@ export default function MessagesPage() {
                     <div className="flex-1 min-w-0">
                       <Link
                         to={`/hubook/user/${otherUser.id}`}
-                        className="font-semibold text-gray-900 hover:text-blue-600 transition-colors block"
+                        className="font-semibold text-sm sm:text-base text-gray-900 hover:text-blue-600 transition-colors block truncate"
                       >
                         {otherUser.display_name}
                       </Link>
                       {otherUser.work && (
-                        <p className="text-sm text-gray-600 truncate">{otherUser.work}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate hidden sm:block">{otherUser.work}</p>
                       )}
                     </div>
                     <ConversationOptionsMenu
@@ -714,19 +739,19 @@ export default function MessagesPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
+            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-gray-200 bg-white sticky bottom-0">
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Write a message..."
-                  className="flex-1 px-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-2 text-sm sm:text-base bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white touch-manipulation"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 sm:p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                 >
                   <Send className="w-5 h-5" />
                 </button>

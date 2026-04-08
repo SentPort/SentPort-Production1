@@ -9,6 +9,7 @@ import UniversalNavigationDropdown from '../shared/UniversalNavigationDropdown';
 import NotificationToast from './NotificationToast';
 import NotificationBellDropdown from './NotificationBellDropdown';
 import UserSearchDropdown from './UserSearchDropdown';
+import MobileBottomNav from './MobileBottomNav';
 
 export default function HuBookLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -267,22 +268,22 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 pb-16 lg:pb-0">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+        <div className="max-w-7xl mx-auto px-4 py-2 sm:py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1">
+            <div className="flex items-center gap-2 sm:gap-4 flex-1">
               <UniversalNavigationDropdown currentPlatform="hubook" />
               <Link to="/hubook" className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">H</span>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-base sm:text-lg">H</span>
                 </div>
-                <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hidden sm:inline">
+                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hidden sm:inline">
                   HuBook
                 </span>
               </Link>
 
-              <div className="flex-1 max-w-xl relative">
+              <div className="flex-1 max-w-xl relative hidden md:block">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none z-10" />
                   <input
@@ -302,7 +303,14 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <button
+                className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+                onClick={() => setShowSearchDropdown(true)}
+              >
+                <Search className="w-5 h-5 text-gray-700" />
+              </button>
+
               <button className="lg:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
@@ -470,6 +478,11 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
           </aside>
         </div>
       </div>
+
+      <MobileBottomNav
+        unreadMessagesCount={unreadMessagesCount}
+        onMenuClick={() => setMobileMenuOpen(true)}
+      />
 
       <FlaggedContentNotificationWrapper />
 
