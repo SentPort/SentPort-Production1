@@ -53,6 +53,35 @@ export default function MessagesPage() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('conversation-restoration')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          const oldRecord = payload.old as any;
+          const newRecord = payload.new as any;
+
+          if (oldRecord.deleted_at !== null && newRecord.deleted_at === null) {
+            loadConversations();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  useEffect(() => {
     const loadRecipientProfile = async () => {
       if (!recipientParam) {
         setRecipientProfile(null);
@@ -373,12 +402,19 @@ export default function MessagesPage() {
     loadConversations();
   };
 
-  const handleDeleteConversation = async (conversationId: string) => {
+  const handleDeleteConversation = async (conversationId: string, permanent: boolean = false) => {
     if (!user) return;
+
+    const updateData: any = { deleted_at: new Date().toISOString() };
+
+    if (permanent) {
+      updateData.permanently_blocked = true;
+      updateData.blocked_at = new Date().toISOString();
+    }
 
     await supabase
       .from('conversation_participants')
-      .update({ deleted_at: new Date().toISOString() })
+      .update(updateData)
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id);
 
@@ -465,9 +501,9 @@ export default function MessagesPage() {
           setDeleteModalOpen(false);
           setConversationToDelete(null);
         }}
-        onConfirm={() => {
+        onConfirm={(permanent) => {
           if (conversationToDelete) {
-            handleDeleteConversation(conversationToDelete);
+            handleDeleteConversation(conversationToDelete, permanent);
           }
         }}
         otherParticipantName={
