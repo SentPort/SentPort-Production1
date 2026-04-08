@@ -64,7 +64,7 @@ export function DeleteConversationModal({
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900 group-hover:text-red-900">Block and Delete Forever</h4>
                   <p className="text-sm text-gray-600 mt-1">
-                    Permanently delete this conversation. New messages from this person will not be delivered to you.
+                    Permanently delete this conversation. Messages within this conversation will not be delivered to you.
                   </p>
                 </div>
               </div>

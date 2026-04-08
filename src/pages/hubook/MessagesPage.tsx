@@ -9,6 +9,7 @@ import { MessageReactionPicker } from '../../components/hubook/MessageReactionPi
 import { ConversationOptionsMenu } from '../../components/hubook/ConversationOptionsMenu';
 import { DeleteConversationModal } from '../../components/hubook/DeleteConversationModal';
 import { NewConversationModal } from '../../components/hubook/NewConversationModal';
+import { ConversationBlockedBanner } from '../../components/hubook/ConversationBlockedBanner';
 
 export default function MessagesPage() {
   const [searchParams] = useSearchParams();
@@ -33,6 +34,7 @@ export default function MessagesPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+  const [otherParticipantBlockedConversation, setOtherParticipantBlockedConversation] = useState(false);
   const processedConversationParam = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -187,7 +189,7 @@ export default function MessagesPage() {
     if (selectedConversation) {
       loadMessages();
 
-      // Subscribe to new messages and reactions
+      // Subscribe to new messages, reactions, and block status changes
       const channel = supabase
         .channel(`conversation-${selectedConversation}`)
         .on(
@@ -208,6 +210,18 @@ export default function MessagesPage() {
             event: '*',
             schema: 'public',
             table: 'hubook_message_reactions'
+          },
+          () => {
+            loadMessages();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'conversation_participants',
+            filter: `conversation_id=eq.${selectedConversation}`
           },
           () => {
             loadMessages();
@@ -294,6 +308,16 @@ export default function MessagesPage() {
     if (data) {
       const visibleMessages = data.filter(msg => visibleMessageIds.has(msg.id));
       setMessages(visibleMessages);
+
+      // Check if the other participant has permanently blocked this conversation
+      const { data: otherParticipant } = await supabase
+        .from('conversation_participants')
+        .select('permanently_blocked')
+        .eq('conversation_id', selectedConversation)
+        .neq('user_id', user.id)
+        .maybeSingle();
+
+      setOtherParticipantBlockedConversation(otherParticipant?.permanently_blocked || false);
 
       await supabase
         .from('messages')
@@ -462,6 +486,17 @@ export default function MessagesPage() {
       }
     } catch (error) {
       console.error('Error starting new conversation:', error);
+    }
+  };
+
+  const handleStartNewConversationWithCurrentUser = async () => {
+    if (!selectedConversation || !user) return;
+
+    const participants = conversationParticipants.get(selectedConversation) || [];
+    const otherUser = participants[0]?.hubook_profiles || recipientProfile;
+
+    if (otherUser?.id) {
+      await handleStartNewConversation(otherUser.id);
     }
   };
 
@@ -707,6 +742,21 @@ export default function MessagesPage() {
                 );
               })()}
             </div>
+
+            {otherParticipantBlockedConversation && (() => {
+              const participants = conversationParticipants.get(selectedConversation) || [];
+              const otherUser = participants[0]?.hubook_profiles || recipientProfile;
+
+              if (otherUser) {
+                return (
+                  <ConversationBlockedBanner
+                    otherUserDisplayName={otherUser.display_name}
+                    onStartNewConversation={handleStartNewConversationWithCurrentUser}
+                  />
+                );
+              }
+              return null;
+            })()}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => {
