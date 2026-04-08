@@ -10,12 +10,17 @@ interface NewConversationModalProps {
 }
 
 interface SearchResult {
-  id: string;
+  profile_id: string;
+  user_id: string;
   display_name: string;
   profile_photo_url: string | null;
   work: string | null;
-  tier: 'friend' | 'friend_of_friend' | 'public';
-  mutual_friends_count?: number;
+  location: string | null;
+  bio: string | null;
+  tier: number;
+  mutual_friends_count: number;
+  activity_score: number;
+  match_score: number;
 }
 
 export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConversationModalProps) {
@@ -41,8 +46,8 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
       setLoading(true);
       try {
         const { data, error } = await supabase.rpc('search_hubook_users_tiered', {
-          searcher_id: user.id,
           search_query: searchQuery.trim(),
+          current_user_id: user.id,
           result_limit: 20
         });
 
@@ -68,15 +73,15 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
     onClose();
   };
 
-  const getTierInfo = (tier: string) => {
+  const getTierInfo = (tier: number) => {
     switch (tier) {
-      case 'friend':
+      case 1:
         return {
           icon: Users,
           label: 'Friend',
           color: 'text-blue-600 bg-blue-50'
         };
-      case 'friend_of_friend':
+      case 2:
         return {
           icon: UserPlus,
           label: 'Friend of Friend',
@@ -97,7 +102,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
     }
     acc[result.tier].push(result);
     return acc;
-  }, {} as Record<string, SearchResult[]>);
+  }, {} as Record<number, SearchResult[]>);
 
   if (!isOpen) return null;
 
@@ -147,7 +152,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
             </div>
           ) : (
             <div className="space-y-6">
-              {(['friend', 'friend_of_friend', 'public'] as const).map(tier => {
+              {[1, 2, 3].map(tier => {
                 const results = groupedResults[tier];
                 if (!results || results.length === 0) return null;
 
@@ -167,8 +172,8 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
                     <div className="space-y-2">
                       {results.map((result) => (
                         <button
-                          key={result.id}
-                          onClick={() => handleSelectUser(result.id)}
+                          key={result.profile_id}
+                          onClick={() => handleSelectUser(result.user_id)}
                           className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                         >
                           {result.profile_photo_url ? (
@@ -189,7 +194,7 @@ export function NewConversationModal({ isOpen, onClose, onSelectUser }: NewConve
                             {result.work && (
                               <div className="text-sm text-gray-600 truncate">{result.work}</div>
                             )}
-                            {tier === 'friend_of_friend' && result.mutual_friends_count && result.mutual_friends_count > 0 && (
+                            {tier === 2 && result.mutual_friends_count > 0 && (
                               <div className="text-xs text-gray-500">
                                 {result.mutual_friends_count} mutual {result.mutual_friends_count === 1 ? 'friend' : 'friends'}
                               </div>
