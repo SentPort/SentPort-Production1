@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, Star, Filter } from 'lucide-react';
+import { Send, ArrowLeft, Star, Filter, MessageSquarePlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useHuBook } from '../../contexts/HuBookContext';
@@ -8,6 +8,7 @@ import { SearchWithHistory } from '../../components/shared/SearchWithHistory';
 import { MessageReactionPicker } from '../../components/hubook/MessageReactionPicker';
 import { ConversationOptionsMenu } from '../../components/hubook/ConversationOptionsMenu';
 import { DeleteConversationModal } from '../../components/hubook/DeleteConversationModal';
+import { NewConversationModal } from '../../components/hubook/NewConversationModal';
 
 export default function MessagesPage() {
   const [searchParams] = useSearchParams();
@@ -31,6 +32,7 @@ export default function MessagesPage() {
   const [conversationFilter, setConversationFilter] = useState<'all' | 'favorites' | 'hidden'>('all');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
   const processedConversationParam = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -392,6 +394,31 @@ export default function MessagesPage() {
     }
   };
 
+  const handleStartNewConversation = async (recipientId: string) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase.rpc('find_or_create_conversation', {
+        user_a_id: user.id,
+        user_b_id: recipientId,
+        force_new: true
+      });
+
+      if (error) {
+        console.error('Error creating conversation:', error);
+        return;
+      }
+
+      if (data) {
+        navigate(`/hubook/messages?conversation=${data}`);
+        processedConversationParam.current = null;
+        await loadConversations();
+      }
+    } catch (error) {
+      console.error('Error starting new conversation:', error);
+    }
+  };
+
   const getReactionCounts = (messageId: string) => {
     const reactions = messageReactions.get(messageId) || [];
     const counts: Record<string, number> = {};
@@ -440,20 +467,35 @@ export default function MessagesPage() {
         }
       />
 
+      <NewConversationModal
+        isOpen={newConversationModalOpen}
+        onClose={() => setNewConversationModalOpen(false)}
+        onSelectUser={handleStartNewConversation}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[calc(100vh-12rem)] min-h-[600px]">
         <div className="md:col-span-1 bg-white rounded-lg shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
-            <SearchWithHistory
-              platform="hubook_messages"
-              onSearch={(query) => {
-                console.log('Searching messages for:', query);
-              }}
-              placeholder="Search messages"
-              variant="platform"
-              inputClassName="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
-            />
+            <div className="flex gap-2 mb-3">
+              <SearchWithHistory
+                platform="hubook_messages"
+                onSearch={(query) => {
+                  console.log('Searching messages for:', query);
+                }}
+                placeholder="Search messages"
+                variant="platform"
+                inputClassName="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-full focus:ring-2 focus:ring-blue-500 focus:bg-white"
+              />
+              <button
+                onClick={() => setNewConversationModalOpen(true)}
+                className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors flex-shrink-0"
+                title="Start new conversation"
+              >
+                <MessageSquarePlus className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="flex gap-1 mt-3">
+            <div className="flex gap-1">
               <button
                 onClick={() => setConversationFilter('all')}
                 className={`flex-1 px-2 py-1.5 text-xs rounded-lg transition-colors ${
