@@ -37,7 +37,15 @@ export default function MessagesPage() {
   const [otherParticipantBlockedConversation, setOtherParticipantBlockedConversation] = useState(false);
   const processedConversationParam = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Pagination state
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [oldestLoadedMessageId, setOldestLoadedMessageId] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const MESSAGES_PER_PAGE = 30;
 
   useEffect(() => {
     const checkMobile = () => {
@@ -187,7 +195,13 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (selectedConversation) {
-      loadMessages();
+      // Reset pagination state when switching conversations
+      setIsInitialLoad(true);
+      setOldestLoadedMessageId(null);
+      setHasMoreMessages(false);
+      setMessages([]);
+
+      loadMessages(false);
 
       // Subscribe to new messages, reactions, and block status changes
       const channel = supabase
@@ -200,8 +214,38 @@ export default function MessagesPage() {
             table: 'messages',
             filter: `conversation_id=eq.${selectedConversation}`
           },
-          () => {
-            loadMessages();
+          async (payload) => {
+            // For new messages, append to the end instead of full reload
+            const newMessage = payload.new as any;
+
+            if (!user) return;
+
+            // Check if message is visible to current user
+            const { data: visibility } = await supabase
+              .from('message_visibility')
+              .select('message_id')
+              .eq('user_id', user.id)
+              .eq('message_id', newMessage.id)
+              .maybeSingle();
+
+            if (visibility) {
+              setMessages(prev => {
+                // Check if message already exists
+                if (prev.some(m => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+              });
+
+              // Load reactions for the new message
+              loadMessageReactions([newMessage.id, ...messages.map(m => m.id)]);
+
+              // Mark as read if not sent by current user
+              if (newMessage.sender_id !== user.id) {
+                await supabase
+                  .from('messages')
+                  .update({ is_read: true })
+                  .eq('id', newMessage.id);
+              }
+            }
           }
         )
         .on(
@@ -212,7 +256,8 @@ export default function MessagesPage() {
             table: 'hubook_message_reactions'
           },
           () => {
-            loadMessages();
+            // Reload reactions for all loaded messages
+            loadMessageReactions(messages.map(m => m.id));
           }
         )
         .on(
@@ -224,7 +269,7 @@ export default function MessagesPage() {
             filter: `conversation_id=eq.${selectedConversation}`
           },
           () => {
-            loadMessages();
+            loadMessages(false);
           }
         )
         .subscribe();
@@ -236,10 +281,40 @@ export default function MessagesPage() {
   }, [selectedConversation]);
 
   useEffect(() => {
-    if (messages.length > 0 && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    // Only auto-scroll to bottom on initial load or when user sends a message
+    if (messages.length > 0 && messagesEndRef.current && isInitialLoad) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      setIsInitialLoad(false);
     }
-  }, [messages]);
+  }, [messages, isInitialLoad]);
+
+  // Scroll detection for loading older messages
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop } = container;
+
+      // If user scrolls near the top (within 100px), load more messages
+      if (scrollTop < 100 && hasMoreMessages && !loadingOlderMessages) {
+        const previousScrollHeight = container.scrollHeight;
+        const previousScrollTop = container.scrollTop;
+
+        loadMessages(true).then(() => {
+          // Preserve scroll position after loading older messages
+          requestAnimationFrame(() => {
+            const newScrollHeight = container.scrollHeight;
+            const scrollDifference = newScrollHeight - previousScrollHeight;
+            container.scrollTop = previousScrollTop + scrollDifference;
+          });
+        });
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMoreMessages, loadingOlderMessages, selectedConversation]);
 
   const loadConversations = async () => {
     if (!user) return;
@@ -289,9 +364,17 @@ export default function MessagesPage() {
     setLoading(false);
   };
 
-  const loadMessages = async () => {
+  const loadMessages = async (loadOlder: boolean = false) => {
     if (!selectedConversation || !user) return;
 
+    if (loadOlder && loadingOlderMessages) return;
+    if (loadOlder && !hasMoreMessages) return;
+
+    if (loadOlder) {
+      setLoadingOlderMessages(true);
+    }
+
+    // Get visible message IDs for this user
     const { data: visibilityData } = await supabase
       .from('message_visibility')
       .select('message_id')
@@ -299,15 +382,45 @@ export default function MessagesPage() {
 
     const visibleMessageIds = new Set(visibilityData?.map(v => v.message_id) || []);
 
-    const { data } = await supabase
+    // Build query for messages
+    let query = supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', selectedConversation)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
+
+    if (loadOlder && oldestLoadedMessageId) {
+      // Get the timestamp of the oldest loaded message
+      const oldestMessage = messages.find(m => m.id === oldestLoadedMessageId);
+      if (oldestMessage) {
+        query = query.lt('created_at', oldestMessage.created_at);
+      }
+    }
+
+    query = query.limit(MESSAGES_PER_PAGE);
+
+    const { data } = await query;
 
     if (data) {
       const visibleMessages = data.filter(msg => visibleMessageIds.has(msg.id));
-      setMessages(visibleMessages);
+
+      // Reverse to get chronological order
+      const chronologicalMessages = [...visibleMessages].reverse();
+
+      if (loadOlder) {
+        // Prepend older messages
+        setMessages(prev => [...chronologicalMessages, ...prev]);
+      } else {
+        // Initial load or refresh - replace all messages
+        setMessages(chronologicalMessages);
+      }
+
+      // Update pagination state
+      setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
+
+      if (chronologicalMessages.length > 0) {
+        setOldestLoadedMessageId(chronologicalMessages[0].id);
+      }
 
       // Check if the other participant has permanently blocked this conversation
       const { data: otherParticipant } = await supabase
@@ -319,13 +432,23 @@ export default function MessagesPage() {
 
       setOtherParticipantBlockedConversation(otherParticipant?.permanently_blocked || false);
 
+      // Mark messages as read
       await supabase
         .from('messages')
         .update({ is_read: true })
         .eq('conversation_id', selectedConversation)
         .neq('sender_id', user.id);
 
-      loadMessageReactions(visibleMessages.map(m => m.id));
+      // Load reactions for all loaded messages
+      const allMessageIds = loadOlder
+        ? [...chronologicalMessages, ...messages].map(m => m.id)
+        : chronologicalMessages.map(m => m.id);
+
+      loadMessageReactions(allMessageIds);
+    }
+
+    if (loadOlder) {
+      setLoadingOlderMessages(false);
     }
   };
 
@@ -371,7 +494,12 @@ export default function MessagesPage() {
 
     if (!error) {
       setNewMessage('');
-      loadMessages();
+      // Scroll to bottom when sending a new message
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 100);
     }
   };
 
@@ -758,9 +886,29 @@ export default function MessagesPage() {
               return null;
             })()}
 
-            <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-              isMobile ? 'mb-20' : ''
-            }`}>
+            <div
+              ref={messagesContainerRef}
+              className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+                isMobile ? 'mb-20' : ''
+              }`}
+            >
+              {loadingOlderMessages && (
+                <div className="flex justify-center py-2">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Loading older messages...</span>
+                  </div>
+                </div>
+              )}
+
+              {!loadingOlderMessages && !hasMoreMessages && messages.length >= MESSAGES_PER_PAGE && (
+                <div className="flex justify-center py-2">
+                  <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    Beginning of conversation
+                  </div>
+                </div>
+              )}
+
               {messages.map((message) => {
                 const isOwn = message.sender_id === user?.id;
                 const reactionCounts = getReactionCounts(message.id);
