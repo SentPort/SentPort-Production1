@@ -193,6 +193,7 @@ export default function MessagesPage() {
       .from('conversation_participants')
       .select('conversation_id, is_favorite, is_hidden, conversations!conversation_participants_conversation_id_fkey(*)')
       .eq('user_id', user.id)
+      .is('deleted_at', null)
       .order('is_favorite', { ascending: false })
       .order('joined_at', { ascending: false });
 
@@ -234,7 +235,14 @@ export default function MessagesPage() {
   };
 
   const loadMessages = async () => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || !user) return;
+
+    const { data: visibilityData } = await supabase
+      .from('message_visibility')
+      .select('message_id')
+      .eq('user_id', user.id);
+
+    const visibleMessageIds = new Set(visibilityData?.map(v => v.message_id) || []);
 
     const { data } = await supabase
       .from('messages')
@@ -243,15 +251,16 @@ export default function MessagesPage() {
       .order('created_at', { ascending: true });
 
     if (data) {
-      setMessages(data);
+      const visibleMessages = data.filter(msg => visibleMessageIds.has(msg.id));
+      setMessages(visibleMessages);
 
       await supabase
         .from('messages')
         .update({ is_read: true })
         .eq('conversation_id', selectedConversation)
-        .neq('sender_id', user?.id);
+        .neq('sender_id', user.id);
 
-      loadMessageReactions(data.map(m => m.id));
+      loadMessageReactions(visibleMessages.map(m => m.id));
     }
   };
 
@@ -357,9 +366,23 @@ export default function MessagesPage() {
 
     await supabase
       .from('conversation_participants')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id);
+
+    const { data: messageData } = await supabase
+      .from('messages')
+      .select('id')
+      .eq('conversation_id', conversationId);
+
+    if (messageData && messageData.length > 0) {
+      const messageIds = messageData.map(m => m.id);
+      await supabase
+        .from('message_visibility')
+        .delete()
+        .eq('user_id', user.id)
+        .in('message_id', messageIds);
+    }
 
     setConversations(prev => prev.filter(c => c.id !== conversationId));
 
