@@ -21,10 +21,31 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
   const navigate = useNavigate();
   const { user } = useAuth();
   const [draftCount, setDraftCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       loadDraftCount();
+      loadUnreadMessageCount();
+
+      const conversationsChannel = supabase
+        .channel('heddit-conversations-unread')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'heddit_conversations',
+          },
+          () => {
+            loadUnreadMessageCount();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(conversationsChannel);
+      };
     }
   }, [user]);
 
@@ -49,6 +70,38 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
       setDraftCount(count || 0);
     } catch (error) {
       console.error('Error loading draft count:', error);
+    }
+  };
+
+  const loadUnreadMessageCount = async () => {
+    if (!user) return;
+
+    try {
+      const { data: hedditAccount } = await supabase
+        .from('heddit_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!hedditAccount) return;
+
+      const { data: conversations } = await supabase
+        .from('heddit_conversations')
+        .select('participant_one_id, participant_two_id, unread_count_one, unread_count_two')
+        .or(`participant_one_id.eq.${hedditAccount.id},participant_two_id.eq.${hedditAccount.id}`);
+
+      if (conversations) {
+        const totalUnread = conversations.reduce((sum, conv) => {
+          if (conv.participant_one_id === hedditAccount.id) {
+            return sum + (conv.unread_count_one || 0);
+          } else {
+            return sum + (conv.unread_count_two || 0);
+          }
+        }, 0);
+        setUnreadMessageCount(totalUnread);
+      }
+    } catch (error) {
+      console.error('Error loading unread message count:', error);
     }
   };
 
@@ -97,6 +150,11 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
                       title="Messages"
                     >
                       <MessageCircle className="w-6 h-6 text-gray-600" />
+                      {unreadMessageCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                          {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                        </span>
+                      )}
                     </Link>
                     <Link
                       to="/heddit/drafts"

@@ -1,21 +1,24 @@
 import { useEffect, useState, useRef } from 'react';
-import { Bell, Check, Trash2, MessageSquare, TrendingUp, MessageCircle, Users } from 'lucide-react';
+import { Bell, Check, Trash2, MessageSquare, TrendingUp, MessageCircle, Users, UserPlus, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
 
 interface HedditNotification {
   id: string;
-  type: 'comment_reply' | 'post_reply' | 'mention' | 'community_mention' | 'upvote_milestone' | 'subreddit_update' | 'moderation_action';
-  content_type: 'post' | 'comment' | 'subreddit';
+  type: 'comment_reply' | 'post_reply' | 'mention' | 'community_mention' | 'upvote_milestone' | 'subreddit_update' | 'moderation_action' | 'new_follower';
+  content_type: 'post' | 'comment' | 'subreddit' | 'follow';
   content_id: string;
   post_id: string | null;
+  following_id?: string | null;
   message: string;
   is_read: boolean;
   created_at: string;
   actor_id: string | null;
   heddit_accounts?: {
+    id: string;
     username: string;
     display_name: string;
+    avatar_url: string | null;
   };
 }
 
@@ -72,7 +75,7 @@ export default function NotificationBellDropdown() {
       .from('heddit_notifications')
       .select(`
         *,
-        heddit_accounts!heddit_notifications_actor_id_fkey(username, display_name)
+        heddit_accounts!heddit_notifications_actor_id_fkey(id, username, display_name, avatar_url)
       `)
       .eq('user_id', hedditAccountId)
       .order('created_at', { ascending: false })
@@ -156,12 +159,17 @@ export default function NotificationBellDropdown() {
         return <MessageSquare className="w-5 h-5 text-blue-500" />;
       case 'community_mention':
         return <Users className="w-5 h-5 text-orange-600" />;
+      case 'new_follower':
+        return <UserPlus className="w-5 h-5 text-orange-500" />;
       default:
         return <Bell className="w-5 h-5 text-gray-500" />;
     }
   };
 
   const getNotificationLink = (notification: HedditNotification) => {
+    if (notification.type === 'new_follower' && notification.heddit_accounts?.username) {
+      return `/heddit/user/${notification.heddit_accounts.username}`;
+    }
     if (notification.post_id) {
       return `/heddit/post/${notification.post_id}`;
     }
@@ -231,9 +239,29 @@ export default function NotificationBellDropdown() {
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {getNotificationIcon(notification.type)}
-                      </div>
+                      {notification.type === 'new_follower' && notification.heddit_accounts ? (
+                        <Link
+                          to={`/heddit/user/${notification.heddit_accounts.username}`}
+                          onClick={() => setIsOpen(false)}
+                          className="flex-shrink-0"
+                        >
+                          {notification.heddit_accounts.avatar_url ? (
+                            <img
+                              src={notification.heddit_accounts.avatar_url}
+                              alt={notification.heddit_accounts.display_name || notification.heddit_accounts.username}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                              <User className="w-6 h-6 text-orange-600" />
+                            </div>
+                          )}
+                        </Link>
+                      ) : (
+                        <div className="flex-shrink-0 mt-1">
+                          {getNotificationIcon(notification.type)}
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <Link
                           to={getNotificationLink(notification)}
