@@ -797,7 +797,7 @@ export default function MessagesPage() {
 
       <div className={`md:col-span-2 bg-white rounded-lg shadow-sm flex flex-col ${
         isMobile && !selectedConversation ? 'hidden' : ''
-      } ${isMobile ? 'pb-20' : ''}`}>
+      }`}>
         {selectedConversation ? (
           <>
             <div className="p-3 sm:p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
@@ -888,8 +888,8 @@ export default function MessagesPage() {
 
             <div
               ref={messagesContainerRef}
-              className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-                isMobile ? 'mb-20' : ''
+              className={`overflow-y-auto p-4 space-y-4 ${
+                isMobile ? 'h-[450px] max-h-[450px]' : 'h-[550px] max-h-[550px]'
               }`}
             >
               {loadingOlderMessages && (
@@ -975,9 +975,7 @@ export default function MessagesPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className={`p-3 sm:p-4 border-t border-gray-200 bg-white ${
-              isMobile ? 'fixed bottom-16 left-0 right-0 z-30' : 'sticky bottom-0'
-            }`}>
+            <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-gray-200 bg-white flex-shrink-0">
               <div className="flex gap-2 max-w-7xl mx-auto">
                 <input
                   type="text"
