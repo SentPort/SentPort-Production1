@@ -200,7 +200,7 @@ export default function NotificationBellDropdown() {
     if (notification.comment_id) {
       try {
         const { data, error } = await supabase
-          .rpc('get_post_id_from_comment', { comment_uuid: notification.comment_id });
+          .rpc('get_post_id_from_comment', { p_comment_id: notification.comment_id });
 
         if (!error && data) {
           return `/hubook/post/${data}`;
@@ -258,7 +258,7 @@ export default function NotificationBellDropdown() {
           const otherUserId = friendship.requester_id === user?.id
             ? friendship.addressee_id
             : friendship.requester_id;
-          return `/hubook/profile/${otherUserId}`;
+          return `/hubook/user/${otherUserId}`;
         }
       } catch (error) {
         console.error('Error fetching friendship:', error);

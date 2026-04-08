@@ -51,6 +51,8 @@ import NotificationSettingsPage from './pages/hubook/NotificationSettingsPage';
 import Profile from './pages/hubook/Profile';
 import UserSearch from './pages/hubook/UserSearch';
 import PublicUserProfile from './pages/hubook/PublicUserProfile';
+import PostDetail from './pages/hubook/PostDetail';
+import MediaDetail from './pages/hubook/MediaDetail';
 import HedditRouter from './pages/heddit/HedditRouter';
 import HuTubeRouter from './pages/hutube/HuTubeRouter';
 import HinstaRouter from './pages/hinsta/HinstaRouter';
@@ -351,6 +353,8 @@ function AppContent() {
                         <Route path="/friends" element={<Friends />} />
                         <Route path="/photos" element={<Photos />} />
                         <Route path="/albums/:albumId" element={<AlbumView />} />
+                        <Route path="/albums/media/:mediaId" element={<MediaDetail />} />
+                        <Route path="/post/:postId" element={<PostDetail />} />
                         <Route path="/messages" element={<Messages />} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="/notifications" element={<NotificationsPage />} />
