@@ -16,6 +16,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
   const { hubookProfile, refreshProfile } = useHuBook();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [friendRequestCount, setFriendRequestCount] = useState(0);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
@@ -25,6 +26,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (hubookProfile) {
       fetchNotificationCount();
+      fetchUnreadMessagesCount();
       fetchFriendRequestCount();
       fetchSuggestions();
       checkWelcomeStatus();
@@ -86,10 +88,28 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
         )
         .subscribe();
 
+      // Subscribe to real-time message updates
+      const messagesChannel = supabase
+        .channel('hubook-messages-unread')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'messages'
+          },
+          () => {
+            // Refetch unread message count when messages are inserted or updated
+            fetchUnreadMessagesCount();
+          }
+        )
+        .subscribe();
+
       // Cleanup subscriptions on unmount
       return () => {
         supabase.removeChannel(notificationChannel);
         supabase.removeChannel(friendRequestChannel);
+        supabase.removeChannel(messagesChannel);
       };
     }
   }, [hubookProfile]);
@@ -127,6 +147,43 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
       .eq('dismissed', false);
 
     setUnreadNotifications(count || 0);
+  };
+
+  const fetchUnreadMessagesCount = async () => {
+    if (!hubookProfile) return;
+
+    // Get all conversations the user is part of
+    const { data: participantData } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', hubookProfile.id)
+      .is('deleted_at', null);
+
+    if (!participantData || participantData.length === 0) {
+      setUnreadMessagesCount(0);
+      return;
+    }
+
+    const conversationIds = participantData.map(p => p.conversation_id);
+
+    // Get visible message IDs for this user
+    const { data: visibilityData } = await supabase
+      .from('message_visibility')
+      .select('message_id')
+      .eq('user_id', hubookProfile.id);
+
+    const visibleMessageIds = new Set(visibilityData?.map(v => v.message_id) || []);
+
+    // Count unread messages in user's conversations that are visible to them
+    const { count } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('conversation_id', conversationIds)
+      .neq('sender_id', hubookProfile.id)
+      .eq('is_read', false)
+      .in('id', Array.from(visibleMessageIds));
+
+    setUnreadMessagesCount(count || 0);
   };
 
   const fetchFriendRequestCount = async () => {
@@ -204,7 +261,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
     { path: '/hubook/profile', icon: User, label: 'Profile' },
     { path: '/hubook/friends', icon: Users, label: 'Friends' },
     { path: '/hubook/photos', icon: Image, label: 'Photos' },
-    { path: '/hubook/messages', icon: MessageCircle, label: 'Messages' },
+    { path: '/hubook/messages', icon: MessageCircle, label: 'Messages', badge: unreadMessagesCount },
     { path: '/hubook/settings', icon: Settings, label: 'Settings' },
     { path: '/hubook/notifications', icon: Bell, label: 'Notifications', badge: unreadNotifications }
   ];
