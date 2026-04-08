@@ -15,8 +15,8 @@ interface MediaData {
   created_at: string;
   album?: {
     id: string;
-    title: string;
-    user_id: string;
+    album_name: string;
+    owner_id: string;
     privacy: string;
   };
 }
@@ -48,8 +48,8 @@ export default function MediaDetail() {
           *,
           album:album_id (
             id,
-            title,
-            user_id,
+            album_name,
+            owner_id,
             privacy
           )
         `)
@@ -64,13 +64,13 @@ export default function MediaDetail() {
       }
 
       // Check if user can view this media based on album privacy settings
-      if (data.album?.privacy === 'friends' && data.album.user_id !== user?.id) {
+      if (data.album?.privacy === 'friends' && data.album.owner_id !== user?.id) {
         // Check if they are friends
         const { data: friendshipData } = await supabase
           .from('friendships')
           .select('id')
           .or(`requester_id.eq.${user?.id},addressee_id.eq.${user?.id}`)
-          .or(`requester_id.eq.${data.album.user_id},addressee_id.eq.${data.album.user_id}`)
+          .or(`requester_id.eq.${data.album.owner_id},addressee_id.eq.${data.album.owner_id}`)
           .eq('status', 'accepted')
           .maybeSingle();
 
@@ -78,17 +78,17 @@ export default function MediaDetail() {
           setError('You do not have permission to view this media.');
           return;
         }
-      } else if (data.album?.privacy === 'private' && data.album.user_id !== user?.id) {
+      } else if (data.album?.privacy === 'private' && data.album.owner_id !== user?.id) {
         setError('You do not have permission to view this media.');
         return;
       }
 
       // Check for blocking
-      if (data.album?.user_id) {
+      if (data.album?.owner_id) {
         const { data: blockData } = await supabase
           .from('user_blocks')
           .select('id')
-          .or(`and(blocker_id.eq.${user?.id},blocked_id.eq.${data.album.user_id}),and(blocker_id.eq.${data.album.user_id},blocked_id.eq.${user?.id})`)
+          .or(`and(blocker_id.eq.${user?.id},blocked_id.eq.${data.album.owner_id}),and(blocker_id.eq.${data.album.owner_id},blocked_id.eq.${user?.id})`)
           .maybeSingle();
 
         if (blockData) {

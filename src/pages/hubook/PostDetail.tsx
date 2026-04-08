@@ -9,13 +9,13 @@ import CommentSection from '../../components/hubook/CommentSection';
 
 interface PostData {
   id: string;
-  user_id: string;
+  author_id: string;
   content: string;
   privacy: string;
   created_at: string;
   updated_at: string;
   source_album_id: string | null;
-  user_profile?: {
+  author_profile?: {
     id: string;
     display_name: string;
     profile_photo_url: string | null;
@@ -43,34 +43,35 @@ export default function PostDetail() {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
+      // Fetch the post
+      const { data: postData, error: fetchError } = await supabase
         .from('posts')
-        .select(`
-          *,
-          user_profile:user_id (
-            id,
-            display_name,
-            profile_photo_url
-          )
-        `)
+        .select('*')
         .eq('id', postId)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
 
-      if (!data) {
+      if (!postData) {
         setError('This post could not be found. It may have been deleted.');
         return;
       }
 
+      // Fetch the author profile
+      const { data: authorProfile } = await supabase
+        .from('hubook_profiles')
+        .select('id, display_name, profile_photo_url')
+        .eq('id', postData.author_id)
+        .single();
+
       // Check if user can view this post based on privacy settings
-      if (data.privacy === 'private' && data.user_id !== user?.id) {
+      if (postData.privacy === 'private' && postData.author_id !== user?.id) {
         // Check if they are friends
         const { data: friendshipData } = await supabase
           .from('friendships')
           .select('id')
           .or(`requester_id.eq.${user?.id},addressee_id.eq.${user?.id}`)
-          .or(`requester_id.eq.${data.user_id},addressee_id.eq.${data.user_id}`)
+          .or(`requester_id.eq.${postData.author_id},addressee_id.eq.${postData.author_id}`)
           .eq('status', 'accepted')
           .maybeSingle();
 
@@ -84,13 +85,19 @@ export default function PostDetail() {
       const { data: blockData } = await supabase
         .from('user_blocks')
         .select('id')
-        .or(`and(blocker_id.eq.${user?.id},blocked_id.eq.${data.user_id}),and(blocker_id.eq.${data.user_id},blocked_id.eq.${user?.id})`)
+        .or(`and(blocker_id.eq.${user?.id},blocked_id.eq.${postData.author_id}),and(blocker_id.eq.${postData.author_id},blocked_id.eq.${user?.id})`)
         .maybeSingle();
 
       if (blockData) {
         setError('This post is not available.');
         return;
       }
+
+      // Combine post data with author profile
+      const data = {
+        ...postData,
+        author_profile: authorProfile
+      };
 
       setPost(data);
     } catch (err) {
