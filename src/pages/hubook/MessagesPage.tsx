@@ -203,7 +203,8 @@ export default function MessagesPage() {
 
       loadMessages(false);
 
-      // Subscribe to new messages, reactions, and block status changes
+      // Subscribe to message_visibility instead of messages to avoid race condition
+      // This ensures we only show messages after the trigger creates visibility records
       const channel = supabase
         .channel(`conversation-${selectedConversation}`)
         .on(
@@ -211,39 +212,39 @@ export default function MessagesPage() {
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'messages',
-            filter: `conversation_id=eq.${selectedConversation}`
+            table: 'message_visibility',
+            filter: `user_id=eq.${user.id}`
           },
           async (payload) => {
-            // For new messages, append to the end instead of full reload
-            const newMessage = payload.new as any;
-
             if (!user) return;
 
-            // Check if message is visible to current user
-            const { data: visibility } = await supabase
-              .from('message_visibility')
-              .select('message_id')
-              .eq('user_id', user.id)
-              .eq('message_id', newMessage.id)
+            const visibilityRecord = payload.new as any;
+            const messageId = visibilityRecord.message_id;
+
+            // Fetch the full message data with sender info
+            const { data: messageData } = await supabase
+              .from('messages')
+              .select('*')
+              .eq('id', messageId)
+              .eq('conversation_id', selectedConversation)
               .maybeSingle();
 
-            if (visibility) {
+            if (messageData) {
               setMessages(prev => {
                 // Check if message already exists
-                if (prev.some(m => m.id === newMessage.id)) return prev;
-                return [...prev, newMessage];
+                if (prev.some(m => m.id === messageData.id)) return prev;
+                return [...prev, messageData];
               });
 
               // Load reactions for the new message
-              loadMessageReactions([newMessage.id, ...messages.map(m => m.id)]);
+              loadMessageReactions([messageData.id, ...messages.map(m => m.id)]);
 
               // Mark as read if not sent by current user
-              if (newMessage.sender_id !== user.id) {
+              if (messageData.sender_id !== user.id) {
                 await supabase
                   .from('messages')
                   .update({ is_read: true })
-                  .eq('id', newMessage.id);
+                  .eq('id', messageData.id);
               }
             }
           }
@@ -484,22 +485,47 @@ export default function MessagesPage() {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConversation || !user) return;
 
-    const { error } = await supabase
+    const messageContent = newMessage.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    // Optimistic update: add message immediately to UI
+    const optimisticMessage = {
+      id: tempId,
+      conversation_id: selectedConversation,
+      sender_id: user.id,
+      content: messageContent,
+      created_at: new Date().toISOString(),
+      is_read: false
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage('');
+
+    // Scroll to bottom immediately
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+
+    // Send message to database
+    const { data, error } = await supabase
       .from('messages')
       .insert({
         conversation_id: selectedConversation,
         sender_id: user.id,
-        content: newMessage.trim()
-      });
+        content: messageContent
+      })
+      .select()
+      .single();
 
-    if (!error) {
-      setNewMessage('');
-      // Scroll to bottom when sending a new message
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 100);
+    if (error) {
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setNewMessage(messageContent);
+    } else if (data) {
+      // Replace optimistic message with real one
+      setMessages(prev => prev.map(m => m.id === tempId ? data : m));
     }
   };
 
