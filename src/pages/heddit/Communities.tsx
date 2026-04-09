@@ -12,11 +12,10 @@ interface Subreddit {
   display_name: string;
   description: string;
   member_count: number;
-  post_count: number;
 }
 
 export default function Communities() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [communities, setCommunities] = useState<Subreddit[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Subreddit[]>([]);
@@ -25,18 +24,20 @@ export default function Communities() {
   const [activeTab, setActiveTab] = useState<'discover' | 'joined'>('discover');
 
   useEffect(() => {
+    if (authLoading) return;
     loadCommunities();
-  }, [user]);
+  }, [user, authLoading]);
 
   const loadCommunities = async () => {
     setLoading(true);
     try {
-      const { data: allData } = await supabase
+      const { data: allData, error: allError } = await supabase
         .from('heddit_subreddits')
-        .select('id, name, display_name, description, member_count, post_count')
+        .select('id, name, display_name, description, member_count')
         .order('member_count', { ascending: false })
         .limit(50);
 
+      if (allError) console.error('Error fetching subreddits:', allError);
       if (allData) setCommunities(allData);
 
       if (user) {
@@ -47,17 +48,26 @@ export default function Communities() {
           .maybeSingle();
 
         if (account) {
-          const { data: membershipData } = await supabase
-            .from('heddit_subreddit_members')
-            .select('subreddit_id')
-            .eq('account_id', account.id);
+          const [membershipResult, moderatorResult] = await Promise.all([
+            supabase
+              .from('heddit_subreddit_members')
+              .select('subreddit_id')
+              .eq('account_id', account.id),
+            supabase
+              .from('heddit_subreddit_moderators')
+              .select('subreddit_id')
+              .eq('account_id', account.id),
+          ]);
 
-          if (membershipData && membershipData.length > 0) {
-            const subredditIds = membershipData.map(m => m.subreddit_id);
+          const memberIds = (membershipResult.data || []).map(m => m.subreddit_id);
+          const modIds = (moderatorResult.data || []).map(m => m.subreddit_id);
+          const allJoinedIds = [...new Set([...memberIds, ...modIds])];
+
+          if (allJoinedIds.length > 0) {
             const { data: joinedData } = await supabase
               .from('heddit_subreddits')
-              .select('id, name, display_name, description, member_count, post_count')
-              .in('id', subredditIds)
+              .select('id, name, display_name, description, member_count')
+              .in('id', allJoinedIds)
               .order('member_count', { ascending: false });
 
             if (joinedData) setJoinedCommunities(joinedData);
