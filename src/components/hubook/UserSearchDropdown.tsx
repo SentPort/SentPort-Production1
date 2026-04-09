@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, UserPlus, Loader2 } from 'lucide-react';
+import { Search, Users, UserPlus, Loader2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -21,9 +21,10 @@ interface SearchResult {
 interface UserSearchDropdownProps {
   onClose: () => void;
   onNavigate?: () => void;
+  isMobile?: boolean;
 }
 
-export default function UserSearchDropdown({ onClose, onNavigate }: UserSearchDropdownProps) {
+export default function UserSearchDropdown({ onClose, onNavigate, isMobile = false }: UserSearchDropdownProps) {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -38,14 +39,18 @@ export default function UserSearchDropdown({ onClose, onNavigate }: UserSearchDr
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         onClose();
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [onClose]);
 
   useEffect(() => {
@@ -153,23 +158,41 @@ export default function UserSearchDropdown({ onClose, onNavigate }: UserSearchDr
   };
 
   return (
-    <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-50 max-w-2xl mx-auto">
+    <div
+      ref={dropdownRef}
+      className={
+        isMobile
+          ? 'fixed inset-x-0 top-[57px] z-[60] bg-white shadow-2xl border-b border-gray-200 overflow-hidden'
+          : 'absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-50 max-w-2xl mx-auto'
+      }
+    >
       <div className="p-3 border-b border-gray-200">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search for people on HuBook..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors"
-          />
+        <div className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search for people on HuBook..."
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors"
+            />
+          </div>
+          {isMobile && (
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors shrink-0 touch-manipulation"
+              aria-label="Close search"
+            >
+              <X className="w-5 h-5 text-gray-600" />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="max-h-96 overflow-y-auto">
+      <div className={isMobile ? 'max-h-[70vh] overflow-y-auto' : 'max-h-96 overflow-y-auto'}>
         {loading && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />

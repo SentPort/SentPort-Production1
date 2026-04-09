@@ -307,6 +307,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
               <button
                 className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
                 onClick={() => setShowSearchDropdown(true)}
+                aria-label="Search"
               >
                 <Search className="w-5 h-5 text-gray-700" />
               </button>
@@ -375,6 +376,16 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
           </div>
         )}
       </header>
+
+      {showSearchDropdown && (
+        <div className="md:hidden">
+          <UserSearchDropdown
+            isMobile
+            onClose={() => setShowSearchDropdown(false)}
+            onNavigate={() => setShowSearchDropdown(false)}
+          />
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-6">
