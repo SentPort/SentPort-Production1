@@ -68,6 +68,8 @@ export default function Messages() {
   const [deleteTargetConversation, setDeleteTargetConversation] = useState<Conversation | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const loadedConversationIdRef = useRef<string | null>(null);
+  const conversationsLoadedRef = useRef(false);
 
   useEffect(() => {
     loadCurrentAccount();
@@ -80,9 +82,10 @@ export default function Messages() {
   }, [currentAccountId]);
 
   useEffect(() => {
-    if (conversationId && conversations.length > 0) {
+    if (conversationId && conversationsLoadedRef.current && loadedConversationIdRef.current !== conversationId) {
       const conv = conversations.find(c => c.id === conversationId);
       if (conv) {
+        loadedConversationIdRef.current = conversationId;
         selectConversation(conv);
       }
     }
@@ -137,6 +140,7 @@ export default function Messages() {
       });
 
       setConversations(formattedConversations);
+      conversationsLoadedRef.current = true;
     }
 
     setLoading(false);
@@ -172,6 +176,7 @@ export default function Messages() {
 
   const markMessagesAsRead = async (conversation: Conversation) => {
     if (!currentAccountId) return;
+    if (conversation.unread_count === 0) return;
 
     await supabase
       .from('heddit_messages')
