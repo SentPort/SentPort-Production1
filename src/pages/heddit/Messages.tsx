@@ -188,7 +188,13 @@ export default function Messages() {
       .update({ [unreadField]: 0 })
       .eq('id', conversation.id);
 
-    loadConversations();
+    setConversations(prev =>
+      prev.map(c =>
+        c.id === conversation.id
+          ? { ...c, unread_count: 0, unread_count_one: isParticipantOne ? 0 : c.unread_count_one, unread_count_two: isParticipantOne ? c.unread_count_two : 0 }
+          : c
+      )
+    );
   };
 
   const sendMessage = async () => {
@@ -196,9 +202,6 @@ export default function Messages() {
     if (selectedConversation.otherUserPermanentlyBlocked) return;
 
     setSending(true);
-
-    const isParticipantOne = selectedConversation.participant_one_id === currentAccountId;
-    const unreadField = isParticipantOne ? 'unread_count_two' : 'unread_count_one';
 
     const { error } = await supabase
       .from('heddit_messages')
@@ -210,17 +213,29 @@ export default function Messages() {
       });
 
     if (!error) {
-      await supabase
-        .from('heddit_conversations')
-        .update({
-          last_message_at: new Date().toISOString(),
-          last_message_content: messageContent.trim(),
-          [unreadField]: (selectedConversation.unread_count_one || selectedConversation.unread_count_two || 0) + 1
-        })
-        .eq('id', selectedConversation.id);
-
+      const sentContent = messageContent.trim();
       setMessageContent('');
-      selectConversation(selectedConversation);
+
+      const { data: newMessages } = await supabase
+        .from('heddit_messages')
+        .select(`
+          *,
+          sender:heddit_accounts!sender_id(username, display_name, avatar_url)
+        `)
+        .eq('conversation_id', selectedConversation.id)
+        .order('created_at', { ascending: true });
+
+      if (newMessages) {
+        setMessages(newMessages);
+      }
+
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === selectedConversation.id
+            ? { ...c, last_message_content: sentContent, last_message_at: new Date().toISOString() }
+            : c
+        )
+      );
     }
 
     setSending(false);
