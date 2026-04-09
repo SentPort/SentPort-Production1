@@ -636,9 +636,10 @@ export default function PublicUserProfile() {
     if (!friendship) {
       if (!canSendFriendRequest()) {
         return (
-          <div className="flex items-center gap-2 px-6 py-2.5 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed" title="This user is not accepting friend requests">
-            <Lock className="w-5 h-5" />
-            Not Accepting Requests
+          <div className="flex items-center gap-2 px-3 py-2 sm:px-6 sm:py-2.5 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed text-sm sm:text-base" title="This user is not accepting friend requests">
+            <Lock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span className="hidden sm:inline">Not Accepting Requests</span>
+            <span className="sm:hidden">No Requests</span>
           </div>
         );
       }
@@ -647,9 +648,9 @@ export default function PublicUserProfile() {
         <button
           onClick={sendFriendRequest}
           disabled={friendRequestLoading}
-          className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
-          <UserPlus className={`w-5 h-5 ${friendRequestLoading ? 'animate-pulse' : ''}`} />
+          <UserPlus className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${friendRequestLoading ? 'animate-pulse' : ''}`} />
           {friendRequestLoading ? 'Sending...' : 'Add Friend'}
         </button>
       );
@@ -657,8 +658,8 @@ export default function PublicUserProfile() {
 
     if (friendship.status === 'accepted') {
       return (
-        <div className="flex items-center gap-2 px-6 py-2.5 bg-green-50 text-green-700 font-medium rounded-lg">
-          <UserCheck className="w-5 h-5" />
+        <div className="flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-2.5 bg-green-50 text-green-700 font-medium rounded-lg text-sm sm:text-base">
+          <UserCheck className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
           Friends
         </div>
       );
@@ -668,9 +669,9 @@ export default function PublicUserProfile() {
       return (
         <button
           onClick={cancelFriendRequest}
-          className="flex items-center gap-2 px-6 py-2.5 bg-amber-50 text-amber-900 font-medium rounded-lg hover:bg-amber-100 transition-colors border border-amber-200"
+          className="flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-2.5 bg-amber-50 text-amber-900 font-medium rounded-lg hover:bg-amber-100 transition-colors border border-amber-200 text-sm sm:text-base"
         >
-          <Clock className="w-5 h-5" />
+          <Clock className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
           Request Sent
         </button>
       );
@@ -680,13 +681,13 @@ export default function PublicUserProfile() {
       <div className="flex gap-2">
         <button
           onClick={acceptFriendRequest}
-          className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 sm:px-6 sm:py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base"
         >
           Accept Request
         </button>
         <button
           onClick={cancelFriendRequest}
-          className="px-6 py-2.5 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+          className="px-4 py-2 sm:px-6 sm:py-2.5 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base"
         >
           Decline
         </button>
@@ -749,22 +750,22 @@ export default function PublicUserProfile() {
         </div>
 
         <div className="px-6 pb-6">
-          <div className="flex justify-between -mt-20 mb-4">
+          <div className="flex justify-between -mt-16 sm:-mt-20 mb-4">
             <div className="flex gap-4">
               {user.profile_photo_url ? (
                 <img
                   src={user.profile_photo_url}
                   alt={user.display_name}
-                  className="w-40 h-40 rounded-full border-4 border-white object-cover bg-white relative z-10 flex-shrink-0"
+                  className="w-24 h-24 sm:w-40 sm:h-40 rounded-full border-4 border-white object-cover bg-white relative z-10 flex-shrink-0"
                 />
               ) : (
-                <div className="w-40 h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-5xl relative z-10 flex-shrink-0">
+                <div className="w-24 h-24 sm:w-40 sm:h-40 rounded-full border-4 border-white bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-3xl sm:text-5xl relative z-10 flex-shrink-0">
                   {user.display_name.charAt(0).toUpperCase()}
                 </div>
               )}
 
-              <div className="pt-24 flex-1">
-                <h1 className="text-3xl font-bold text-gray-900 leading-tight">{user.display_name}</h1>
+              <div className="pt-14 sm:pt-24 flex-1 min-w-0">
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900 leading-tight">{user.display_name}</h1>
                 {mutualFriendsCount > 0 && (
                   <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
                     <Users className="w-4 h-4" />
@@ -775,7 +776,7 @@ export default function PublicUserProfile() {
             </div>
 
             {hubookProfile?.id !== user.id && (
-              <div className="pt-24 flex flex-col gap-2">
+              <div className="hidden sm:flex pt-24 flex-col gap-2">
                 {errorMessage && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
                     <AlertCircle className="w-4 h-4" />
@@ -832,6 +833,62 @@ export default function PublicUserProfile() {
               </div>
             )}
           </div>
+
+          {hubookProfile?.id !== user.id && (
+            <div className="sm:hidden mb-4">
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm mb-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {errorMessage}
+                </div>
+              )}
+              {successMessage && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg flex items-center gap-2 text-sm mb-2">
+                  <UserCheck className="w-4 h-4 flex-shrink-0" />
+                  {successMessage}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {getFriendshipButton()}
+                {canSendMessage() ? (
+                  <button
+                    onClick={startConversation}
+                    disabled={messageLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    <MessageCircle className={`w-4 h-4 ${messageLoading ? 'animate-pulse' : ''}`} />
+                    {messageLoading ? 'Starting...' : 'Message'}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-500 font-medium rounded-lg cursor-not-allowed text-sm" title="This user has restricted messaging">
+                    <Lock className="w-4 h-4" />
+                    Restricted
+                  </div>
+                )}
+                {isBlocked ? (
+                  <button
+                    onClick={handleUnblock}
+                    disabled={blockLoading}
+                    className="flex items-center gap-1 px-3 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    title="Unblock this user"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Unblock
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowBlockConfirm(true)}
+                    disabled={blockLoading}
+                    className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                    title="Block this user"
+                  >
+                    <Ban className="w-4 h-4" />
+                    Block
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             {user.bio && (
