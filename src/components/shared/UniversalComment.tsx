@@ -407,7 +407,7 @@ export default function UniversalComment({
           onClose={() => setErrorMessage(null)}
         />
       )}
-      <div className={depth > 0 ? 'ml-8 pt-3' : ''}>
+      <div className={depth > 0 ? 'ml-4 sm:ml-8 pt-3' : ''}>
         <div className="flex gap-3">
         {avatarUrl ? (
           <img

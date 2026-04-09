@@ -366,7 +366,7 @@ export default function UniversalCommentSection({
             <HedditMentionTextarea
               value={newComment}
               onChange={setNewComment}
-              placeholder="Write a comment... Use @ for users or @r/ for communities"
+              placeholder="Write a Comment... Use @ for users or @h/ for communities"
               rows={2}
             />
           </div>
@@ -423,7 +423,7 @@ export default function UniversalCommentSection({
           onClose={() => setErrorMessage(null)}
         />
       )}
-      <div className="p-4 space-y-4">
+      <div className="p-3 sm:p-4 space-y-4 overflow-x-hidden">
         <form onSubmit={handleSubmitComment} className="mb-4">
           {renderCommentInput()}
         </form>

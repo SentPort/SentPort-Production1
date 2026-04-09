@@ -266,11 +266,11 @@ export default function ViewPost() {
   return (
     <PlatformGuard platform="heddit">
       <HedditLayout showBackButton>
-      <div className="min-h-screen bg-gray-100">
-        <div className="max-w-5xl mx-auto px-4 py-6">
-          <div className="bg-white rounded-lg border border-gray-300 overflow-hidden">
+      <div className="min-h-screen bg-gray-100 overflow-x-hidden">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 w-full">
+          <div className="bg-white rounded-lg border border-gray-300 overflow-hidden w-full">
             <div className="flex">
-              <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+              <div className="w-10 sm:w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
                 <button
                   onClick={() => handleVote('up')}
                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -294,8 +294,8 @@ export default function ViewPost() {
                 </button>
               </div>
 
-              <div className="flex-1 p-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+              <div className="flex-1 min-w-0 p-3 sm:p-4">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-sm text-gray-600 mb-3">
                   <Link
                     to={`/heddit/h/${post.heddit_subreddits.name}`}
                     className="font-bold hover:underline"
@@ -314,13 +314,13 @@ export default function ViewPost() {
                   <span>{new Date(post.created_at).toLocaleDateString()}</span>
                 </div>
 
-                <h1 className="text-2xl font-bold mb-4">{post.title}</h1>
+                <h1 className="text-xl sm:text-2xl font-bold mb-4 break-words">{post.title}</h1>
 
                 {post.content && (
-                  <div className="prose max-w-none mb-4">
+                  <div className="prose max-w-none mb-4 overflow-hidden">
                     <HedditContentRenderer
                       content={post.content}
-                      className="text-gray-800 whitespace-pre-wrap"
+                      className="text-gray-800 whitespace-pre-wrap break-words"
                       hasRichFormatting={post.has_rich_formatting}
                     />
                   </div>
@@ -365,9 +365,9 @@ export default function ViewPost() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 text-sm text-gray-600 mb-4 pt-3 border-t border-gray-200">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-gray-600 mb-4 pt-3 border-t border-gray-200">
                   <div className="flex items-center gap-1">
-                    <MessageCircle className="w-5 h-5" />
+                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="font-medium">{post.comment_count || 0}</span>
                     <span>Comments</span>
                   </div>
@@ -375,7 +375,7 @@ export default function ViewPost() {
                     onClick={() => setSharingPost(post)}
                     className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
                   >
-                    <Share2 className="w-5 h-5" />
+                    <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>Share</span>
                     {post.share_count > 0 && <span className="font-medium">({post.share_count})</span>}
                   </button>
@@ -383,13 +383,13 @@ export default function ViewPost() {
                     onClick={() => setReportModalOpen(true)}
                     className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
                   >
-                    <Flag className="w-5 h-5" />
+                    <Flag className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>Report</span>
                   </button>
                 </div>
 
                 {post.heddit_accounts && (
-                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm mb-4">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3 pt-3 border-t border-gray-100 text-sm mb-4">
                     <div className="flex items-center gap-1 text-gray-600">
                       <Star className="w-4 h-4 text-yellow-500" />
                       <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
