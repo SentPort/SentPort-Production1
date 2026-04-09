@@ -687,7 +687,7 @@ export default function HedditFeed() {
             <div className="space-y-4 order-1 lg:order-2">
               <Link
                 to="/heddit/communities"
-                className="flex items-center gap-3 bg-white rounded-lg border border-gray-300 p-4 hover:bg-gray-50 transition-colors group"
+                className="hidden sm:flex items-center gap-3 bg-white rounded-lg border border-gray-300 p-4 hover:bg-gray-50 transition-colors group"
               >
                 <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-200 transition-colors">
                   <Users size={20} className="text-orange-500" />
