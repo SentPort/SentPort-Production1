@@ -327,7 +327,7 @@ export default function HedditFeed() {
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
+            <div className="lg:col-span-2 space-y-4 order-2 lg:order-1">
               {loading ? (
                 <div className="text-center py-12">
                   <div className="text-gray-600">Loading posts...</div>
@@ -355,9 +355,9 @@ export default function HedditFeed() {
                         />
                       </div>
                     ) : (
-                      <div key={post.id} className="bg-white rounded-lg border-l-4 border-l-orange-500 border-t border-r border-b border-gray-300 overflow-hidden hover:border-gray-400 transition-colors">
-                        <div className="flex">
-                          <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                      <div key={post.id} className="bg-white rounded-lg border-l-4 border-l-orange-500 border-t border-r border-b border-gray-300 overflow-hidden min-w-0 hover:border-gray-400 transition-colors">
+                        <div className="flex min-w-0">
+                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
                             <button
                               onClick={() => handleVote(post.id, 'up', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -380,9 +380,9 @@ export default function HedditFeed() {
                               <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
                           </div>
-                        <div className="flex-1 p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex-1 p-4 min-w-0">
+                          <div className="flex items-start justify-between mb-2 gap-2">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 min-w-0">
                               <div className="flex items-center gap-1 text-orange-600 font-semibold">
                                 <Pin size={16} className="fill-orange-600" />
                                 <span>Pinned by Admin</span>
@@ -467,7 +467,7 @@ export default function HedditFeed() {
                             </div>
                           )}
 
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
                             <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
                               <MessageCircle className="w-5 h-5" />
                               <span className="font-medium">{post.comment_count || 0}</span>
@@ -491,7 +491,7 @@ export default function HedditFeed() {
                           </div>
 
                           {post.heddit_accounts && (
-                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-gray-100 text-sm">
                               <div className="flex items-center gap-1 text-gray-600">
                                 <Star className="w-4 h-4 text-yellow-500" />
                                 <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
@@ -526,9 +526,9 @@ export default function HedditFeed() {
                         }}
                       />
                     ) : (
-                      <div key={post.id} className="bg-white rounded-lg border border-gray-300 overflow-hidden hover:border-gray-400 transition-colors">
-                        <div className="flex">
-                          <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                      <div key={post.id} className="bg-white rounded-lg border border-gray-300 overflow-hidden min-w-0 hover:border-gray-400 transition-colors">
+                        <div className="flex min-w-0">
+                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
                             <button
                               onClick={() => handleVote(post.id, 'up', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -551,9 +551,9 @@ export default function HedditFeed() {
                               <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
                           </div>
-                        <div className="flex-1 p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex-1 p-4 min-w-0">
+                          <div className="flex items-start justify-between mb-2 gap-2">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 min-w-0">
                               <Link
                                 to={`/heddit/h/${post.heddit_subreddits.name}`}
                                 className="font-bold hover:underline"
@@ -633,7 +633,7 @@ export default function HedditFeed() {
                             </div>
                           )}
 
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
                             <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
                               <MessageCircle className="w-5 h-5" />
                               <span className="font-medium">{post.comment_count || 0}</span>
@@ -657,7 +657,7 @@ export default function HedditFeed() {
                           </div>
 
                           {post.heddit_accounts && (
-                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-gray-100 text-sm">
                               <div className="flex items-center gap-1 text-gray-600">
                                 <Star className="w-4 h-4 text-yellow-500" />
                                 <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
@@ -684,7 +684,7 @@ export default function HedditFeed() {
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 order-1 lg:order-2">
               <JuryPoolVolunteerButton variant="compact" requireVerified={false} />
 
               <LeaderboardWidget />
