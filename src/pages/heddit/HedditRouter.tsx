@@ -15,6 +15,7 @@ import NotificationSettings from './NotificationSettings';
 import Leaderboard from './Leaderboard';
 import KarmaGuide from './KarmaGuide';
 import Drafts from './Drafts';
+import Communities from './Communities';
 import FlaggedContentNotificationWrapper from '../../components/shared/FlaggedContentNotificationWrapper';
 
 export default function HedditRouter() {
@@ -40,6 +41,7 @@ export default function HedditRouter() {
         <Route path="/notification-settings" element={<NotificationSettings />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/karma-guide" element={<KarmaGuide />} />
+        <Route path="/communities" element={<Communities />} />
         <Route index element={<HedditFeed />} />
       </Routes>
       <FlaggedContentNotificationWrapper />
