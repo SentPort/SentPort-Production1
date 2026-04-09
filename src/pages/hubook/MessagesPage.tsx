@@ -203,8 +203,6 @@ export default function MessagesPage() {
 
       loadMessages(false);
 
-      // Subscribe to message_visibility instead of messages to avoid race condition
-      // This ensures we only show messages after the trigger creates visibility records
       const channel = supabase
         .channel(`conversation-${selectedConversation}`)
         .on(
@@ -212,40 +210,26 @@ export default function MessagesPage() {
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'message_visibility',
-            filter: `user_id=eq.${user.id}`
+            table: 'messages',
+            filter: `conversation_id=eq.${selectedConversation}`
           },
           async (payload) => {
             if (!user) return;
 
-            const visibilityRecord = payload.new as any;
-            const messageId = visibilityRecord.message_id;
+            const newMessage = payload.new as any;
 
-            // Fetch the full message data with sender info
-            const { data: messageData } = await supabase
-              .from('messages')
-              .select('*')
-              .eq('id', messageId)
-              .eq('conversation_id', selectedConversation)
-              .maybeSingle();
+            setMessages(prev => {
+              if (prev.some(m => m.id === newMessage.id)) return prev;
+              return [...prev, newMessage];
+            });
 
-            if (messageData) {
-              setMessages(prev => {
-                // Check if message already exists
-                if (prev.some(m => m.id === messageData.id)) return prev;
-                return [...prev, messageData];
-              });
+            loadMessageReactions([newMessage.id, ...messages.map(m => m.id)]);
 
-              // Load reactions for the new message
-              loadMessageReactions([messageData.id, ...messages.map(m => m.id)]);
-
-              // Mark as read if not sent by current user
-              if (messageData.sender_id !== user.id) {
-                await supabase
-                  .from('messages')
-                  .update({ is_read: true })
-                  .eq('id', messageData.id);
-              }
+            if (newMessage.sender_id !== user.id) {
+              await supabase
+                .from('messages')
+                .update({ is_read: true })
+                .eq('id', newMessage.id);
             }
           }
         )
