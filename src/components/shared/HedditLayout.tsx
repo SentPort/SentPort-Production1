@@ -181,13 +181,6 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
                       <span className="hidden sm:inline">Create Post</span>
                     </button>
                     <button
-                      onClick={() => navigate('/heddit/create-post')}
-                      className="md:hidden p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                      title="Create Post"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                    <button
                       onClick={() => navigate('/heddit/create-subreddit')}
                       className="hidden md:flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 transition-colors"
                     >
@@ -205,7 +198,10 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
         <main>{children}</main>
 
         {user && (
-          <HedditMobileBottomNav unreadMessageCount={unreadMessageCount} />
+          <HedditMobileBottomNav
+            unreadMessageCount={unreadMessageCount}
+            showCreateButton={showCreateButtons}
+          />
         )}
       </div>
     </HedditNotificationProvider>

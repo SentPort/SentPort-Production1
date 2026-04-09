@@ -1,12 +1,14 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Home, MessageCircle, Trophy, Users, FileText, Bell } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Home, MessageCircle, Trophy, Users, FileText, Bell, Plus } from 'lucide-react';
 
 interface HedditMobileBottomNavProps {
   unreadMessageCount: number;
   unreadNotificationCount?: number;
+  showCreateButton?: boolean;
 }
 
-export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotificationCount = 0 }: HedditMobileBottomNavProps) {
+export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotificationCount = 0, showCreateButton = false }: HedditMobileBottomNavProps) {
+  const navigate = useNavigate();
   const location = useLocation();
 
   const primaryNavItems = [
@@ -53,10 +55,10 @@ export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotifi
           );
         })}
       </div>
-      <div className="flex items-center justify-center h-11 px-1">
+      <div className="flex items-center justify-around h-11 px-4 gap-3">
         <Link
           to={draftsItem.path}
-          className={`relative flex flex-row items-center justify-center gap-2 w-full h-full transition-colors touch-manipulation ${
+          className={`relative flex flex-row items-center justify-center gap-2 flex-1 h-full transition-colors touch-manipulation ${
             isDraftsActive ? 'text-orange-500' : 'text-gray-500 active:text-orange-400'
           }`}
         >
@@ -65,6 +67,15 @@ export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotifi
             Drafts
           </span>
         </Link>
+        {showCreateButton && (
+          <button
+            onClick={() => navigate('/heddit/create-post')}
+            className="flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors touch-manipulation"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="text-sm font-medium">Create Post</span>
+          </button>
+        )}
       </div>
     </nav>
   );
