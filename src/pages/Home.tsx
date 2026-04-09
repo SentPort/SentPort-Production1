@@ -10,13 +10,13 @@ export default function Home() {
   usePageTracking('homepage');
 
   return (
-    <>
+    <div className="overflow-x-hidden w-full">
       <HeroSection />
       <SocialIconsSection />
       <FeaturesSection />
       <ShareSection />
       <JoinSection />
       <Footer />
-    </>
+    </div>
   );
 }

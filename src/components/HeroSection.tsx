@@ -16,7 +16,7 @@ export default function HeroSection() {
   };
 
   return (
-    <section className="relative bg-gray-300 py-32">
+    <section className="relative bg-gray-300 py-16 md:py-32">
       <div
         className="absolute inset-0 bg-cover bg-center"
         style={{
@@ -27,13 +27,13 @@ export default function HeroSection() {
       <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/30" />
 
       <div className="relative max-w-4xl mx-auto px-4 text-center">
-        <h1 className="text-white text-6xl font-bold mb-2 drop-shadow-lg">Sentient Portal</h1>
+        <h1 className="text-white text-4xl md:text-6xl font-bold mb-2 drop-shadow-lg">Sentient Portal</h1>
 
-        <h2 className="text-white text-3xl font-semibold mb-4 drop-shadow-lg tracking-wide">
+        <h2 className="text-white text-xl md:text-3xl font-semibold mb-4 drop-shadow-lg tracking-wide">
           Bringing The Internet Back to Life
         </h2>
 
-        <p className="text-white text-lg font-light tracking-wide drop-shadow-sm opacity-90 mb-8">
+        <p className="text-white text-base md:text-lg font-light tracking-wide drop-shadow-sm opacity-90 mb-8">
           Welcome to Sentient Portal, the new internet, unapologetically human!
         </p>
 
@@ -45,18 +45,18 @@ export default function HeroSection() {
           className="mb-6"
         />
 
-        <div className="flex justify-center space-x-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-center gap-3 mb-8">
           <button
             type="button"
             onClick={() => navigate('/search')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all w-full sm:w-auto"
           >
             SentPort Search
           </button>
           <button
             type="button"
             onClick={handleFeelingHuman}
-            className="bg-white hover:bg-gray-100 text-gray-800 px-8 py-3 rounded-lg font-semibold shadow-lg transition-all"
+            className="bg-white hover:bg-gray-100 text-gray-800 px-8 py-3 rounded-lg font-semibold shadow-lg transition-all w-full sm:w-auto"
           >
             I'm Feeling Human
           </button>

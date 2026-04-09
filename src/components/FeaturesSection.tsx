@@ -50,7 +50,7 @@ export default function FeaturesSection() {
         <div className="text-center">
           <button
             onClick={() => navigate('/make-your-own-site')}
-            className="bg-white hover:bg-gray-100 text-green-600 px-10 py-4 rounded-lg font-bold text-lg shadow-lg flex items-center space-x-2 mx-auto"
+            className="bg-white hover:bg-gray-100 text-green-600 px-6 md:px-10 py-3 md:py-4 rounded-lg font-bold text-base md:text-lg shadow-lg flex items-center space-x-2 mx-auto"
           >
             <Globe size={24} />
             <span>Claim Your Free Subdomain Now</span>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, LayoutDashboard, LogOut, Shield, ShieldCheck, ShieldAlert, Share2 } from 'lucide-react';
+import { User, LayoutDashboard, LogOut, Shield, ShieldCheck, ShieldAlert, Share2, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import AdminModeToggle from './shared/AdminModeToggle';
@@ -11,6 +11,7 @@ export default function Header() {
   const { user, isAdmin, userProfile, loading, isRefreshingSession, sessionExpired } = useAuth();
   const [pendingAlerts, setPendingAlerts] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -56,54 +57,55 @@ export default function Header() {
     window.location.href = '/';
   };
 
+  const statusBadge = !loading && user ? (
+    sessionExpired ? (
+      <div className="flex items-center gap-1 px-2 py-1 bg-red-500/20 border border-red-500/50 rounded-md">
+        <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+        <span className="text-xs text-red-300 font-medium hidden sm:inline">Session Expired</span>
+      </div>
+    ) : isRefreshingSession ? (
+      <div className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded-md">
+        <Shield className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
+        <span className="text-xs text-yellow-300 font-medium hidden sm:inline">Refreshing...</span>
+      </div>
+    ) : (
+      <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded-md">
+        <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
+        <span className="text-xs text-green-300 font-medium hidden sm:inline">Active</span>
+      </div>
+    )
+  ) : null;
+
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 lg:h-16">
+          {/* Left: nav dropdown + logo */}
+          <div className="flex items-center gap-2">
             <UniversalNavigationDropdown />
-            <Link to="/" className="text-gray-900 font-medium hover:text-gray-700 transition-colors">
+            <Link to="/" className="text-gray-900 font-medium hover:text-gray-700 transition-colors text-sm sm:text-base whitespace-nowrap">
               Human-Only
             </Link>
-            <nav className="hidden lg:flex items-center space-x-3">
-              <Link
-                to="/make-your-own-site"
-                className="text-gray-700 hover:text-gray-900 flex items-center space-x-1"
-              >
+            {/* Desktop nav links */}
+            <nav className="hidden lg:flex items-center space-x-3 ml-2">
+              <Link to="/make-your-own-site" className="text-gray-700 hover:text-gray-900 flex items-center space-x-1">
                 <span>My Sites</span>
-                <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded font-semibold ml-1">
-                  3 FREE
-                </span>
+                <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded font-semibold ml-1">3 FREE</span>
               </Link>
-              <Link to="/heddit" className="text-gray-700 hover:text-gray-900">
-                Heddit
-              </Link>
-              <Link to="/hubook" className="text-gray-700 hover:text-gray-900">
-                HuBook
-              </Link>
-              <Link to="/hutube" className="text-gray-700 hover:text-gray-900">
-                HuTube
-              </Link>
-              <Link to="/hinsta" className="text-gray-700 hover:text-gray-900">
-                Hinsta
-              </Link>
-              <Link to="/switter" className="text-gray-700 hover:text-gray-900">
-                Switter
-              </Link>
-              <Link to="/blog" className="text-gray-700 hover:text-gray-900">
-                HuBlog
-              </Link>
-              <Link to="/about" className="text-gray-700 hover:text-gray-900">
-                About
-              </Link>
-              <Link to="/manifesto" className="text-gray-700 hover:text-gray-900">
-                Manifesto
-              </Link>
+              <Link to="/heddit" className="text-gray-700 hover:text-gray-900">Heddit</Link>
+              <Link to="/hubook" className="text-gray-700 hover:text-gray-900">HuBook</Link>
+              <Link to="/hutube" className="text-gray-700 hover:text-gray-900">HuTube</Link>
+              <Link to="/hinsta" className="text-gray-700 hover:text-gray-900">Hinsta</Link>
+              <Link to="/switter" className="text-gray-700 hover:text-gray-900">Switter</Link>
+              <Link to="/blog" className="text-gray-700 hover:text-gray-900">HuBlog</Link>
+              <Link to="/about" className="text-gray-700 hover:text-gray-900">About</Link>
+              <Link to="/manifesto" className="text-gray-700 hover:text-gray-900">Manifesto</Link>
             </nav>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative hidden lg:block">
+          {/* Right: desktop action buttons */}
+          <div className="hidden lg:flex items-center gap-3">
+            <div className="relative">
               <button
                 onClick={() => setShowShareMenu(!showShareMenu)}
                 className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -113,10 +115,7 @@ export default function Header() {
               </button>
               {showShareMenu && (
                 <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowShareMenu(false)}
-                  />
+                  <div className="fixed inset-0 z-40" onClick={() => setShowShareMenu(false)} />
                   <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50 min-w-[200px]">
                     <p className="text-xs text-gray-600 mb-3 font-medium">Share the Human Internet</p>
                     <CompactShareButtons variant="icons" size="sm" />
@@ -124,26 +123,7 @@ export default function Header() {
                 </>
               )}
             </div>
-            {!loading && user && (
-              <div className="flex items-center gap-2">
-                {sessionExpired ? (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/20 border border-red-500/50 rounded-md">
-                    <ShieldAlert className="w-4 h-4 text-red-400" />
-                    <span className="text-xs text-red-300 font-medium">Session Expired</span>
-                  </div>
-                ) : isRefreshingSession ? (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/20 border border-yellow-500/50 rounded-md">
-                    <Shield className="w-4 h-4 text-yellow-400 animate-pulse" />
-                    <span className="text-xs text-yellow-300 font-medium">Refreshing...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded-md">
-                    <ShieldCheck className="w-4 h-4 text-green-400" />
-                    <span className="text-xs text-green-300 font-medium">Active</span>
-                  </div>
-                )}
-              </div>
-            )}
+            {statusBadge}
             {!loading && user ? (
               <>
                 {isAdmin && (
@@ -154,40 +134,96 @@ export default function Header() {
                     <div className={`w-2.5 h-2.5 rounded-full border-2 border-white ${pendingAlerts > 0 ? 'bg-green-500' : 'bg-red-400'}`} />
                     <span>Review Queue</span>
                     {pendingAlerts > 0 && (
-                      <span className="ml-1 px-1 py-0.5 bg-green-500 text-white text-xs font-bold rounded">
-                        {pendingAlerts}
-                      </span>
+                      <span className="ml-1 px-1 py-0.5 bg-green-500 text-white text-xs font-bold rounded">{pendingAlerts}</span>
                     )}
                   </Link>
                 )}
                 {userProfile?.is_admin && <AdminModeToggle />}
-                <Link
-                  to="/dashboard"
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"
-                >
+                <Link to="/dashboard" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1.5">
                   <LayoutDashboard size={16} />
                   <span>Dashboard</span>
                 </Link>
-                <button
-                  onClick={handleSignOut}
-                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1.5"
-                >
+                <button onClick={handleSignOut} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-1.5">
                   <LogOut size={16} />
                   <span>Sign Out</span>
                 </button>
               </>
             ) : (
-              <Link
-                to="/signin"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-              >
+              <Link to="/signin" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
                 <User size={18} />
                 <span>Sign In</span>
               </Link>
             )}
           </div>
+
+          {/* Mobile right: status dot + compact icons + hamburger */}
+          <div className="flex lg:hidden items-center gap-1.5">
+            {statusBadge}
+            {!loading && user ? (
+              <>
+                <Link to="/dashboard" className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors" title="Dashboard">
+                  <LayoutDashboard size={16} />
+                </Link>
+                <button onClick={handleSignOut} className="p-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-md transition-colors" title="Sign Out">
+                  <LogOut size={16} />
+                </button>
+              </>
+            ) : (
+              <Link to="/signin" className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors" title="Sign In">
+                <User size={16} />
+              </Link>
+            )}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Mobile drawer */}
+      {mobileMenuOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setMobileMenuOpen(false)} />
+          <div className="lg:hidden absolute top-full left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
+            <nav className="px-4 py-3 flex flex-col gap-1">
+              <Link to="/make-your-own-site" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">
+                My Sites
+                <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded font-semibold">3 FREE</span>
+              </Link>
+              <Link to="/heddit" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Heddit</Link>
+              <Link to="/hubook" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuBook</Link>
+              <Link to="/hutube" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuTube</Link>
+              <Link to="/hinsta" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Hinsta</Link>
+              <Link to="/switter" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Switter</Link>
+              <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuBlog</Link>
+              <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">About</Link>
+              <Link to="/manifesto" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Manifesto</Link>
+              {isAdmin && (
+                <Link
+                  to="/admin/review-queue"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-white bg-red-600 hover:bg-red-700 font-medium"
+                >
+                  <div className={`w-2.5 h-2.5 rounded-full border-2 border-white ${pendingAlerts > 0 ? 'bg-green-500' : 'bg-red-400'}`} />
+                  Review Queue
+                  {pendingAlerts > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-green-500 text-white text-xs font-bold rounded">{pendingAlerts}</span>
+                  )}
+                </Link>
+              )}
+              {userProfile?.is_admin && (
+                <div className="px-3 py-1.5">
+                  <AdminModeToggle />
+                </div>
+              )}
+            </nav>
+          </div>
+        </>
+      )}
     </header>
   );
 }
