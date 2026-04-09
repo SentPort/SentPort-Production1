@@ -335,9 +335,9 @@ export default function AlbumView() {
 
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-start justify-between">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold text-gray-900">{album.album_name}</h1>
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">{album.album_name}</h1>
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700">
                   {getPrivacyIcon()}
                   <span>{getPrivacyLabel()}</span>
@@ -351,14 +351,15 @@ export default function AlbumView() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {isOwner && (
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  title="Upload"
+                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Upload className="w-4 h-4" />
-                  Upload
+                  <span className="hidden sm:inline">Upload</span>
                 </button>
               )}
 
