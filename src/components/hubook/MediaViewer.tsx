@@ -327,7 +327,7 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
           </div>
         </div>
 
-        <div className="relative w-full lg:flex-1 lg:flex lg:items-center lg:justify-center lg:overflow-hidden">
+        <div className="relative w-full lg:flex-1 lg:min-h-0 lg:flex lg:items-center lg:justify-center lg:overflow-hidden">
           {media.length > 1 && (
             <>
               <button
@@ -345,21 +345,21 @@ export default function MediaViewer({ media, initialIndex, albumId, onClose, onD
             </>
           )}
 
-          <div className="w-full lg:max-w-7xl lg:max-h-full flex items-center justify-center">
+          <div className="w-full lg:h-full lg:max-w-7xl lg:max-h-full flex items-center justify-center">
             {currentMedia.media_type === 'video' ? (
               <video
                 key={currentMedia.id}
                 src={currentMedia.media_url}
                 controls
                 autoPlay
-                className="w-full h-auto lg:max-w-full lg:max-h-full"
+                className="w-full h-auto lg:w-auto lg:max-w-full lg:max-h-full"
               />
             ) : (
               <img
                 key={currentMedia.id}
                 src={currentMedia.media_url}
                 alt={currentMedia.caption || ''}
-                className="w-full h-auto lg:max-w-full lg:max-h-full object-contain transition-transform duration-200"
+                className="w-full h-auto lg:w-auto lg:max-w-full lg:max-h-full object-contain transition-transform duration-200"
                 style={{ transform: `scale(${zoom})` }}
               />
             )}
