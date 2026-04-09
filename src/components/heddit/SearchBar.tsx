@@ -167,7 +167,7 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
                 setSelectedIndex(-1);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Search SubHeddits (h/), posts, or tags..."
+              placeholder="Search SubHeddits, posts, or tags..."
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent focus:bg-white transition-colors text-sm"
             />
           </div>
@@ -179,7 +179,7 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
               <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               <p className="text-sm">Type at least 2 characters to search</p>
               <p className="text-xs text-blue-600 mt-2">
-                Tip: Use "h/" for SubHeddits (e.g., h/cooking)
+                Tip: No need to type "h/" - just search by name!
               </p>
             </div>
           )}
