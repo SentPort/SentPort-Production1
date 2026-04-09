@@ -365,10 +365,11 @@ export default function AlbumView() {
               {media.length > 0 && (
                 <button
                   onClick={handleDownloadAll}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Download All"
+                  className="flex items-center gap-2 p-2 sm:px-4 sm:py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <Download className="w-4 h-4" />
-                  Download All
+                  <span className="hidden sm:inline">Download All</span>
                 </button>
               )}
 
