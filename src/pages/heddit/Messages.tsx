@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { MessageCircle, Send, ArrowLeft, Star, CreditCard as Edit } from 'lucide-react';
+import { MessageCircle, Send, ArrowLeft, Star, CreditCard as Edit, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import PlatformGuard from '../../components/shared/PlatformGuard';
 import HedditLayout from '../../components/shared/HedditLayout';
@@ -8,6 +8,8 @@ import { ConversationOptionsMenu } from '../../components/heddit/ConversationOpt
 import { DeleteConversationModal } from '../../components/heddit/DeleteConversationModal';
 import { ConversationBlockedBanner } from '../../components/heddit/ConversationBlockedBanner';
 import { NewConversationModal } from '../../components/heddit/NewConversationModal';
+
+const MESSAGES_PER_PAGE = 30;
 
 type ConversationFilter = 'all' | 'favorites' | 'hidden';
 
@@ -67,7 +69,14 @@ export default function Messages() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTargetConversation, setDeleteTargetConversation] = useState<Conversation | null>(null);
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [oldestLoadedMessageId, setOldestLoadedMessageId] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const loadedConversationIdRef = useRef<string | null>(null);
   const conversationsLoadedRef = useRef(false);
 
@@ -92,8 +101,34 @@ export default function Messages() {
   }, [conversationId, conversations]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length > 0 && messagesEndRef.current && isInitialLoad) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      setIsInitialLoad(false);
+    }
+  }, [messages, isInitialLoad]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (container.scrollTop < 100 && hasMoreMessages && !loadingOlderMessages) {
+        const previousScrollHeight = container.scrollHeight;
+        const previousScrollTop = container.scrollTop;
+
+        loadMessages(true).then(() => {
+          requestAnimationFrame(() => {
+            const newScrollHeight = container.scrollHeight;
+            const scrollDifference = newScrollHeight - previousScrollHeight;
+            container.scrollTop = previousScrollTop + scrollDifference;
+          });
+        });
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMoreMessages, loadingOlderMessages, selectedConversation]);
 
   const loadCurrentAccount = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -155,9 +190,67 @@ export default function Messages() {
     });
   };
 
+  const loadMessages = async (loadOlder: boolean = false) => {
+    if (!selectedConversation && !loadOlder) return;
+    const convId = selectedConversation?.id;
+    if (!convId) return;
+
+    if (loadOlder && loadingOlderMessages) return;
+    if (loadOlder && !hasMoreMessages) return;
+
+    if (loadOlder) {
+      setLoadingOlderMessages(true);
+    }
+
+    let query = supabase
+      .from('heddit_messages')
+      .select(`
+        *,
+        sender:heddit_accounts!sender_id(username, display_name, avatar_url)
+      `)
+      .eq('conversation_id', convId)
+      .order('created_at', { ascending: false });
+
+    if (loadOlder && oldestLoadedMessageId) {
+      const oldestMsg = messages.find(m => m.id === oldestLoadedMessageId);
+      if (oldestMsg) {
+        query = query.lt('created_at', oldestMsg.created_at);
+      }
+    }
+
+    query = query.limit(MESSAGES_PER_PAGE);
+
+    const { data, error } = await query;
+
+    if (!error && data) {
+      const chronological = [...data].reverse();
+
+      if (loadOlder) {
+        setMessages(prev => [...chronological, ...prev]);
+      } else {
+        setMessages(chronological);
+        setIsInitialLoad(true);
+      }
+
+      setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
+
+      if (chronological.length > 0) {
+        setOldestLoadedMessageId(chronological[0].id);
+      }
+    }
+
+    if (loadOlder) {
+      setLoadingOlderMessages(false);
+    }
+  };
+
   const selectConversation = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
     setSearchParams({ conversation: conversation.id });
+    setMessages([]);
+    setHasMoreMessages(false);
+    setOldestLoadedMessageId(null);
+    setIsInitialLoad(true);
 
     const { data, error } = await supabase
       .from('heddit_messages')
@@ -166,10 +259,16 @@ export default function Messages() {
         sender:heddit_accounts!sender_id(username, display_name, avatar_url)
       `)
       .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_PER_PAGE);
 
     if (!error && data) {
-      setMessages(data);
+      const chronological = [...data].reverse();
+      setMessages(chronological);
+      setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
+      if (chronological.length > 0) {
+        setOldestLoadedMessageId(chronological[0].id);
+      }
       markMessagesAsRead(conversation);
     }
   };
@@ -228,10 +327,19 @@ export default function Messages() {
           sender:heddit_accounts!sender_id(username, display_name, avatar_url)
         `)
         .eq('conversation_id', selectedConversation.id)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(MESSAGES_PER_PAGE);
 
       if (newMessages) {
-        setMessages(newMessages);
+        const chronological = [...newMessages].reverse();
+        setMessages(chronological);
+        setHasMoreMessages(newMessages.length === MESSAGES_PER_PAGE);
+        if (chronological.length > 0) {
+          setOldestLoadedMessageId(chronological[0].id);
+        }
+        requestAnimationFrame(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        });
       }
 
       setConversations(prev =>
@@ -387,9 +495,9 @@ export default function Messages() {
   return (
     <PlatformGuard platform="heddit">
       <HedditLayout showBackButton>
-        <div className="h-[calc(100vh-64px)] bg-white flex">
+        <div className="bg-white flex overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
           <div className={`${selectedConversation ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-gray-200 flex-col`}>
-            <div className="p-4 border-b border-gray-200">
+            <div className="p-4 border-b border-gray-200 flex-shrink-0">
               <div className="flex items-center justify-between mb-3">
                 <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <MessageCircle className="w-5 h-5" />
@@ -509,7 +617,7 @@ export default function Messages() {
             </div>
           </div>
 
-          <div className={`${selectedConversation ? 'flex' : 'hidden md:flex'} flex-1 flex-col`}>
+          <div className={`${selectedConversation ? 'flex' : 'hidden md:flex'} flex-1 flex-col overflow-hidden`}>
             {selectedConversation ? (
               <>
                 <div className="p-4 border-b border-gray-200 flex items-center gap-3 flex-shrink-0">
@@ -557,7 +665,21 @@ export default function Messages() {
                   />
                 )}
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {loadingOlderMessages && (
+                    <div className="flex justify-center py-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                    </div>
+                  )}
+
+                  {!hasMoreMessages && messages.length >= MESSAGES_PER_PAGE && (
+                    <div className="flex justify-center py-2">
+                      <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                        Beginning of conversation
+                      </span>
+                    </div>
+                  )}
+
                   {messages.map((message) => {
                     const isSender = message.sender_id === currentAccountId;
                     return (
@@ -577,7 +699,7 @@ export default function Messages() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="p-4 border-t border-gray-200 flex-shrink-0">
+                <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
                   {selectedConversation.otherUserPermanentlyBlocked ? (
                     <div className="flex gap-2">
                       <input
