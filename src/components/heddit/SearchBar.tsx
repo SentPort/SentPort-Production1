@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, TrendingUp } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
@@ -11,25 +11,31 @@ interface SearchResult {
   url: string;
 }
 
-export function SearchBar() {
+function SearchOverlay({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [showResults, setShowResults] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const navigate = useNavigate();
-  const searchRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowResults(false);
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (overlayRef.current && !overlayRef.current.contains(event.target as Node)) {
+        onClose();
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [onClose]);
 
   useEffect(() => {
     const searchContent = async () => {
@@ -110,122 +116,141 @@ export function SearchBar() {
     navigate(result.url);
     setQuery('');
     setResults([]);
-    setShowResults(false);
     setSelectedIndex(-1);
+    onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Escape') {
+      onClose();
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       if (selectedIndex >= 0 && results[selectedIndex]) {
         handleSelect(results[selectedIndex]);
       } else if (query.trim()) {
         navigate(`/heddit/search?q=${encodeURIComponent(query.trim())}`);
-        setQuery('');
-        setResults([]);
-        setShowResults(false);
+        onClose();
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev =>
-        prev < results.length - 1 ? prev + 1 : prev
-      );
+      setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
-    } else if (e.key === 'Escape') {
-      setShowResults(false);
-      setSelectedIndex(-1);
+      setSelectedIndex(prev => Math.max(prev - 1, -1));
     }
   };
 
   const getResultIcon = (type: string) => {
     switch (type) {
-      case 'subreddit':
-        return '📁';
-      case 'post':
-        return '📄';
-      case 'tag':
-        return '🏷️';
-      default:
-        return '📝';
+      case 'subreddit': return '📁';
+      case 'post': return '📄';
+      case 'tag': return '🏷️';
+      default: return '📝';
     }
   };
 
   return (
-    <div ref={searchRef} className="relative flex-1 max-w-2xl">
-      <div className="relative flex flex-col gap-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setShowResults(true);
-            setSelectedIndex(-1);
-          }}
-          onFocus={() => setShowResults(true)}
-          onKeyDown={handleKeyDown}
-          placeholder="Search SubHeddits (h/), posts, or tags..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-        />
-      </div>
-
-      {showResults && query.trim().length === 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-blue-50 border border-blue-200 rounded-lg shadow-sm z-50 p-3">
-          <p className="text-xs text-blue-800">
-            <span className="font-semibold">Search Tip:</span> Use "h/" for SubHeddits (e.g., h/cooking, h/gaming) - not \"r/"
-          </p>
-        </div>
-      )}
-
-      {showResults && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-          <div className="py-2">
-            {results.map((result, index) => (
-              <button
-                key={`${result.type}-${result.id}`}
-                onClick={() => handleSelect(result)}
-                className={`w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 ${
-                  index === selectedIndex ? 'bg-gray-100' : ''
-                }`}
-              >
-                <span className="text-2xl">{getResultIcon(result.type)}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-900 truncate">
-                    {result.title}
-                  </div>
-                  {result.subtitle && (
-                    <div className="text-sm text-gray-500 truncate">
-                      {result.subtitle}
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs text-gray-400 uppercase">
-                  {result.type}
-                </span>
-              </button>
-            ))}
+    <div className="fixed inset-x-0 top-[64px] z-[60] flex justify-center px-4 pointer-events-none">
+      <div
+        ref={overlayRef}
+        className="w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
+      >
+        <div className="p-3 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedIndex(-1);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Search SubHeddits (h/), posts, or tags..."
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent focus:bg-white transition-colors text-sm"
+            />
           </div>
+        </div>
+
+        <div className="max-h-[480px] overflow-y-auto">
+          {query.trim().length < 2 && (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">Type at least 2 characters to search</p>
+              <p className="text-xs text-blue-600 mt-2">
+                Tip: Use "h/" for SubHeddits (e.g., h/cooking)
+              </p>
+            </div>
+          )}
+
+          {query.trim().length >= 2 && results.length === 0 && (
+            <div className="px-4 py-8 text-center text-gray-500">
+              <p className="font-medium text-gray-700">No results found for "{query}"</p>
+              <p className="text-sm mt-1">Try a different search term</p>
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="py-2">
+              {results.map((result, index) => (
+                <button
+                  key={`${result.type}-${result.id}`}
+                  onClick={() => handleSelect(result)}
+                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 transition-colors ${
+                    index === selectedIndex ? 'bg-gray-100' : ''
+                  }`}
+                >
+                  <span className="text-xl flex-shrink-0">{getResultIcon(result.type)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">{result.title}</div>
+                    {result.subtitle && (
+                      <div className="text-sm text-gray-500 truncate">{result.subtitle}</div>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-400 uppercase flex-shrink-0">{result.type}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {query.trim() && (
-            <div className="border-t border-gray-200 p-2">
+            <div className="border-t border-gray-100 p-2">
               <button
                 onClick={() => {
                   navigate(`/heddit/search?q=${encodeURIComponent(query.trim())}`);
-                  setQuery('');
-                  setResults([]);
-                  setShowResults(false);
+                  onClose();
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 rounded flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 text-sm text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-2 transition-colors"
               >
-                <Search className="w-4 h-4" />
+                <Search className="w-4 h-4 flex-shrink-0" />
                 See all results for "{query}"
               </button>
             </div>
           )}
         </div>
-      )}
+      </div>
+    </div>
+  );
+}
+
+export function SearchBar() {
+  const [showOverlay, setShowOverlay] = useState(false);
+
+  return (
+    <div className="relative flex-1 max-w-2xl">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          readOnly
+          placeholder="Search Heddit..."
+          onClick={() => setShowOverlay(true)}
+          className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-full bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer hover:bg-white hover:border-orange-400 transition-colors text-sm text-gray-500"
+        />
+      </div>
+
+      {showOverlay && <SearchOverlay onClose={() => setShowOverlay(false)} />}
     </div>
   );
 }
