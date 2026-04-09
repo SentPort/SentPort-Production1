@@ -315,76 +315,35 @@ export default function Messages() {
     const smallerId = currentAccountId < targetAccountId ? currentAccountId : targetAccountId;
     const largerId = currentAccountId < targetAccountId ? targetAccountId : currentAccountId;
 
-    const { data: existing } = await supabase
+    const { data: newConv, error } = await supabase
       .from('heddit_conversations')
+      .insert({
+        participant_one_id: smallerId,
+        participant_two_id: largerId,
+        last_message_at: new Date().toISOString(),
+        last_message_content: ''
+      })
       .select(`
         *,
         participant_one:heddit_accounts!participant_one_id(id, username, display_name, avatar_url),
         participant_two:heddit_accounts!participant_two_id(id, username, display_name, avatar_url)
       `)
-      .eq('participant_one_id', smallerId)
-      .eq('participant_two_id', largerId)
-      .maybeSingle();
+      .single();
 
-    if (existing) {
-      const isParticipantOne = existing.participant_one_id === currentAccountId;
-      const blockedField = isParticipantOne ? 'permanently_blocked_one' : 'permanently_blocked_two';
-      const hiddenField = isParticipantOne ? 'is_hidden_one' : 'is_hidden_two';
-      const hiddenAtField = isParticipantOne ? 'hidden_at_one' : 'hidden_at_two';
-
-      await supabase
-        .from('heddit_conversations')
-        .update({
-          [blockedField]: false,
-          [hiddenField]: false,
-          [hiddenAtField]: null
-        })
-        .eq('id', existing.id);
-
+    if (!error && newConv) {
       await loadConversations();
-
-      const otherUser = isParticipantOne ? existing.participant_two : existing.participant_one;
+      const isParticipantOne = newConv.participant_one_id === currentAccountId;
+      const otherUser = isParticipantOne ? newConv.participant_two : newConv.participant_one;
       const conv: Conversation = {
-        ...existing,
+        ...newConv,
         other_user: otherUser,
-        unread_count: isParticipantOne ? existing.unread_count_one : existing.unread_count_two,
-        isFavorite: isParticipantOne ? existing.is_favorite_one : existing.is_favorite_two,
+        unread_count: 0,
+        isFavorite: false,
         isHidden: false,
         isPermanentlyBlocked: false,
-        otherUserPermanentlyBlocked: isParticipantOne ? existing.permanently_blocked_two : existing.permanently_blocked_one,
+        otherUserPermanentlyBlocked: false,
       };
       selectConversation(conv);
-    } else {
-      const { data: newConv, error } = await supabase
-        .from('heddit_conversations')
-        .insert({
-          participant_one_id: smallerId,
-          participant_two_id: largerId,
-          last_message_at: new Date().toISOString(),
-          last_message_content: ''
-        })
-        .select(`
-          *,
-          participant_one:heddit_accounts!participant_one_id(id, username, display_name, avatar_url),
-          participant_two:heddit_accounts!participant_two_id(id, username, display_name, avatar_url)
-        `)
-        .single();
-
-      if (!error && newConv) {
-        await loadConversations();
-        const isParticipantOne = newConv.participant_one_id === currentAccountId;
-        const otherUser = isParticipantOne ? newConv.participant_two : newConv.participant_one;
-        const conv: Conversation = {
-          ...newConv,
-          other_user: otherUser,
-          unread_count: 0,
-          isFavorite: false,
-          isHidden: false,
-          isPermanentlyBlocked: false,
-          otherUserPermanentlyBlocked: false,
-        };
-        selectConversation(conv);
-      }
     }
   };
 
