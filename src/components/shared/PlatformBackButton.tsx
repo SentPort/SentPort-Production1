@@ -24,7 +24,7 @@ export default function PlatformBackButton({ fallbackPath, className = '' }: Pla
       aria-label="Go back"
     >
       <ArrowLeft className="w-5 h-5" />
-      <span className="font-medium">Back</span>
+      <span className="font-medium hidden sm:inline">Back</span>
     </button>
   );
 }

@@ -9,26 +9,27 @@ interface HedditMobileBottomNavProps {
 export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotificationCount = 0 }: HedditMobileBottomNavProps) {
   const location = useLocation();
 
-  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
-
-  const navItems = [
+  const primaryNavItems = [
     { path: '/heddit', icon: Home, label: 'Home', exact: true },
     { path: '/heddit/communities', icon: Users, label: 'Communities' },
     { path: '/heddit/messages', icon: MessageCircle, label: 'Messages', badge: unreadMessageCount },
     { path: '/heddit/leaderboard', icon: Trophy, label: 'Leaderboard' },
-    { path: '/heddit/drafts', icon: FileText, label: 'Drafts' },
   ];
 
-  const isItemActive = (item: typeof navItems[0]) => {
-    if (item.exact) return location.pathname === item.path;
-    return location.pathname === item.path;
+  const draftsItem = { path: '/heddit/drafts', icon: FileText, label: 'Drafts' };
+
+  const isItemActive = (path: string, exact?: boolean) => {
+    if (exact) return location.pathname === path;
+    return location.pathname === path;
   };
+
+  const isDraftsActive = isItemActive(draftsItem.path);
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <div className="flex justify-around items-center h-16 px-1">
-        {navItems.map((item) => {
-          const active = isItemActive(item);
+      <div className="flex justify-around items-center h-14 px-1 border-b border-gray-100">
+        {primaryNavItems.map((item) => {
+          const active = isItemActive(item.path, item.exact);
           return (
             <Link
               key={item.path}
@@ -51,6 +52,19 @@ export default function HedditMobileBottomNav({ unreadMessageCount, unreadNotifi
             </Link>
           );
         })}
+      </div>
+      <div className="flex items-center justify-center h-11 px-1">
+        <Link
+          to={draftsItem.path}
+          className={`relative flex flex-row items-center justify-center gap-2 w-full h-full transition-colors touch-manipulation ${
+            isDraftsActive ? 'text-orange-500' : 'text-gray-500 active:text-orange-400'
+          }`}
+        >
+          <draftsItem.icon className={`w-5 h-5 ${isDraftsActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+          <span className={`text-sm ${isDraftsActive ? 'font-semibold' : 'font-medium'}`}>
+            Drafts
+          </span>
+        </Link>
       </div>
     </nav>
   );

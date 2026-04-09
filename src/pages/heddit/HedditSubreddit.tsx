@@ -487,15 +487,15 @@ export default function HedditSubreddit() {
         <div className="min-h-screen bg-gray-100">
           <div className="bg-gradient-to-r from-orange-500 to-red-500 h-32"></div>
 
-          <div className="max-w-6xl mx-auto px-4 -mt-16">
+          <div className="max-w-6xl mx-auto px-4 -mt-16 overflow-hidden">
             <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h1 className="text-3xl font-bold mb-2">h/{community.name}</h1>
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl sm:text-3xl font-bold mb-2 break-words">h/{community.name}</h1>
                   {community.display_name && (
-                    <p className="text-xl text-gray-700 mb-2">{community.display_name}</p>
+                    <p className="text-lg sm:text-xl text-gray-700 mb-2 break-words">{community.display_name}</p>
                   )}
-                  <p className="text-gray-600 mb-4">{community.description}</p>
+                  <p className="text-gray-600 mb-4 break-words">{community.description}</p>
 
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
@@ -526,9 +526,33 @@ export default function HedditSubreddit() {
                       ))}
                     </div>
                   )}
+
+                  {user && (
+                    <div className="flex flex-wrap gap-3 mt-4 sm:hidden">
+                      <button
+                        onClick={handleJoinLeave}
+                        className={`px-6 py-2 rounded-full font-semibold transition-colors ${
+                          isMember
+                            ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                            : 'bg-orange-600 text-white hover:bg-orange-700'
+                        }`}
+                      >
+                        {isMember ? 'Joined' : 'Join'}
+                      </button>
+                      {isMember && (
+                        <button
+                          onClick={() => navigate('/heddit/create-post', { state: { subredditName: community.name } })}
+                          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700"
+                        >
+                          <Plus size={18} />
+                          Create Post
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex flex-col gap-3">
+                <div className="hidden sm:flex flex-col gap-3 ml-4">
                   {user && (
                     <button
                       onClick={handleJoinLeave}
@@ -582,7 +606,7 @@ export default function HedditSubreddit() {
                 </div>
 
                 {activeTab === 'posts' && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 min-w-0 overflow-hidden">
                     {pinnedPosts.length === 0 && posts.length === 0 ? (
                       <div className="bg-white rounded-lg p-12 text-center">
                         <p className="text-gray-600 mb-4">No posts yet in this community.</p>
@@ -618,9 +642,9 @@ export default function HedditSubreddit() {
                               />
                             </div>
                           ) : (
-                          <div key={post.id} className="bg-white rounded-lg border-l-4 border-l-orange-500 border-t border-r border-b border-gray-300 overflow-hidden hover:border-gray-400 transition-colors">
-                            <div className="flex">
-                              <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                          <div key={post.id} className="bg-white rounded-lg border-l-4 border-l-orange-500 border-t border-r border-b border-gray-300 overflow-hidden hover:border-gray-400 transition-colors w-full">
+                            <div className="flex min-w-0">
+                              <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
                                 <button
                                   onClick={() => handleVote(post.id, 'up', post)}
                                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -643,9 +667,9 @@ export default function HedditSubreddit() {
                                   <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                                 </button>
                               </div>
-                            <div className="flex-1 p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <div className="flex-1 min-w-0 p-4 overflow-hidden">
+                              <div className="flex items-center justify-between mb-2 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 min-w-0">
                                   <div className="flex items-center gap-1 text-orange-600 font-semibold">
                                     <Pin size={16} className="fill-orange-600" />
                                     <span>Pinned</span>
@@ -689,13 +713,13 @@ export default function HedditSubreddit() {
                               </div>
 
                               <Link to={`/heddit/post/${post.id}`}>
-                                <h2 className="text-xl font-semibold mb-2 hover:text-blue-600 cursor-pointer">{post.title}</h2>
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 hover:text-blue-600 cursor-pointer break-words">{post.title}</h2>
                               </Link>
 
                               {post.content && (
                                 <HedditContentRenderer
                                   content={post.content}
-                                  className="text-gray-800 mb-4 whitespace-pre-wrap"
+                                  className="text-gray-800 mb-4 whitespace-pre-wrap break-words overflow-hidden"
                                   hasRichFormatting={post.has_rich_formatting}
                                 />
                               )}
@@ -705,7 +729,7 @@ export default function HedditSubreddit() {
                                   href={post.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline text-sm"
+                                  className="text-blue-600 hover:underline text-sm break-all"
                                 >
                                   {post.url}
                                 </a>
@@ -737,7 +761,7 @@ export default function HedditSubreddit() {
                                 </div>
                               )}
 
-                              <div className="flex items-center gap-4 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
                                 <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
                                   <MessageCircle className="w-5 h-5" />
                                   <span className="font-medium">{post.comment_count || 0}</span>
@@ -761,7 +785,7 @@ export default function HedditSubreddit() {
                               </div>
 
                               {post.heddit_accounts && (
-                                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
+                                <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-gray-100 text-sm">
                                   <div className="flex items-center gap-1 text-gray-600">
                                     <Star className="w-4 h-4 text-yellow-500" />
                                     <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
@@ -800,9 +824,9 @@ export default function HedditSubreddit() {
                               onUpdate={loadCommunity}
                             />
                           ) : (
-                            <div key={post.id} className="bg-white rounded-lg border border-gray-300 overflow-hidden hover:border-gray-400 transition-colors">
-                              <div className="flex">
-                                <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                            <div key={post.id} className="bg-white rounded-lg border border-gray-300 overflow-hidden hover:border-gray-400 transition-colors w-full">
+                              <div className="flex min-w-0">
+                                <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
                                   <button
                                     onClick={() => handleVote(post.id, 'up', post)}
                                     className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -825,9 +849,9 @@ export default function HedditSubreddit() {
                                     <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                                   </button>
                                 </div>
-                              <div className="flex-1 p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <div className="flex-1 min-w-0 p-4 overflow-hidden">
+                                <div className="flex items-center justify-between mb-2 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 min-w-0">
                                     <span>Posted by</span>
                                     <Link
                                       to={`/heddit/user/${post.heddit_accounts.username}`}
@@ -868,13 +892,13 @@ export default function HedditSubreddit() {
                                 </div>
 
                               <Link to={`/heddit/post/${post.id}`}>
-                                <h2 className="text-xl font-semibold mb-2 hover:text-blue-600 cursor-pointer">{post.title}</h2>
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 hover:text-blue-600 cursor-pointer break-words">{post.title}</h2>
                               </Link>
 
                               {post.content && (
                                 <HedditContentRenderer
                                   content={post.content}
-                                  className="text-gray-800 mb-4 whitespace-pre-wrap"
+                                  className="text-gray-800 mb-4 whitespace-pre-wrap break-words overflow-hidden"
                                   hasRichFormatting={post.has_rich_formatting}
                                 />
                               )}
@@ -884,7 +908,7 @@ export default function HedditSubreddit() {
                                   href={post.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline text-sm"
+                                  className="text-blue-600 hover:underline text-sm break-all"
                                 >
                                   {post.url}
                                 </a>
@@ -916,7 +940,7 @@ export default function HedditSubreddit() {
                                 </div>
                               )}
 
-                              <div className="flex items-center gap-4 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
+                              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
                                 <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
                                   <MessageCircle className="w-5 h-5" />
                                   <span className="font-medium">{post.comment_count || 0}</span>
@@ -940,7 +964,7 @@ export default function HedditSubreddit() {
                               </div>
 
                               {post.heddit_accounts && (
-                                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
+                                <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-gray-100 text-sm">
                                   <div className="flex items-center gap-1 text-gray-600">
                                     <Star className="w-4 h-4 text-yellow-500" />
                                     <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
