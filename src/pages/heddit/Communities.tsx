@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Users, Plus, Search, TrendingUp } from 'lucide-react';
+import { Users, Plus, Search, TrendingUp, Shield } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -19,6 +19,7 @@ export default function Communities() {
   const navigate = useNavigate();
   const [communities, setCommunities] = useState<Subreddit[]>([]);
   const [joinedCommunities, setJoinedCommunities] = useState<Subreddit[]>([]);
+  const [moderatedIds, setModeratedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'discover' | 'joined'>('discover');
@@ -63,6 +64,8 @@ export default function Communities() {
           const modIds = (moderatorResult.data || []).map(m => m.subreddit_id);
           const allJoinedIds = [...new Set([...memberIds, ...modIds])];
 
+          setModeratedIds(new Set(modIds));
+
           if (allJoinedIds.length > 0) {
             const { data: joinedData } = await supabase
               .from('heddit_subreddits')
@@ -70,7 +73,14 @@ export default function Communities() {
               .in('id', allJoinedIds)
               .order('member_count', { ascending: false });
 
-            if (joinedData) setJoinedCommunities(joinedData);
+            if (joinedData) {
+              const sorted = [...joinedData].sort((a, b) => {
+                const aMod = modIds.includes(a.id) ? 0 : 1;
+                const bMod = modIds.includes(b.id) ? 0 : 1;
+                return aMod - bMod;
+              });
+              setJoinedCommunities(sorted);
+            }
           }
         }
       }
@@ -200,6 +210,17 @@ export default function Communities() {
                       </p>
                       {index < 3 && activeTab === 'discover' && (
                         <TrendingUp className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+                      )}
+                      {activeTab === 'joined' && moderatedIds.has(community.id) && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-xs font-medium flex-shrink-0">
+                          <Shield className="w-3 h-3" />
+                          Mod
+                        </span>
+                      )}
+                      {activeTab === 'joined' && !moderatedIds.has(community.id) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-medium flex-shrink-0">
+                          Member
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 truncate">{community.display_name}</p>
