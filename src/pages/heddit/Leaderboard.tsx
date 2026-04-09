@@ -214,7 +214,7 @@ export default function Leaderboard() {
                     <Link
                       key={leader.id}
                       to={`/heddit/u/${leader.username}`}
-                      className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-all hover:shadow-lg ${getRankBg(leader.rank, leader.id === userAccountId)}`}
+                      className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all hover:shadow-lg ${getRankBg(leader.rank, leader.id === userAccountId)}`}
                     >
                       <div className="flex items-center justify-center w-12 h-12 rounded-full bg-white dark:bg-gray-900 border-2 border-current font-bold text-lg">
                         {leader.rank <= 3 ? (
@@ -224,24 +224,26 @@ export default function Leaderboard() {
                         )}
                       </div>
 
-                      {leader.avatar_url ? (
-                        <img
-                          src={leader.avatar_url}
-                          alt={leader.display_name}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-700 shadow-md"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold border-2 border-white dark:border-gray-700 shadow-md">
-                          {leader.display_name[0].toUpperCase()}
-                        </div>
-                      )}
+                      <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-3 sm:flex-1 sm:min-w-0">
+                        {leader.avatar_url ? (
+                          <img
+                            src={leader.avatar_url}
+                            alt={leader.display_name}
+                            className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-700 shadow-md flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xl font-bold border-2 border-white dark:border-gray-700 shadow-md flex-shrink-0">
+                            {leader.display_name[0].toUpperCase()}
+                          </div>
+                        )}
 
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-lg text-gray-900 dark:text-white truncate">
-                          {leader.display_name}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          @{leader.username}
+                        <div className="min-w-0 text-center sm:text-left">
+                          <div className="font-bold text-lg text-gray-900 dark:text-white truncate">
+                            {leader.display_name}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                            @{leader.username}
+                          </div>
                         </div>
                       </div>
 
