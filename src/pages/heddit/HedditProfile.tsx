@@ -501,7 +501,7 @@ export default function HedditProfile() {
         <div className="min-h-screen bg-gray-100">
           <div className="bg-white border-b border-gray-200">
             <div className="relative">
-              <div className="h-48 overflow-hidden">
+              <div className="h-36 sm:h-48 w-full overflow-hidden">
                 {(profile as any).cover_design_data ? (
                   <CoverRenderer
                     designData={(profile as any).cover_design_data}
@@ -511,79 +511,83 @@ export default function HedditProfile() {
                   <img
                     src={profile.cover_photo_url}
                     alt="Cover"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover object-center"
                   />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-r from-orange-400 to-red-400" />
                 )}
               </div>
 
-              <div className="max-w-5xl mx-auto px-4">
-                <div className="relative -mt-16 flex items-end gap-4 pb-4">
-                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white bg-gray-200 flex-shrink-0">
-                    {profile.avatar_url ? (
-                      <img
-                        src={profile.avatar_url}
-                        alt={profile.display_name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-gray-400">
-                        {profile.display_name[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 pt-16">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h1 className="text-2xl font-bold text-gray-900">
-                          {profile.display_name}
-                        </h1>
-                        <p className="text-gray-600">u/{profile.username}</p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        {isOwnProfile ? (
-                          <Link
-                            to="/heddit/settings"
-                            className="flex items-center gap-2 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <Settings className="w-4 h-4" />
-                            Edit Profile
-                          </Link>
-                        ) : (
-                          <>
-                            {currentAccountId && (
-                              <>
-                                <button
-                                  onClick={startConversation}
-                                  className="flex items-center gap-2 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                  <MessageCircle className="w-4 h-4" />
-                                  Message
-                                </button>
-                                <FollowButton
-                                  currentAccountId={currentAccountId}
-                                  targetAccountId={profile.id}
-                                  onFollowChange={setIsFollowingUser}
-                                />
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
+              <div className="max-w-5xl mx-auto px-3 sm:px-4">
+                <div className="relative -mt-12 sm:-mt-16 pb-4">
+                  <div className="flex items-end gap-3">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white bg-gray-200 flex-shrink-0 shadow-md">
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt={profile.display_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-gray-400">
+                          {profile.display_name[0].toUpperCase()}
+                        </div>
+                      )}
                     </div>
 
+                    <div className="flex-1 min-w-0 pt-12 sm:pt-16">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                            {profile.display_name}
+                          </h1>
+                          <p className="text-sm text-gray-600 truncate">u/{profile.username}</p>
+                        </div>
+
+                        <div className="flex-shrink-0 flex gap-1.5">
+                          {isOwnProfile ? (
+                            <Link
+                              to="/heddit/settings"
+                              className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm whitespace-nowrap"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </Link>
+                          ) : (
+                            <>
+                              {currentAccountId && (
+                                <>
+                                  <button
+                                    onClick={startConversation}
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    title="Message"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                  </button>
+                                  <FollowButton
+                                    currentAccountId={currentAccountId}
+                                    targetAccountId={profile.id}
+                                    onFollowChange={setIsFollowingUser}
+                                  />
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3">
                     {profile.bio && (
-                      <p className="mt-3 text-gray-700">{profile.bio}</p>
+                      <p className="text-gray-700 text-sm sm:text-base">{profile.bio}</p>
                     )}
 
-                    <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
                       {profile.location && (
                         <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          {profile.location}
+                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>{profile.location}</span>
                         </div>
                       )}
                       {profile.website && (
@@ -591,20 +595,20 @@ export default function HedditProfile() {
                           href={profile.website}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-orange-600 hover:underline"
+                          className="flex items-center gap-1 text-orange-600 hover:underline min-w-0"
                         >
-                          <LinkIcon className="w-4 h-4" />
-                          {profile.website.replace(/^https?:\/\//, '')}
+                          <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate max-w-[160px]">{profile.website.replace(/^https?:\/\//, '')}</span>
                         </a>
                       )}
                       <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
+                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
                         Joined {formatDate(profile.created_at)}
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-4">
-                      <div className="flex items-center gap-6 text-sm">
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center gap-4 text-sm">
                         <button
                           onClick={() => setFollowersModalType('followers')}
                           className="hover:underline"
@@ -631,55 +635,55 @@ export default function HedditProfile() {
                         </div>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-semibold text-gray-700">Quality Metrics</h3>
                           <Link
                             to="/heddit/karma-guide"
                             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
                           >
-                            <Info className="w-3.5 h-3.5" />
+                            <Info className="w-3 h-3" />
                             How it works
                           </Link>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-lg p-1 border-2 border-yellow-200 dark:border-yellow-800">
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-md p-3">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Star className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                                <span className="text-xs font-medium text-gray-900 dark:text-gray-100 uppercase">Karma</span>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-0.5 border-2 border-yellow-200">
+                            <div className="bg-white/80 rounded-md p-2">
+                              <div className="flex items-center gap-1 mb-1">
+                                <Star className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
+                                <span className="text-xs font-semibold text-gray-900 uppercase">Karma</span>
                               </div>
-                              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                              <div className="text-xl font-bold text-gray-900 leading-tight">
                                 {profile.karma.toLocaleString()}
                               </div>
-                              <div className="text-xs text-gray-700 dark:text-gray-300 mt-1">Through actions</div>
+                              <div className="text-xs text-gray-500 mt-0.5 leading-tight">Through actions</div>
                             </div>
                           </div>
 
-                          <div className="bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 rounded-lg p-1 border-2 border-pink-200 dark:border-pink-800">
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-md p-3">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Heart className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                                <span className="text-xs font-medium text-gray-900 dark:text-gray-100 uppercase">Kindness</span>
+                          <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg p-0.5 border-2 border-pink-200">
+                            <div className="bg-white/80 rounded-md p-2">
+                              <div className="flex items-center gap-1 mb-1">
+                                <Heart className="w-3.5 h-3.5 text-pink-600 flex-shrink-0" />
+                                <span className="text-xs font-semibold text-gray-900 uppercase">Kindness</span>
                               </div>
-                              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                              <div className="text-xl font-bold text-gray-900 leading-tight">
                                 {profile.kindness.toLocaleString()}
                               </div>
-                              <div className="text-xs text-gray-700 dark:text-gray-300 mt-1">From community</div>
+                              <div className="text-xs text-gray-500 mt-0.5 leading-tight">From community</div>
                             </div>
                           </div>
 
-                          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg p-1 border-2 border-blue-200 dark:border-blue-800">
-                            <div className="bg-white/80 dark:bg-gray-800/80 rounded-md p-3">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Trophy className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                <span className="text-xs font-medium text-gray-900 dark:text-gray-100 uppercase">Quality</span>
+                          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-0.5 border-2 border-blue-200">
+                            <div className="bg-white/80 rounded-md p-2">
+                              <div className="flex items-center gap-1 mb-1">
+                                <Trophy className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                                <span className="text-xs font-semibold text-gray-900 uppercase">Quality</span>
                               </div>
-                              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                              <div className="text-xl font-bold text-gray-900 leading-tight">
                                 {profile.quality_score.toLocaleString()}
                               </div>
-                              <div className="text-xs text-gray-700 dark:text-gray-300 mt-1">Exponential score</div>
+                              <div className="text-xs text-gray-500 mt-0.5 leading-tight">Exp. score</div>
                             </div>
                           </div>
                         </div>
@@ -689,20 +693,20 @@ export default function HedditProfile() {
                         <button
                           onClick={() => setShowGiveKindnessModal(true)}
                           disabled={hasGivenKindness}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all text-sm ${
                             hasGivenKindness
                               ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                              : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:from-pink-700 hover:to-purple-700 shadow-lg hover:shadow-xl'
+                              : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 shadow-md'
                           }`}
                         >
                           {hasGivenKindness ? (
                             <>
-                              <Sparkles className="w-5 h-5" />
+                              <Sparkles className="w-4 h-4" />
                               <span>Kindness Given</span>
                             </>
                           ) : (
                             <>
-                              <Heart className="w-5 h-5" />
+                              <Heart className="w-4 h-4" />
                               <span>Give Kindness</span>
                             </>
                           )}
@@ -712,36 +716,36 @@ export default function HedditProfile() {
                       {isOwnProfile && (
                         <button
                           onClick={() => setShowBadgesModal(true)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transition-all shadow-md text-sm"
                         >
-                          <Trophy className="w-5 h-5" />
+                          <Trophy className="w-4 h-4" />
                           <span>View Badges</span>
                         </button>
                       )}
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex gap-1 mt-4 border-t border-gray-200">
-                  {(['posts', 'comments', 'communities', 'about'] as TabType[]).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-6 py-3 font-medium capitalize transition-colors ${
-                        activeTab === tab
-                          ? 'text-orange-600 border-b-2 border-orange-600'
-                          : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex border-t border-gray-200 mt-2">
+                {(['posts', 'comments', 'communities', 'about'] as TabType[]).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 px-1 py-3 text-sm font-medium capitalize transition-colors ${
+                      activeTab === tab
+                        ? 'text-orange-600 border-b-2 border-orange-600'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="max-w-5xl mx-auto px-4 py-6">
+          <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4">
             {activeTab === 'posts' && (
               <div className="space-y-4">
                 {posts.length === 0 ? (
@@ -762,60 +766,55 @@ export default function HedditProfile() {
                     ) : (
                       <div key={post.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                         <div className="flex">
-                          <div className="w-12 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                          <div className="w-10 bg-gray-50 flex flex-col items-center py-3 gap-0.5 flex-shrink-0">
                             <button
                               onClick={() => handleVote(post.id, 'up', post)}
-                              className={`p-1 rounded hover:bg-gray-200 transition-colors ${
+                              className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${
                                 postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-400'
                               }`}
                             >
-                              <ArrowBigUp className="w-6 h-6" fill={postVotes[post.id] === 'up' ? 'currentColor' : 'none'} />
+                              <ArrowBigUp className="w-5 h-5" fill={postVotes[post.id] === 'up' ? 'currentColor' : 'none'} />
                             </button>
-                            <span className={`text-sm font-bold ${
+                            <span className={`text-xs font-bold ${
                               (voteScores[post.id] || 0) > 0 ? 'text-orange-600' : (voteScores[post.id] || 0) < 0 ? 'text-blue-600' : 'text-gray-600'
                             }`}>
                               {voteScores[post.id] || 0}
                             </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
-                              className={`p-1 rounded hover:bg-gray-200 transition-colors ${
+                              className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${
                                 postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'
                               }`}
                             >
-                              <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
+                              <ArrowBigDown className="w-5 h-5" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
                           </div>
-                        <div className="flex-1 p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="flex-1 min-w-0 p-3">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 min-w-0">
                                 <Link
                                   to={`/heddit/h/${post.heddit_subreddits.name}`}
-                                  className="font-semibold hover:underline"
+                                  className="font-semibold hover:underline text-gray-700 truncate"
                                 >
                                   h/{post.heddit_subreddits.name}
                                 </Link>
-                                <span>•</span>
-                                <span>
+                                <span>·</span>
+                                <span className="whitespace-nowrap">
                                   {new Date(post.created_at).toLocaleDateString()}
                                 </span>
                                 {post.quality_score && (
-                                  <>
-                                    <span>•</span>
-                                    <div className="flex items-center gap-1">
-                                      <TrendingUp className="w-3 h-3 text-blue-500" />
-                                      <span className="text-blue-600 font-medium">
-                                        {post.quality_score.toFixed(0)} quality
-                                      </span>
-                                    </div>
-                                  </>
+                                  <div className="flex items-center gap-0.5">
+                                    <TrendingUp className="w-3 h-3 text-blue-500" />
+                                    <span className="text-blue-600 font-medium">
+                                      {post.quality_score.toFixed(0)}
+                                    </span>
+                                  </div>
                                 )}
                               </div>
                               {isOwnProfile && (
                                 <button
                                   onClick={() => setDeletePostId(post.id)}
-                                  className="text-gray-400 hover:text-red-600 transition-colors"
+                                  className="text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
                                   title="Delete post"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -823,68 +822,66 @@ export default function HedditProfile() {
                               )}
                             </div>
 
-                          <Link
-                            to={`/heddit/post/${post.id}`}
-                            className="block group"
-                          >
-                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-orange-600 mb-2">
-                              {post.title}
-                            </h3>
-                            {post.content && (
-                              <HedditContentRenderer
-                                content={post.content}
-                                className="text-gray-700 line-clamp-3 mb-2 whitespace-pre-wrap"
-                              />
-                            )}
-                          </Link>
-
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
-                              <MessageCircle className="w-5 h-5" />
-                              <span className="font-medium">{post.comment_count || 0}</span>
-                              <span>Comments</span>
+                            <Link
+                              to={`/heddit/post/${post.id}`}
+                              className="block group"
+                            >
+                              <h3 className="text-base font-semibold text-gray-900 group-hover:text-orange-600 mb-1.5 leading-snug">
+                                {post.title}
+                              </h3>
+                              {post.content && (
+                                <HedditContentRenderer
+                                  content={post.content}
+                                  className="text-gray-600 text-sm line-clamp-3 mb-2"
+                                />
+                              )}
                             </Link>
-                            <button
-                              onClick={() => setSharingPost(post)}
-                              className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
-                            >
-                              <Share2 className="w-5 h-5" />
-                              <span>Share</span>
-                              {post.share_count > 0 && <span className="font-medium">({post.share_count})</span>}
-                            </button>
-                            <button
-                              onClick={() => setReportingPost(post.id)}
-                              className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
-                            >
-                              <Flag className="w-5 h-5" />
-                              <span>Report</span>
-                            </button>
-                          </div>
 
-                          {post.heddit_accounts && (
-                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
-                              <div className="flex items-center gap-1 text-gray-600">
-                                <Star className="w-4 h-4 text-yellow-500" />
-                                <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
-                                <span className="text-gray-500">Karma</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-gray-600">
-                                <Heart className="w-4 h-4 text-pink-500" />
-                                <span className="font-medium">{post.heddit_accounts.kindness || 0}</span>
-                                <span className="text-gray-500">Kindness</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-gray-600">
-                                <Trophy className="w-4 h-4 text-blue-500" />
-                                <span className="font-medium">{post.heddit_accounts.quality_score || 0}</span>
-                                <span className="text-gray-500">Quality</span>
-                              </div>
+                            <div className="flex items-center gap-1 text-xs text-gray-500 flex-wrap">
+                              <Link to={`/heddit/post/${post.id}`} className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors">
+                                <MessageCircle className="w-4 h-4" />
+                                <span className="font-medium">{post.comment_count || 0}</span>
+                                <span className="hidden sm:inline">Comments</span>
+                              </Link>
+                              <button
+                                onClick={() => setSharingPost(post)}
+                                className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                              >
+                                <Share2 className="w-4 h-4" />
+                                <span className="hidden sm:inline">Share</span>
+                                {post.share_count > 0 && <span className="font-medium">({post.share_count})</span>}
+                              </button>
+                              <button
+                                onClick={() => setReportingPost(post.id)}
+                                className="flex items-center gap-1 hover:bg-gray-100 px-2 py-1 rounded transition-colors"
+                              >
+                                <Flag className="w-4 h-4" />
+                                <span className="hidden sm:inline">Report</span>
+                              </button>
                             </div>
-                          )}
-                        </div>
+
+                            {post.heddit_accounts && (
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                                <div className="flex items-center gap-1">
+                                  <Star className="w-3.5 h-3.5 text-yellow-500" />
+                                  <span className="font-medium">{post.heddit_accounts.karma || 0}</span>
+                                  <span>Karma</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Heart className="w-3.5 h-3.5 text-pink-500" />
+                                  <span className="font-medium">{post.heddit_accounts.kindness || 0}</span>
+                                  <span>Kindness</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Trophy className="w-3.5 h-3.5 text-blue-500" />
+                                  <span className="font-medium">{post.heddit_accounts.quality_score || 0}</span>
+                                  <span>Quality</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      </div>
-                    </div>
                     )
                   ))
                 )}
@@ -899,61 +896,57 @@ export default function HedditProfile() {
                   </div>
                 ) : (
                   comments.map((comment) => (
-                    <div key={comment.id} className="bg-white rounded-lg border border-gray-200 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                            <span className="text-gray-500">Commented on</span>
-                            <Link
-                              to={`/heddit/post/${comment.post_id}`}
-                              className="font-semibold hover:underline text-gray-900"
-                            >
-                              {comment.post_title}
-                            </Link>
-                            <span>in</span>
-                            <Link
-                              to={`/heddit/h/${comment.subreddit_name}`}
-                              className="font-semibold hover:underline text-orange-600"
-                            >
-                              h/{comment.subreddit_name}
-                            </Link>
-                            <span>•</span>
-                            <span>
-                              {new Date(comment.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
+                    <div key={comment.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                      <div className="mb-2">
+                        <div className="text-xs text-gray-500 mb-0.5">Commented on</div>
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
+                          <Link
+                            to={`/heddit/post/${comment.post_id}`}
+                            className="font-semibold hover:underline text-gray-900 leading-snug"
+                          >
+                            {comment.post_title}
+                          </Link>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 mt-0.5">
+                          <span>in</span>
+                          <Link
+                            to={`/heddit/h/${comment.subreddit_name}`}
+                            className="font-semibold hover:underline text-orange-600"
+                          >
+                            h/{comment.subreddit_name}
+                          </Link>
+                          <span>·</span>
+                          <span>{new Date(comment.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
 
-                          <HedditContentRenderer
-                            content={comment.content}
-                            className="text-gray-700 mb-3 whitespace-pre-wrap"
-                          />
+                      <HedditContentRenderer
+                        content={comment.content}
+                        className="text-gray-700 text-sm mb-2"
+                      />
 
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <Link
-                              to={`/heddit/post/${comment.post_id}`}
-                              className="hover:text-orange-600 transition-colors"
-                            >
-                              View context
-                            </Link>
-                          </div>
+                      <Link
+                        to={`/heddit/post/${comment.post_id}`}
+                        className="text-xs text-orange-600 hover:underline"
+                      >
+                        View context
+                      </Link>
 
-                          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 text-sm">
-                            <div className="flex items-center gap-1 text-gray-600">
-                              <Star className="w-4 h-4 text-yellow-500" />
-                              <span className="font-medium">{profile.karma || 0}</span>
-                              <span className="text-gray-500">Karma</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-gray-600">
-                              <Heart className="w-4 h-4 text-pink-500" />
-                              <span className="font-medium">{profile.kindness || 0}</span>
-                              <span className="text-gray-500">Kindness</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-gray-600">
-                              <Trophy className="w-4 h-4 text-blue-500" />
-                              <span className="font-medium">{profile.quality_score || 0}</span>
-                              <span className="text-gray-500">Quality</span>
-                            </div>
-                          </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-yellow-500" />
+                          <span className="font-medium">{profile.karma || 0}</span>
+                          <span>Karma</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-3.5 h-3.5 text-pink-500" />
+                          <span className="font-medium">{profile.kindness || 0}</span>
+                          <span>Kindness</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Trophy className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="font-medium">{profile.quality_score || 0}</span>
+                          <span>Quality</span>
                         </div>
                       </div>
                     </div>
