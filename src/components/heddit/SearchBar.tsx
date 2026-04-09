@@ -208,7 +208,7 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
                       <div className="text-sm text-gray-500 truncate">{result.subtitle}</div>
                     )}
                   </div>
-                  <span className="text-xs text-gray-400 uppercase flex-shrink-0">{result.type}</span>
+                  <span className="text-xs text-gray-400 uppercase flex-shrink-0">{result.type === 'subreddit' ? 'subheddit' : result.type}</span>
                 </button>
               ))}
             </div>
