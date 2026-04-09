@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, Pin, CheckCircle2, Trash2, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag } from 'lucide-react';
+import { TrendingUp, Pin, CheckCircle2, Trash2, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -685,6 +685,19 @@ export default function HedditFeed() {
             </div>
 
             <div className="space-y-4 order-1 lg:order-2">
+              <Link
+                to="/heddit/communities"
+                className="flex items-center gap-3 bg-white rounded-lg border border-gray-300 p-4 hover:bg-gray-50 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-200 transition-colors">
+                  <Users size={20} className="text-orange-500" />
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">Communities</div>
+                  <div className="text-sm text-gray-500">Browse & manage your communities</div>
+                </div>
+              </Link>
+
               <JuryPoolVolunteerButton variant="compact" requireVerified={false} />
 
               <LeaderboardWidget />
