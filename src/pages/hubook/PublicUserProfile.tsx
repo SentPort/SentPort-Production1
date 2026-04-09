@@ -764,7 +764,7 @@ export default function PublicUserProfile() {
                 </div>
               )}
 
-              <div className="pt-14 sm:pt-24 flex-1 min-w-0">
+              <div className="pt-20 sm:pt-24 flex-1 min-w-0">
                 <h1 className="text-xl sm:text-3xl font-bold text-gray-900 leading-tight">{user.display_name}</h1>
                 {mutualFriendsCount > 0 && (
                   <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
@@ -869,20 +869,20 @@ export default function PublicUserProfile() {
                   <button
                     onClick={handleUnblock}
                     disabled={blockLoading}
-                    className="flex items-center gap-1 px-3 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-2 py-1 bg-gray-600 text-white text-xs font-medium rounded hover:bg-gray-700 transition-colors disabled:opacity-50"
                     title="Unblock this user"
                   >
-                    <XCircle className="w-4 h-4" />
+                    <XCircle className="w-3.5 h-3.5" />
                     Unblock
                   </button>
                 ) : (
                   <button
                     onClick={() => setShowBlockConfirm(true)}
                     disabled={blockLoading}
-                    className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1 px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 transition-colors disabled:opacity-50"
                     title="Block this user"
                   >
-                    <Ban className="w-4 h-4" />
+                    <Ban className="w-3.5 h-3.5" />
                     Block
                   </button>
                 )}
