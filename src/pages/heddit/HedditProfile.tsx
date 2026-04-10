@@ -994,10 +994,7 @@ export default function HedditProfile() {
                     {interests.map((interest) => (
                       <TagChip
                         key={interest.id}
-                        tag={{
-                          tag_name: interest.tag_name,
-                          display_name: interest.display_name
-                        }}
+                        tag={interest.display_name || interest.tag_name}
                       />
                     ))}
                   </div>
