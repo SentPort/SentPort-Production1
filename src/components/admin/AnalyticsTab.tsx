@@ -15,7 +15,7 @@ interface TagAnalytics {
 interface TrendingTag {
   id: string;
   tag_name: string;
-  use_count: number;
+  usage_count: number;
   created_at: string;
   growth_rate?: number;
 }
@@ -23,7 +23,7 @@ interface TrendingTag {
 interface RecentTag {
   id: string;
   tag_name: string;
-  use_count: number;
+  usage_count: number;
   created_at: string;
 }
 
@@ -81,7 +81,7 @@ export default function AnalyticsTab() {
           .from('heddit_custom_tags')
           .select('*')
           .eq('is_banned', false)
-          .order('use_count', { ascending: false })
+          .order('usage_count', { ascending: false })
           .limit(10),
         supabase
           .from('heddit_custom_tags')
@@ -192,7 +192,7 @@ export default function AnalyticsTab() {
                       </div>
                       <div className="text-right">
                         <div className="font-semibold text-gray-900">
-                          {tag.use_count}
+                          {tag.usage_count}
                         </div>
                         <div className="text-xs text-gray-500">uses</div>
                       </div>
@@ -229,7 +229,7 @@ export default function AnalyticsTab() {
                       </div>
                       <div className="text-right">
                         <div className="font-semibold text-gray-900">
-                          {tag.use_count}
+                          {tag.usage_count}
                         </div>
                         <div className="text-xs text-gray-500">uses</div>
                       </div>
