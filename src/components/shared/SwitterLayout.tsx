@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Bird, CreditCard as Edit3, Search, Mail, Bookmark } from 'lucide-react';
 import PlatformHeaderDropdown from './PlatformHeaderDropdown';
@@ -6,6 +6,8 @@ import PlatformBackButton from './PlatformBackButton';
 import UniversalNavigationDropdown from './UniversalNavigationDropdown';
 import CreateTweetModal from '../../components/switter/CreateTweetModal';
 import NotificationBellDropdown from '../../components/switter/NotificationBellDropdown';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface SwitterLayoutProps {
   children: ReactNode;
@@ -16,6 +18,13 @@ interface SwitterLayoutProps {
 
 export default function SwitterLayout({ children, showCreateButton = false, showBackButton = false, backButtonPath = '/switter' }: SwitterLayoutProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'switter' }).then(() => {});
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-gray-50">

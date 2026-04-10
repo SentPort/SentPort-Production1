@@ -25,6 +25,7 @@ export default function HinstaLayout({ children, showCreateButton = true, showBa
   useEffect(() => {
     if (user) {
       loadMyAccount();
+      supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'hinsta' }).then(() => {});
     }
   }, [user]);
 

@@ -28,6 +28,7 @@ export default function HedditLayout({ children, showCreateButtons = true, showB
     if (user) {
       loadDraftCount();
       loadUnreadMessageCount();
+      supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'heddit' }).then(() => {});
 
       const conversationsChannel = supabase
         .channel('heddit-conversations-unread')

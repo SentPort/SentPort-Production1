@@ -31,6 +31,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
       fetchFriendRequestCount();
       fetchSuggestions();
       checkWelcomeStatus();
+      supabase.rpc('track_user_activity', { p_user_id: hubookProfile.user_id, p_platform: 'hubook' }).then(() => {});
 
       // Subscribe to real-time notification updates
       const notificationChannel = supabase

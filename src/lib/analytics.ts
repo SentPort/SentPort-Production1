@@ -34,7 +34,7 @@ export async function trackPageView(
   }
 }
 
-export async function trackSearch(query: string, resultsCount: number) {
+export async function trackSearch(query: string, resultsCount: number, platform: 'main' | 'heddit' = 'main') {
   try {
     const sessionId = getOrCreateSessionId();
     const { data: { user } } = await supabase.auth.getUser();
@@ -43,7 +43,8 @@ export async function trackSearch(query: string, resultsCount: number) {
       session_id: sessionId,
       user_id: user?.id || null,
       query,
-      results_count: resultsCount
+      results_count: resultsCount,
+      platform
     });
   } catch (error) {
     console.error('Analytics tracking error:', error);

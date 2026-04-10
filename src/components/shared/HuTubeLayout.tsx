@@ -41,6 +41,7 @@ export default function HuTubeLayout({
   useEffect(() => {
     if (user) {
       fetchChannelHandle();
+      supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'hutube' }).then(() => {});
     }
   }, [user]);
 

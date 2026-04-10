@@ -26,6 +26,7 @@ export default function BlogLayout({ children, showCreateButton = true, showBack
   useEffect(() => {
     if (user) {
       loadDraftCount();
+      supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'blog' }).then(() => {});
 
       const subscription = supabase
         .channel('blog_drafts_changes')
