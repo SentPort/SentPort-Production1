@@ -34,8 +34,8 @@ export default function ActionHistoryTab() {
         .from('heddit_tag_actions')
         .select(`
           *,
-          heddit_custom_tags(tag_name),
-          user_profiles(email)
+          heddit_custom_tags(tag_name, display_name),
+          user_profiles(email, full_name)
         `)
         .order('created_at', { ascending: false })
         .limit(500);
@@ -43,11 +43,17 @@ export default function ActionHistoryTab() {
       if (error) throw error;
 
       const formattedData = (data || []).map((item: any) => {
-        let tag_name = item.heddit_custom_tags?.tag_name;
-        if (!tag_name && item.action_type === 'merge' && item.metadata) {
-          const src = item.metadata.source_tag;
-          const tgt = item.metadata.target_tag;
-          tag_name = src && tgt ? `${src} → ${tgt}` : (src || tgt || 'Unknown Tag');
+        let tag_name = item.heddit_custom_tags?.display_name || item.heddit_custom_tags?.tag_name;
+        if (!tag_name && item.metadata) {
+          if (item.action_type === 'merge') {
+            const src = item.metadata.source_tag;
+            const tgt = item.metadata.target_tag;
+            tag_name = src && tgt ? `${src} → ${tgt}` : (src || tgt || 'Unknown Tag');
+          } else if (item.action_type === 'rename') {
+            const old_name = item.metadata.old_display_name || item.metadata.tag_name;
+            const new_name = item.metadata.new_display_name;
+            tag_name = old_name && new_name ? `${old_name} → ${new_name}` : (old_name || new_name || 'Unknown Tag');
+          }
         }
         return {
           id: item.id,
@@ -57,7 +63,7 @@ export default function ActionHistoryTab() {
           notes: item.reason,
           created_at: item.created_at,
           tag_name,
-          admin_email: item.user_profiles?.email
+          admin_email: item.user_profiles?.email || item.user_profiles?.full_name
         };
       });
 
