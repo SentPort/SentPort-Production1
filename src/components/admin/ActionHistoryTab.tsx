@@ -34,7 +34,7 @@ export default function ActionHistoryTab() {
         .from('heddit_tag_actions')
         .select(`
           *,
-          heddit_custom_tags!inner(tag_name),
+          heddit_custom_tags(tag_name),
           user_profiles(email)
         `)
         .order('created_at', { ascending: false })
@@ -42,16 +42,24 @@ export default function ActionHistoryTab() {
 
       if (error) throw error;
 
-      const formattedData = (data || []).map((item: any) => ({
-        id: item.id,
-        tag_id: item.tag_id,
-        action_type: item.action_type,
-        performed_by: item.performed_by,
-        notes: item.reason,
-        created_at: item.created_at,
-        tag_name: item.heddit_custom_tags?.tag_name,
-        admin_email: item.user_profiles?.email
-      }));
+      const formattedData = (data || []).map((item: any) => {
+        let tag_name = item.heddit_custom_tags?.tag_name;
+        if (!tag_name && item.action_type === 'merge' && item.metadata) {
+          const src = item.metadata.source_tag;
+          const tgt = item.metadata.target_tag;
+          tag_name = src && tgt ? `${src} → ${tgt}` : (src || tgt || 'Unknown Tag');
+        }
+        return {
+          id: item.id,
+          tag_id: item.tag_id,
+          action_type: item.action_type,
+          performed_by: item.performed_by,
+          notes: item.reason,
+          created_at: item.created_at,
+          tag_name,
+          admin_email: item.user_profiles?.email
+        };
+      });
 
       setHistory(formattedData);
       setFilteredHistory(formattedData);
