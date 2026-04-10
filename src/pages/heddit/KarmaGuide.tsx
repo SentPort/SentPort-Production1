@@ -411,67 +411,116 @@ export default function KarmaGuide() {
               <Award className="w-8 h-8 text-blue-600" />
               <h2 className="text-2xl font-bold text-gray-900">Badges & Achievements</h2>
             </div>
-            <p className="text-gray-700 mb-4">
-              Earn badges for reaching karma and kindness milestones. You'll receive notifications when you unlock new badges.
+            <p className="text-gray-700 mb-6">
+              Earn badges by reaching milestones across all three metrics. Badges are awarded automatically the moment
+              you qualify, and you'll receive a notification each time you unlock one.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div className="bg-white rounded-lg border border-blue-300 p-4">
                 <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Star className="w-5 h-5 text-yellow-500" />
-                  Karma Badges
+                  <TrendingUp className="w-5 h-5 text-blue-600" />
+                  Quality Badges
+                  <span className="text-xs font-normal text-gray-500 ml-1">(based on Quality Score = Karma × Kindness)</span>
                 </h3>
                 <div className="space-y-2 text-sm text-gray-700">
-                  <div className="flex justify-between">
-                    <span>Bronze Contributor</span>
-                    <span className="font-semibold">100 karma</span>
+                  <div className="flex justify-between items-center">
+                    <span>Newcomer</span>
+                    <span className="font-semibold text-gray-500">0 quality — awarded on signup</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Silver Contributor</span>
-                    <span className="font-semibold">500 karma</span>
+                  <div className="flex justify-between items-center">
+                    <span>Rising Star</span>
+                    <span className="font-semibold">500 quality</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Gold Contributor</span>
-                    <span className="font-semibold">1,000 karma</span>
+                  <div className="flex justify-between items-center">
+                    <span>Established Member</span>
+                    <span className="font-semibold">2,500 quality</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Platinum Contributor</span>
-                    <span className="font-semibold">5,000 karma</span>
+                  <div className="flex justify-between items-center">
+                    <span>Respected Contributor</span>
+                    <span className="font-semibold">10,000 quality</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Diamond Contributor</span>
-                    <span className="font-semibold">10,000 karma</span>
+                  <div className="flex justify-between items-center">
+                    <span>Community Pillar</span>
+                    <span className="font-semibold">50,000 quality</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Elite Member</span>
+                    <span className="font-semibold">100,000 quality</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Legendary</span>
+                    <span className="font-semibold">500,000 quality</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Living Legend</span>
+                    <span className="font-semibold">1,000,000 quality</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg border border-blue-300 p-4">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Heart className="w-5 h-5 text-pink-500" />
-                  Kindness Badges
-                </h3>
-                <div className="space-y-2 text-sm text-gray-700">
-                  <div className="flex justify-between">
-                    <span>Appreciated</span>
-                    <span className="font-semibold">51 kindness (1 gift)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Beloved</span>
-                    <span className="font-semibold">251 kindness (5 gifts)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cherished</span>
-                    <span className="font-semibold">501 kindness (10 gifts)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Community Hero</span>
-                    <span className="font-semibold">1,001 kindness (20 gifts)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Living Legend</span>
-                    <span className="font-semibold">2,501 kindness (50 gifts)</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg border border-blue-300 p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Star className="w-5 h-5 text-yellow-500" />
+                    Karma Badges
+                  </h3>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div className="flex justify-between">
+                      <span>First Steps</span>
+                      <span className="font-semibold">50 karma</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Active Participant</span>
+                      <span className="font-semibold">500 karma</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Super Contributor</span>
+                      <span className="font-semibold">2,500 karma</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Karma Master</span>
+                      <span className="font-semibold">10,000 karma</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Karma Legend</span>
+                      <span className="font-semibold">50,000 karma</span>
+                    </div>
                   </div>
                 </div>
+
+                <div className="bg-white rounded-lg border border-blue-300 p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-pink-500" />
+                    Kindness Badges
+                  </h3>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    <div className="flex justify-between">
+                      <span>Kind Heart</span>
+                      <span className="font-semibold">500 kindness (~9 gifts)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Generous Soul</span>
+                      <span className="font-semibold">2,500 kindness (~49 gifts)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Beloved Member</span>
+                      <span className="font-semibold">10,000 kindness (~199 gifts)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Community Treasure</span>
+                      <span className="font-semibold">50,000 kindness (~999 gifts)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 bg-blue-100 rounded-lg p-4">
+                <Info className="w-5 h-5 text-blue-700 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-blue-800">
+                  You start with 1 kindness, and each gift adds +50. Kindness gift counts shown above are approximate
+                  since you begin at 1 rather than 0. View your full badge progress anytime from your profile.
+                </p>
               </div>
             </div>
           </section>
