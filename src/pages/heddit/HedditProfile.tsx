@@ -1082,29 +1082,27 @@ export default function HedditProfile() {
           />
         )}
 
-        {deletePostId && (
-          <ConfirmationDialog
-            title="Delete Post"
-            message="Are you sure you want to delete this post? This action cannot be undone."
-            confirmText="Delete"
-            cancelText="Cancel"
-            onConfirm={handleDeletePost}
-            onCancel={() => setDeletePostId(null)}
-            variant="danger"
-          />
-        )}
+        <ConfirmationDialog
+          isOpen={!!deletePostId}
+          title="Delete Post"
+          message="Are you sure you want to delete this post? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={handleDeletePost}
+          onCancel={() => setDeletePostId(null)}
+          variant="danger"
+        />
 
-        {deleteCommentId && (
-          <ConfirmationDialog
-            title="Delete Comment"
-            message="Are you sure you want to delete this comment? This action cannot be undone."
-            confirmText="Delete"
-            cancelText="Cancel"
-            onConfirm={handleDeleteComment}
-            onCancel={() => setDeleteCommentId(null)}
-            variant="danger"
-          />
-        )}
+        <ConfirmationDialog
+          isOpen={!!deleteCommentId}
+          title="Delete Comment"
+          message="Are you sure you want to delete this comment? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={handleDeleteComment}
+          onCancel={() => setDeleteCommentId(null)}
+          variant="danger"
+        />
 
         {reportingPost && (
           <ReportContentModal
