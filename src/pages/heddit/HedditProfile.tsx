@@ -99,6 +99,7 @@ export default function HedditProfile() {
   const [followersModalType, setFollowersModalType] = useState<'followers' | 'following' | null>(null);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [deletePostId, setDeletePostId] = useState<string | null>(null);
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const [reportingPost, setReportingPost] = useState<string | null>(null);
   const [sharingPost, setSharingPost] = useState<any | null>(null);
   const [showGiveKindnessModal, setShowGiveKindnessModal] = useState(false);
@@ -464,6 +465,22 @@ export default function HedditProfile() {
     }
 
     setDeletePostId(null);
+  };
+
+  const handleDeleteComment = async () => {
+    if (!deleteCommentId || !profile) return;
+
+    const { error } = await supabase
+      .from('platform_comments')
+      .delete()
+      .eq('id', deleteCommentId)
+      .eq('user_id', profile.user_id);
+
+    if (!error) {
+      setComments(comments.filter(c => c.id !== deleteCommentId));
+    }
+
+    setDeleteCommentId(null);
   };
 
   if (loading) {
@@ -898,24 +915,45 @@ export default function HedditProfile() {
                   comments.map((comment) => (
                     <div key={comment.id} className="bg-white rounded-lg border border-gray-200 p-3">
                       <div className="mb-2">
-                        <div className="text-xs text-gray-500 mb-0.5">Commented on</div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-xs text-gray-500 mb-0.5">Commented on</div>
+                          {isOwnProfile && (
+                            <button
+                              onClick={() => setDeleteCommentId(comment.id)}
+                              className="text-gray-400 hover:text-red-600 transition-colors flex-shrink-0"
+                              title="Delete comment"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-sm">
-                          <Link
-                            to={`/heddit/post/${comment.post_id}`}
-                            className="font-semibold hover:underline text-gray-900 leading-snug"
-                          >
-                            {comment.post_title}
-                          </Link>
+                          {comment.post_id ? (
+                            <Link
+                              to={`/heddit/post/${comment.post_id}`}
+                              className="font-semibold hover:underline text-gray-900 leading-snug"
+                            >
+                              {comment.post_title}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold text-gray-400 leading-snug italic">
+                              {comment.post_title}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500 mt-0.5">
-                          <span>in</span>
-                          <Link
-                            to={`/heddit/h/${comment.subreddit_name}`}
-                            className="font-semibold hover:underline text-orange-600"
-                          >
-                            h/{comment.subreddit_name}
-                          </Link>
-                          <span>·</span>
+                          {comment.subreddit_name && (
+                            <>
+                              <span>in</span>
+                              <Link
+                                to={`/heddit/h/${comment.subreddit_name}`}
+                                className="font-semibold hover:underline text-orange-600"
+                              >
+                                h/{comment.subreddit_name}
+                              </Link>
+                              <span>·</span>
+                            </>
+                          )}
                           <span>{new Date(comment.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
@@ -925,12 +963,14 @@ export default function HedditProfile() {
                         className="text-gray-700 text-sm mb-2"
                       />
 
-                      <Link
-                        to={`/heddit/post/${comment.post_id}`}
-                        className="text-xs text-orange-600 hover:underline"
-                      >
-                        View context
-                      </Link>
+                      {comment.post_id && (
+                        <Link
+                          to={`/heddit/post/${comment.post_id}`}
+                          className="text-xs text-orange-600 hover:underline"
+                        >
+                          View context
+                        </Link>
+                      )}
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
                         <div className="flex items-center gap-1">
@@ -1050,6 +1090,18 @@ export default function HedditProfile() {
             cancelText="Cancel"
             onConfirm={handleDeletePost}
             onCancel={() => setDeletePostId(null)}
+            variant="danger"
+          />
+        )}
+
+        {deleteCommentId && (
+          <ConfirmationDialog
+            title="Delete Comment"
+            message="Are you sure you want to delete this comment? This action cannot be undone."
+            confirmText="Delete"
+            cancelText="Cancel"
+            onConfirm={handleDeleteComment}
+            onCancel={() => setDeleteCommentId(null)}
             variant="danger"
           />
         )}
