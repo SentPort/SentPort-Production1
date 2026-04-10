@@ -30,20 +30,42 @@ export default function ActionHistoryTab() {
 
   const loadHistory = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: actions, error: actionsError } = await supabase
         .from('heddit_tag_actions')
-        .select(`
-          *,
-          heddit_custom_tags(tag_name, display_name),
-          user_profiles(email, full_name)
-        `)
+        .select('id, tag_id, action_type, performed_by, reason, metadata, created_at')
         .order('created_at', { ascending: false })
         .limit(500);
 
-      if (error) throw error;
+      if (actionsError) throw actionsError;
 
-      const formattedData = (data || []).map((item: any) => {
-        let tag_name = item.heddit_custom_tags?.display_name || item.heddit_custom_tags?.tag_name;
+      const rows = actions || [];
+
+      const tagIds = [...new Set(rows.map((r: any) => r.tag_id).filter(Boolean))];
+      const userIds = [...new Set(rows.map((r: any) => r.performed_by).filter(Boolean))];
+
+      const [tagsRes, usersRes] = await Promise.all([
+        tagIds.length > 0
+          ? supabase.from('heddit_custom_tags').select('id, tag_name, display_name').in('id', tagIds)
+          : Promise.resolve({ data: [] }),
+        userIds.length > 0
+          ? supabase.from('user_profiles').select('id, email, full_name').in('id', userIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const tagMap: Record<string, { tag_name: string; display_name: string }> = {};
+      for (const t of tagsRes.data || []) {
+        tagMap[t.id] = t;
+      }
+
+      const userMap: Record<string, { email: string; full_name: string }> = {};
+      for (const u of usersRes.data || []) {
+        userMap[u.id] = u;
+      }
+
+      const formattedData = rows.map((item: any) => {
+        const tagRecord = item.tag_id ? tagMap[item.tag_id] : null;
+        let tag_name = tagRecord?.display_name || tagRecord?.tag_name;
+
         if (!tag_name && item.metadata) {
           if (item.action_type === 'merge') {
             const src = item.metadata.source_tag;
@@ -53,8 +75,13 @@ export default function ActionHistoryTab() {
             const old_name = item.metadata.old_display_name || item.metadata.tag_name;
             const new_name = item.metadata.new_display_name;
             tag_name = old_name && new_name ? `${old_name} → ${new_name}` : (old_name || new_name || 'Unknown Tag');
+          } else if (item.metadata.tag_name) {
+            tag_name = item.metadata.tag_name;
           }
         }
+
+        const userRecord = item.performed_by ? userMap[item.performed_by] : null;
+
         return {
           id: item.id,
           tag_id: item.tag_id,
@@ -62,8 +89,8 @@ export default function ActionHistoryTab() {
           performed_by: item.performed_by,
           notes: item.reason,
           created_at: item.created_at,
-          tag_name,
-          admin_email: item.user_profiles?.email || item.user_profiles?.full_name
+          tag_name: tag_name || 'Unknown Tag',
+          admin_email: userRecord?.full_name || userRecord?.email || null,
         };
       });
 
