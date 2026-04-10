@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Users, Calendar, Hash, Plus, Pin, TrendingUp, Trash2, MoreVertical, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -55,8 +55,9 @@ interface PostVote {
 
 export default function HedditSubreddit() {
   const { subredditName } = useParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const communityIdRef = useRef<string | null>(null);
   const [community, setCommunity] = useState<Community | null>(null);
   const [pinnedPosts, setPinnedPosts] = useState<Post[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -90,10 +91,84 @@ export default function HedditSubreddit() {
   }, [subredditName]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!communityIdRef.current) return;
+    loadUserAuthData(communityIdRef.current);
+  }, [user, authLoading]);
+
+  useEffect(() => {
     if (user && posts.length > 0) {
       loadUserVotes();
     }
   }, [user, posts]);
+
+  const loadUserAuthData = async (subredditId: string) => {
+    if (!user) {
+      setIsMember(false);
+      setIsModerator(false);
+      setModeratorPermissions(null);
+      setModeratorRole(null);
+      setUserAccountId(null);
+      return;
+    }
+
+    const { data: account } = await supabase
+      .from('heddit_accounts')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!account) return;
+
+    setUserAccountId(account.id);
+
+    const { data: membershipData } = await supabase
+      .from('heddit_subreddit_members')
+      .select('id')
+      .eq('subreddit_id', subredditId)
+      .eq('account_id', account.id)
+      .maybeSingle();
+
+    setIsMember(!!membershipData);
+
+    const { data: isMod, error: modError } = await supabase.rpc('is_community_moderator', {
+      p_subreddit_id: subredditId,
+      p_user_id: user.id
+    });
+
+    if (modError) {
+      console.error('Error checking moderator status:', modError);
+    }
+
+    setIsModerator(!!isMod);
+
+    if (isMod) {
+      const { data: perms, error: permsError } = await supabase.rpc('get_moderator_permissions', {
+        p_subreddit_id: subredditId,
+        p_user_id: user.id
+      });
+
+      if (permsError) {
+        console.error('Error fetching moderator permissions:', permsError);
+      }
+
+      setModeratorPermissions(perms);
+
+      const { data: modData } = await supabase
+        .from('heddit_subreddit_moderators')
+        .select('role')
+        .eq('subreddit_id', subredditId)
+        .eq('account_id', account.id)
+        .maybeSingle();
+
+      if (modData) {
+        setModeratorRole(modData.role);
+      }
+    } else {
+      setModeratorPermissions(null);
+      setModeratorRole(null);
+    }
+  };
 
   const loadCommunity = async () => {
     setLoading(true);
@@ -111,6 +186,7 @@ export default function HedditSubreddit() {
 
     setCommunity(communityData);
     setMemberCount(communityData.member_count || 0);
+    communityIdRef.current = communityData.id;
 
     const { count } = await supabase
       .from('heddit_posts')
@@ -127,63 +203,8 @@ export default function HedditSubreddit() {
 
     setModeratorCount(modCount || 0);
 
-    if (user) {
-      const { data: account } = await supabase
-        .from('heddit_accounts')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (account) {
-        setUserAccountId(account.id);
-
-        const { data: membershipData } = await supabase
-          .from('heddit_subreddit_members')
-          .select('id')
-          .eq('subreddit_id', communityData.id)
-          .eq('account_id', account.id)
-          .maybeSingle();
-
-        setIsMember(!!membershipData);
-
-        const { data: isMod, error: modError } = await supabase.rpc('is_community_moderator', {
-          p_subreddit_id: communityData.id,
-          p_user_id: user.id
-        });
-
-        if (modError) {
-          console.error('Error checking moderator status:', modError);
-        }
-
-        console.log('Moderator check result:', { isMod, modError });
-        setIsModerator(!!isMod);
-
-        if (isMod) {
-          const { data: perms, error: permsError } = await supabase.rpc('get_moderator_permissions', {
-            p_subreddit_id: communityData.id,
-            p_user_id: user.id
-          });
-
-          if (permsError) {
-            console.error('Error fetching moderator permissions:', permsError);
-          }
-
-          console.log('Moderator permissions:', perms);
-          setModeratorPermissions(perms);
-
-          const { data: modData } = await supabase
-            .from('heddit_subreddit_moderators')
-            .select('role')
-            .eq('subreddit_id', communityData.id)
-            .eq('account_id', account.id)
-            .maybeSingle();
-
-          if (modData) {
-            console.log('Moderator role:', modData.role);
-            setModeratorRole(modData.role);
-          }
-        }
-      }
+    if (!authLoading) {
+      await loadUserAuthData(communityData.id);
     }
 
     const [pinnedRes, postsRes] = await Promise.all([
