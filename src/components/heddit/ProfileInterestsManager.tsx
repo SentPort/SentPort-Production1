@@ -106,7 +106,7 @@ export function ProfileInterestsManager({
         <div className="flex flex-wrap gap-2">
           {selectedInterests.map(tag => (
             <div key={tag.id} className="relative group">
-              <TagChip tag={{ tag_name: tag.tag_name, display_name: tag.display_name }} />
+              <TagChip tag={tag.display_name} />
               <button
                 onClick={() => handleRemoveInterest(tag.id)}
                 className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
