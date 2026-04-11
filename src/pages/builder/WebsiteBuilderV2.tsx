@@ -188,8 +188,7 @@ function WebsiteBuilderV2() {
       setShowGrid(preferences.showGrid);
 
       const isMobileScreen = window.innerWidth < 768;
-      const hasNoSavedPreference = !preferences.currentDevice || preferences.currentDevice === 'desktop';
-      if (isMobileScreen && hasNoSavedPreference && !mobileDefaultAppliedRef.current) {
+      if (isMobileScreen && !mobileDefaultAppliedRef.current) {
         mobileDefaultAppliedRef.current = true;
         setCurrentDevice('mobile');
       } else {
