@@ -55,7 +55,7 @@ const safeDeepClone = <T,>(obj: T): T => {
 function WebsiteBuilderV2() {
   const navigate = useNavigate();
   const { pageId, subdomainId } = useParams<{ pageId?: string; subdomainId: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [desktopView, setDesktopView] = useState<DeviceViewState>(createEmptyDeviceView());
   const [tabletView, setTabletView] = useState<DeviceViewState>(createEmptyDeviceView());
@@ -69,7 +69,7 @@ function WebsiteBuilderV2() {
   const [showGrid, setShowGrid] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [subdomainName, setSubdomainName] = useState<string>('');
   const [showPageSettings, setShowPageSettings] = useState(false);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | undefined>();
@@ -136,8 +136,10 @@ function WebsiteBuilderV2() {
   }, [showGrid, currentDevice, showPageSettings, preferencesLoaded, saveCurrentPreferences]);
 
   useEffect(() => {
-    loadBuilderData();
-  }, [subdomainId, pageId]);
+    if (!authLoading) {
+      loadBuilderData();
+    }
+  }, [subdomainId, pageId, user, authLoading]);
 
   const loadAllPages = async () => {
     if (!subdomainId) return;
@@ -1002,7 +1004,7 @@ function WebsiteBuilderV2() {
     return null;
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
