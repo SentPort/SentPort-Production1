@@ -1,6 +1,7 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
 import {
   Bold,
   Italic,
@@ -40,14 +41,8 @@ export default function HedditRichTextEditor({
         heading: {
           levels: [1, 2, 3],
         },
-        link: {
-          openOnClick: false,
-          HTMLAttributes: {
-            class: 'text-orange-600 hover:text-orange-700 underline',
-          },
-        },
-        underline: true,
       }),
+      Underline,
       Placeholder.configure({
         placeholder: placeholder || 'Write your post content...',
       }),
@@ -55,7 +50,7 @@ export default function HedditRichTextEditor({
     content,
     editorProps: {
       attributes: {
-        class: 'prose max-w-none focus:outline-none min-h-[200px] p-4 text-gray-900',
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px] p-4 text-gray-900 prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-a:text-orange-600 prose-code:bg-gray-100 prose-code:px-1 prose-code:rounded prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-blockquote:border-l-4 prose-blockquote:border-orange-500 prose-blockquote:pl-4 prose-blockquote:italic prose-ul:list-disc prose-ul:pl-6 prose-ol:list-decimal prose-ol:pl-6',
       },
     },
     onUpdate: ({ editor }) => {
