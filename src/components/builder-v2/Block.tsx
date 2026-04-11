@@ -65,8 +65,6 @@ export default function Block({
     if (!isEditMode) return null;
   }
 
-  const hasDeviceOverride = currentDevice !== 'desktop' && block.device === currentDevice;
-
   const normalizeValue = (value: string | undefined, shouldAddPx = true): string | undefined => {
     if (!value) return value;
     if (shouldAddPx && /^\d+$/.test(value)) {
@@ -509,14 +507,6 @@ export default function Block({
         </button>
       )}
 
-      {hasDeviceOverride && isEditMode && currentDevice !== 'desktop' && (
-        <div
-          className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full shadow-lg z-10 whitespace-nowrap"
-          title={`Custom ${currentDevice} styling applied`}
-        >
-          {currentDevice === 'tablet' ? '📱 Tablet' : '📱 Mobile'} Override
-        </div>
-      )}
 
       {isEditMode && onDuplicate && (
         <button
