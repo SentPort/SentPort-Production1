@@ -15,6 +15,8 @@ interface PropertiesPanelProps {
   onUpdateBlock?: (updates: Partial<BuilderBlock>) => void;
   onClose: () => void;
   subdomain?: string;
+  defaultTab?: Tab;
+  onTabChange?: (tab: Tab) => void;
 }
 
 type Tab = 'content' | 'design' | 'advanced';
@@ -27,8 +29,15 @@ export default function PropertiesPanel({
   onUpdateBlock,
   onClose,
   subdomain = 'default',
+  defaultTab,
+  onTabChange,
 }: PropertiesPanelProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('content');
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab || 'content');
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
   const [showMediaManager, setShowMediaManager] = useState(false);
   const [mediaTargetType, setMediaTargetType] = useState<'block' | 'section'>('block');
   const [showImageEditor, setShowImageEditor] = useState(false);
@@ -1369,8 +1378,8 @@ export default function PropertiesPanel({
   };
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg">
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="w-full md:w-80 bg-white md:border-l md:border-gray-200 flex flex-col md:shadow-lg">
+      <div className="hidden md:flex p-4 border-b border-gray-200 items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">
           {selectedBlock ? 'Block Properties' : 'Section Properties'}
         </h2>
@@ -1386,7 +1395,7 @@ export default function PropertiesPanel({
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'

@@ -67,6 +67,22 @@ export default function BuilderCanvas({
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  useEffect(() => {
+    const handleOpenAddSection = () => setShowAddSectionModal(true);
+    const handleOpenAddBlock = () => {
+      if (selectedSectionId) {
+        setTargetSectionId(selectedSectionId);
+        setShowAddBlockModal(true);
+      }
+    };
+    window.addEventListener('builder:openAddSection', handleOpenAddSection);
+    window.addEventListener('builder:openAddBlock', handleOpenAddBlock);
+    return () => {
+      window.removeEventListener('builder:openAddSection', handleOpenAddSection);
+      window.removeEventListener('builder:openAddBlock', handleOpenAddBlock);
+    };
+  }, [selectedSectionId]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -573,7 +589,7 @@ export default function BuilderCanvas({
 
   return (
     <div className="flex-1 bg-gray-100 overflow-auto">
-      <div className="min-h-full p-8">
+      <div className="min-h-full p-8 pb-40 md:pb-8">
         {currentDevice !== 'desktop' && (
           <div
             className="rounded-lg px-6 py-4 mb-6 mx-auto shadow-sm border-2"
@@ -746,7 +762,7 @@ export default function BuilderCanvas({
             setTargetSectionId(selectedSectionId);
             setShowAddBlockModal(true);
           }}
-          className="fixed bottom-8 right-96 bg-blue-500 text-white px-6 py-3 rounded-full shadow-2xl hover:bg-blue-600 transition-all flex items-center gap-2 font-medium z-40"
+          className="hidden md:flex fixed bottom-8 right-96 bg-blue-500 text-white px-6 py-3 rounded-full shadow-2xl hover:bg-blue-600 transition-all items-center gap-2 font-medium z-40"
         >
           <Plus className="w-5 h-5" />
           <span>Add Block</span>

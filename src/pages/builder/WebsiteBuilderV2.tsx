@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Eye, Undo, Redo, Grid2x2 as Grid, Settings as SettingsIcon, Copy, RotateCcw, Layers, Globe, GlobeLock } from 'lucide-react';
+import { ArrowLeft, Save, Eye, Undo, Redo, Grid2x2 as Grid, Settings as SettingsIcon, Copy, RotateCcw, Layers, Globe, GlobeLock, Monitor, Tablet, Smartphone, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BuilderSection, DeviceBreakpoint, PageBackgroundSettings, DeviceViewState, SubdomainPage } from '../../types/builder';
@@ -13,6 +13,7 @@ import BuilderErrorBoundary from '../../components/builder-v2/BuilderErrorBounda
 import PageManagerModal from '../../components/builder/PageManagerModal';
 import PublishConfirmModal from '../../components/builder-v2/PublishConfirmModal';
 import LivePageBanner from '../../components/builder-v2/LivePageBanner';
+import BuilderMobileBottomNav from '../../components/builder-v2/BuilderMobileBottomNav';
 import { loadBuilderPreferences, saveBuilderPreferences, resetBuilderPreferences, createDebouncedSave, BuilderPreferences, DEFAULT_BUILDER_PREFERENCES } from '../../lib/builderPreferences';
 import {
   publishHomepage,
@@ -85,10 +86,15 @@ function WebsiteBuilderV2() {
   const [publishModalVariant, setPublishModalVariant] = useState<'publishAll' | 'unpublishAll' | 'publishPage' | 'unpublishPage' | 'publishEdit'>('publishAll');
   const [publishing, setPublishing] = useState(false);
 
+  const [mobilePropertiesSheetOpen, setMobilePropertiesSheetOpen] = useState(false);
+  const [mobilePageSettingsSheetOpen, setMobilePageSettingsSheetOpen] = useState(false);
+  const mobilePropertiesLastTabRef = useRef<'content' | 'design' | 'advanced'>('content');
+
   const savePreferencesRef = useRef<(preferences: BuilderPreferences) => void>();
   const isSavingRef = useRef(false);
   const lastChangeTimestampRef = useRef<number>(Date.now());
   const isDraggingRef = useRef(false);
+  const mobileDefaultAppliedRef = useRef(false);
 
   const getCurrentView = useCallback((): DeviceViewState => {
     if (currentDevice === 'desktop') return desktopView;
@@ -180,7 +186,16 @@ function WebsiteBuilderV2() {
 
       const preferences = await loadBuilderPreferences(user.id, subdomainId);
       setShowGrid(preferences.showGrid);
-      setCurrentDevice(preferences.currentDevice);
+
+      const isMobileScreen = window.innerWidth < 768;
+      const hasNoSavedPreference = !preferences.currentDevice || preferences.currentDevice === 'desktop';
+      if (isMobileScreen && hasNoSavedPreference && !mobileDefaultAppliedRef.current) {
+        mobileDefaultAppliedRef.current = true;
+        setCurrentDevice('mobile');
+      } else {
+        setCurrentDevice(preferences.currentDevice);
+      }
+
       setShowPageSettings(preferences.showPageSettings);
       setPreferencesLoaded(true);
 
@@ -463,6 +478,69 @@ function WebsiteBuilderV2() {
       console.error('Error copying desktop layout:', err);
       alert('Failed to copy desktop layout. Please try again.');
     }
+  };
+
+  const handleCopyMobile = async (targetDevice?: DeviceBreakpoint) => {
+    const target = targetDevice || currentDevice;
+    if (target === 'mobile') return;
+
+    try {
+      const mobileSections = safeDeepClone(mobileView.sections);
+      const copiedSections = mobileSections.map((section: BuilderSection) => ({
+        ...section,
+        id: crypto.randomUUID(),
+        device: target,
+        visibility_desktop: target === 'desktop' ? true : section.visibility_desktop,
+        visibility_tablet: target === 'tablet' ? true : section.visibility_tablet,
+        visibility_mobile: section.visibility_mobile,
+        blocks: section.blocks?.map((block) => ({
+          ...block,
+          id: crypto.randomUUID(),
+          device: target,
+          visibility_desktop: target === 'desktop' ? true : block.visibility_desktop,
+          visibility_tablet: target === 'tablet' ? true : block.visibility_tablet,
+          visibility_mobile: block.visibility_mobile,
+        })),
+      }));
+
+      if (target === 'desktop') {
+        const newHistory = [copiedSections];
+        setDesktopView(v => ({
+          ...v,
+          sections: copiedSections,
+          history: newHistory,
+          historyIndex: 0,
+        }));
+      } else if (target === 'tablet') {
+        const newHistory = [copiedSections];
+        setTabletView(v => ({
+          ...v,
+          sections: copiedSections,
+          history: newHistory,
+          historyIndex: 0,
+        }));
+      }
+
+      if (user && pageContentId) {
+        await supabase.from('builder_device_copy_log').insert({
+          page_content_id: pageContentId,
+          user_id: user.id,
+          source_device: 'mobile',
+          target_device: target,
+        });
+      }
+
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 2000);
+    } catch (err) {
+      console.error('Error copying mobile layout:', err);
+      alert('Failed to copy mobile layout. Please try again.');
+    }
+  };
+
+  const handleMobileBottomNavCopy = () => {
+    if (currentDevice === 'mobile') return;
+    handleCopyMobile(currentDevice);
   };
 
   const handleResetView = () => {
@@ -915,6 +993,16 @@ function WebsiteBuilderV2() {
   const selectedSection = currentView.sections.find((s) => s.id === selectedSectionId);
   const selectedBlock = selectedSection?.blocks?.find((b) => b.id === selectedBlockId);
 
+  const getPublishAction = () => {
+    if (!currentPageData) return null;
+    if (currentPageData.is_published && currentPageData.has_unpublished_changes) return 'publishEdit' as const;
+    if (currentPageData.is_homepage && !currentPageData.is_published) return 'publishAll' as const;
+    if (currentPageData.is_homepage && currentPageData.is_published) return 'unpublishAll' as const;
+    if (!currentPageData.is_homepage && !currentPageData.is_published) return 'publishPage' as const;
+    if (!currentPageData.is_homepage && currentPageData.is_published) return 'unpublishPage' as const;
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
@@ -929,7 +1017,124 @@ function WebsiteBuilderV2() {
   return (
     <BuilderErrorBoundary>
     <div className="h-screen flex flex-col bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+
+      {/* ── MOBILE HEADER (two stacked rows, mobile only) ───────────── */}
+      <header className="md:hidden bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+        {/* Row 1: Back, page title + status, primary publish action */}
+        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+          <button
+            onClick={() => navigate(`/make-your-own-site?subdomain=${subdomainId}`)}
+            className="text-gray-600 p-1.5 -ml-1 flex-shrink-0 touch-manipulation"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <h1 className="text-sm font-bold text-gray-900 truncate">{pageTitle || 'Untitled Page'}</h1>
+            {currentPageData?.is_homepage && (
+              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded flex-shrink-0">HP</span>
+            )}
+            {currentPageData?.is_published ? (
+              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded flex items-center gap-0.5 flex-shrink-0">
+                <Globe className="w-2.5 h-2.5" />
+                Live
+              </span>
+            ) : (
+              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded flex-shrink-0">Draft</span>
+            )}
+            {currentPageData?.has_unpublished_changes && (
+              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded flex-shrink-0">Pending</span>
+            )}
+          </div>
+          <div className="flex-shrink-0">
+            {saving ? (
+              <span className="text-xs text-blue-600 flex items-center gap-1">
+                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Row 2: Pages, device switcher, undo/redo, grid, settings, save */}
+        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto">
+          <button
+            onClick={() => setShowPageManager(true)}
+            className="flex items-center gap-1 px-2 py-1.5 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0 touch-manipulation"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="text-xs font-medium">{allPages.length}</span>
+          </button>
+
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0 mx-0.5" />
+
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            {(['desktop', 'tablet', 'mobile'] as DeviceBreakpoint[]).map((dev) => {
+              const icons = { desktop: <Monitor className="w-4 h-4" />, tablet: <Tablet className="w-4 h-4" />, mobile: <Smartphone className="w-4 h-4" /> };
+              return (
+                <button
+                  key={dev}
+                  onClick={() => setCurrentDevice(dev)}
+                  className={`p-1.5 rounded-lg transition-colors touch-manipulation ${currentDevice === dev ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                >
+                  {icons[dev]}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0 mx-0.5" />
+
+          <button
+            onClick={handleUndo}
+            disabled={currentView.historyIndex === 0}
+            className="p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition-colors flex-shrink-0 touch-manipulation"
+          >
+            <Undo className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={currentView.historyIndex === currentView.history.length - 1}
+            className="p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition-colors flex-shrink-0 touch-manipulation"
+          >
+            <Redo className="w-4 h-4" />
+          </button>
+
+          <div className="w-px h-5 bg-gray-200 flex-shrink-0 mx-0.5" />
+
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 touch-manipulation ${showGrid ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <Grid className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              setMobilePageSettingsSheetOpen(!mobilePageSettingsSheetOpen);
+              setSelectedSectionId(undefined);
+              setSelectedBlockId(undefined);
+              setMobilePropertiesSheetOpen(false);
+            }}
+            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 touch-manipulation ${mobilePageSettingsSheetOpen ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => saveAllDeviceViews()}
+            disabled={saving}
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-medium flex-shrink-0 disabled:opacity-50 touch-manipulation ml-auto"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? 'Saving...' : 'Save'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── DESKTOP HEADER (unchanged, desktop only) ──────────────── */}
+      <header className="hidden md:flex bg-white border-b border-gray-200 px-6 py-4 items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(`/make-your-own-site?subdomain=${subdomainId}`)}
@@ -1146,72 +1351,226 @@ function WebsiteBuilderV2() {
         />
       )}
 
-      <div className="flex-1 flex overflow-hidden">
-        <BuilderCanvas
-          pageContentId={pageContentId}
-          currentDevice={currentDevice}
-          sections={currentView.sections}
-          onUpdateSections={handleUpdateSections}
-          selectedSectionId={selectedSectionId}
-          selectedBlockId={selectedBlockId}
-          onSelectSection={setSelectedSectionId}
-          onSelectBlock={setSelectedBlockId}
-          showGrid={showGrid}
-          backgroundImageUrl={backgroundImageUrl}
-          backgroundSettings={backgroundSettings}
-          onDragStart={() => { isDraggingRef.current = true; }}
-          onDragEnd={() => { isDraggingRef.current = false; }}
-        />
-
-        {(selectedSection || selectedBlock) && !showPageSettings && (
-          <PropertiesPanel
-            selectedSection={selectedSection}
-            selectedBlock={selectedBlock}
+      <div className="flex-1 flex overflow-hidden relative">
+        <div className="flex-1 flex overflow-hidden">
+          <BuilderCanvas
+            pageContentId={pageContentId}
             currentDevice={currentDevice}
-            subdomain={subdomainName || 'default'}
-            onUpdateSection={(updates) => {
-              if (selectedSectionId) {
-                const updatedSections = currentView.sections.map((s) =>
-                  s.id === selectedSectionId ? { ...s, ...updates } : s
-                );
-                handleUpdateSections(updatedSections);
+            sections={currentView.sections}
+            onUpdateSections={handleUpdateSections}
+            selectedSectionId={selectedSectionId}
+            selectedBlockId={selectedBlockId}
+            onSelectSection={(sectionId) => {
+              setSelectedSectionId(sectionId);
+              if (sectionId && window.innerWidth < 768) {
+                setMobilePropertiesSheetOpen(true);
               }
             }}
-            onUpdateBlock={(updates) => {
-              if (!selectedSectionId || !selectedBlockId) return;
+            onSelectBlock={(blockId) => {
+              setSelectedBlockId(blockId);
+              if (blockId && window.innerWidth < 768) {
+                setMobilePropertiesSheetOpen(true);
+              }
+            }}
+            showGrid={showGrid}
+            backgroundImageUrl={backgroundImageUrl}
+            backgroundSettings={backgroundSettings}
+            onDragStart={() => { isDraggingRef.current = true; }}
+            onDragEnd={() => { isDraggingRef.current = false; }}
+          />
 
-              const updatedSections = currentView.sections.map((s) =>
-                s.id === selectedSectionId
-                  ? {
-                      ...s,
-                      blocks: s.blocks?.map((b) =>
-                        b.id === selectedBlockId
-                          ? { ...b, ...updates }
-                          : b
-                      ),
+          {/* Desktop: right-side PropertiesPanel (unchanged) */}
+          {(selectedSection || selectedBlock) && !showPageSettings && (
+            <div className="hidden md:flex">
+              <PropertiesPanel
+                selectedSection={selectedSection}
+                selectedBlock={selectedBlock}
+                currentDevice={currentDevice}
+                subdomain={subdomainName || 'default'}
+                onUpdateSection={(updates) => {
+                  if (selectedSectionId) {
+                    const updatedSections = currentView.sections.map((s) =>
+                      s.id === selectedSectionId ? { ...s, ...updates } : s
+                    );
+                    handleUpdateSections(updatedSections);
+                  }
+                }}
+                onUpdateBlock={(updates) => {
+                  if (!selectedSectionId || !selectedBlockId) return;
+                  const updatedSections = currentView.sections.map((s) =>
+                    s.id === selectedSectionId
+                      ? {
+                          ...s,
+                          blocks: s.blocks?.map((b) =>
+                            b.id === selectedBlockId ? { ...b, ...updates } : b
+                          ),
+                        }
+                      : s
+                  );
+                  handleUpdateSections(updatedSections);
+                }}
+                onClose={() => {
+                  setSelectedSectionId(undefined);
+                  setSelectedBlockId(undefined);
+                }}
+              />
+            </div>
+          )}
+
+          {/* Desktop: right-side PageSettingsPanel (unchanged) */}
+          {showPageSettings && (
+            <div className="hidden md:flex">
+              <PageSettingsPanel
+                backgroundImageUrl={backgroundImageUrl}
+                backgroundSettings={backgroundSettings}
+                onUpdateBackground={handleUpdatePageBackground}
+                onClose={() => setShowPageSettings(false)}
+                subdomain={subdomainName}
+                onResetPreferences={handleResetPreferences}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Mobile: floating "Edit" pill button when element selected and sheet closed */}
+        {(selectedSection || selectedBlock) && !mobilePropertiesSheetOpen && (
+          <button
+            onClick={() => setMobilePropertiesSheetOpen(true)}
+            className="md:hidden fixed bottom-28 right-4 z-40 flex items-center gap-1.5 px-4 py-2.5 bg-gray-900 text-white rounded-full shadow-lg text-sm font-medium touch-manipulation"
+            style={{ bottom: 'calc(env(safe-area-inset-bottom) + 112px)' }}
+          >
+            <SettingsIcon className="w-4 h-4" />
+            Edit Properties
+          </button>
+        )}
+
+        {/* Mobile: PropertiesPanel bottom sheet */}
+        <div
+          className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col transition-transform duration-300 ease-out ${
+            mobilePropertiesSheetOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{ maxHeight: '70vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="bg-white rounded-t-2xl shadow-2xl flex flex-col overflow-hidden h-full" style={{ maxHeight: '70vh' }}>
+            <div className="flex flex-col items-center pt-2 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="flex items-center justify-between px-4 pb-2 flex-shrink-0">
+              <h3 className="text-base font-bold text-gray-900">
+                {selectedBlock ? 'Block Properties' : 'Section Properties'}
+              </h3>
+              <button
+                onClick={() => {
+                  setMobilePropertiesSheetOpen(false);
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {(selectedSection || selectedBlock) && (
+                <PropertiesPanel
+                  selectedSection={selectedSection}
+                  selectedBlock={selectedBlock}
+                  currentDevice={currentDevice}
+                  subdomain={subdomainName || 'default'}
+                  defaultTab={mobilePropertiesLastTabRef.current}
+                  onTabChange={(tab) => { mobilePropertiesLastTabRef.current = tab; }}
+                  onUpdateSection={(updates) => {
+                    if (selectedSectionId) {
+                      const updatedSections = currentView.sections.map((s) =>
+                        s.id === selectedSectionId ? { ...s, ...updates } : s
+                      );
+                      handleUpdateSections(updatedSections);
                     }
-                  : s
-              );
-              handleUpdateSections(updatedSections);
-            }}
-            onClose={() => {
-              setSelectedSectionId(undefined);
-              setSelectedBlockId(undefined);
-            }}
+                  }}
+                  onUpdateBlock={(updates) => {
+                    if (!selectedSectionId || !selectedBlockId) return;
+                    const updatedSections = currentView.sections.map((s) =>
+                      s.id === selectedSectionId
+                        ? {
+                            ...s,
+                            blocks: s.blocks?.map((b) =>
+                              b.id === selectedBlockId ? { ...b, ...updates } : b
+                            ),
+                          }
+                        : s
+                    );
+                    handleUpdateSections(updatedSections);
+                  }}
+                  onClose={() => {
+                    setMobilePropertiesSheetOpen(false);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+        {mobilePropertiesSheetOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black bg-opacity-30 z-40"
+            onClick={() => setMobilePropertiesSheetOpen(false)}
           />
         )}
 
-        {showPageSettings && (
-          <PageSettingsPanel
-            backgroundImageUrl={backgroundImageUrl}
-            backgroundSettings={backgroundSettings}
-            onUpdateBackground={handleUpdatePageBackground}
-            onClose={() => setShowPageSettings(false)}
-            subdomain={subdomainName}
-            onResetPreferences={handleResetPreferences}
+        {/* Mobile: PageSettingsPanel bottom sheet */}
+        <div
+          className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col transition-transform duration-300 ease-out ${
+            mobilePageSettingsSheetOpen ? 'translate-y-0' : 'translate-y-full'
+          }`}
+          style={{ maxHeight: '75vh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="bg-white rounded-t-2xl shadow-2xl flex flex-col overflow-hidden h-full" style={{ maxHeight: '75vh' }}>
+            <div className="flex flex-col items-center pt-2 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <PageSettingsPanel
+                backgroundImageUrl={backgroundImageUrl}
+                backgroundSettings={backgroundSettings}
+                onUpdateBackground={handleUpdatePageBackground}
+                onClose={() => setMobilePageSettingsSheetOpen(false)}
+                subdomain={subdomainName}
+                onResetPreferences={handleResetPreferences}
+              />
+            </div>
+          </div>
+        </div>
+        {mobilePageSettingsSheetOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black bg-opacity-30 z-40"
+            onClick={() => setMobilePageSettingsSheetOpen(false)}
           />
         )}
       </div>
+
+      {/* Mobile Bottom Nav */}
+      <BuilderMobileBottomNav
+        currentDevice={currentDevice}
+        onAddSection={() => {
+          const event = new CustomEvent('builder:openAddSection');
+          window.dispatchEvent(event);
+        }}
+        onAddBlock={() => {
+          const event = new CustomEvent('builder:openAddBlock');
+          window.dispatchEvent(event);
+        }}
+        canAddBlock={!!selectedSectionId}
+        onCopyMobileToDevice={handleCopyMobile}
+        onCopyMobileView={handleMobileBottomNavCopy}
+        onResetView={handleResetView}
+        onSaveAll={saveAllDeviceViews}
+        saving={saving}
+        lastSaved={currentView.lastSaved}
+        publishAction={getPublishAction()}
+        onPublishClick={
+          currentPageData?.is_published && currentPageData?.has_unpublished_changes
+            ? handlePublishEditClick
+            : handlePublishClick
+        }
+        currentPageData={currentPageData}
+      />
 
       {showSaveToast && (
         <div className="fixed bottom-6 right-6 z-50 animate-slide-up">

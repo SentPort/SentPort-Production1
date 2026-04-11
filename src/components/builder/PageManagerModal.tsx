@@ -67,19 +67,22 @@ export default function PageManagerModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Manage Pages</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end md:items-center justify-center z-50 md:p-4">
+      <div className="bg-white w-full md:rounded-lg shadow-xl md:max-w-2xl md:max-h-[80vh] max-h-[90vh] flex flex-col rounded-t-2xl">
+        <div className="flex flex-col items-center pt-3 pb-1 md:hidden flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+        <div className="p-4 md:p-6 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+          <h2 className="text-lg md:text-2xl font-bold text-gray-900">Manage Pages</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation"
           >
             <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {!showCreateForm ? (
             <div className="space-y-3">
               {pages.map(page => (
@@ -222,10 +225,10 @@ export default function PageManagerModal({
         </div>
 
         {!showCreateForm && (
-          <div className="p-6 border-t border-gray-200">
+          <div className="p-4 md:p-6 border-t border-gray-200 flex-shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
             <button
               onClick={() => setShowCreateForm(true)}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium touch-manipulation"
             >
               <Plus className="w-5 h-5" />
               Create New Page
