@@ -31,6 +31,7 @@ export default function PostModeratorActions({
     try {
       const { error } = await supabase.rpc('pin_heddit_post', {
         post_id: postId,
+        subreddit_id: subredditId,
         should_pin: !isPinned
       });
 

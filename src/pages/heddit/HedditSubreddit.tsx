@@ -215,6 +215,19 @@ export default function HedditSubreddit() {
 
     const allPostIds = crossPostIds.length > 0 ? crossPostIds : ['00000000-0000-0000-0000-000000000000'];
 
+    const { data: communityPinsData } = await supabase
+      .from('heddit_community_pins')
+      .select('post_id, pinned_at')
+      .eq('subreddit_id', communityData.id)
+      .order('pinned_at', { ascending: false });
+
+    const pinnedPostIds = (communityPinsData || []).map((r: any) => r.post_id);
+    const pinnedPostIdSet = new Set(pinnedPostIds);
+    const unpinnedPostIds = allPostIds.filter((id: string) => !pinnedPostIdSet.has(id));
+
+    const pinnedQueryIds = pinnedPostIds.length > 0 ? pinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
+    const unpinnedQueryIds = unpinnedPostIds.length > 0 ? unpinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
+
     const [pinnedRes, postsRes] = await Promise.all([
       supabase
         .from('heddit_posts')
@@ -223,10 +236,8 @@ export default function HedditSubreddit() {
           heddit_subreddits(name, display_name),
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
-        .in('id', allPostIds)
-        .eq('is_pinned', true)
-        .eq('is_draft', false)
-        .order('pinned_at', { ascending: false }),
+        .in('id', pinnedQueryIds)
+        .eq('is_draft', false),
       supabase
         .from('heddit_posts')
         .select(`
@@ -234,19 +245,25 @@ export default function HedditSubreddit() {
           heddit_subreddits(name, display_name),
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
-        .in('id', allPostIds)
-        .eq('is_pinned', false)
+        .in('id', unpinnedQueryIds)
         .eq('is_draft', false)
         .order('created_at', { ascending: false })
         .limit(20)
     ]);
 
     if (pinnedRes.data) {
-      setPinnedPosts(pinnedRes.data);
-      loadTagsForPosts(pinnedRes.data.map(p => p.id));
-      loadPostModerators(pinnedRes.data);
+      const pinTimeMap: { [key: string]: string } = {};
+      (communityPinsData || []).forEach((r: any) => { pinTimeMap[r.post_id] = r.pinned_at; });
+      const sortedPinned = [...pinnedRes.data].sort((a, b) => {
+        const ta = pinTimeMap[a.id] || '';
+        const tb = pinTimeMap[b.id] || '';
+        return tb.localeCompare(ta);
+      });
+      setPinnedPosts(sortedPinned);
+      loadTagsForPosts(sortedPinned.map(p => p.id));
+      loadPostModerators(sortedPinned);
       const scores: { [key: string]: number } = {};
-      pinnedRes.data.forEach(p => {
+      sortedPinned.forEach(p => {
         scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
       });
       setVoteScores(prev => ({ ...prev, ...scores }));
