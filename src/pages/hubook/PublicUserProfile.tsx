@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image, Globe, Ban, XCircle } from 'lucide-react';
+import { MapPin, Briefcase, GraduationCap, Heart, UserPlus, UserCheck, Clock, ArrowLeft, Users, MessageCircle, Lock, AlertCircle, Image, Globe, Ban, XCircle, Search, ArrowUpDown } from 'lucide-react';
 import { useHuBook } from '../../contexts/HuBookContext';
 import { supabase } from '../../lib/supabase';
 import Post from '../../components/hubook/Post';
@@ -24,7 +24,11 @@ export default function PublicUserProfile() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ urls: string[]; index: number } | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'photos'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'photos' | 'friends'>('posts');
+  const [profileFriends, setProfileFriends] = useState<any[]>([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsSearch, setFriendsSearch] = useState('');
+  const [friendsSortAZ, setFriendsSortAZ] = useState(false);
   const [friendRequestLoading, setFriendRequestLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -41,6 +45,7 @@ export default function PublicUserProfile() {
       fetchUser();
       fetchFriendship();
       fetchMutualFriends();
+      fetchFriends();
       checkBlockStatus();
     }
   }, [userId, hubookProfile]);
@@ -134,6 +139,37 @@ export default function PublicUserProfile() {
 
     const mutual = [...myFriendIds].filter((id) => theirFriendIds.has(id));
     setMutualFriendsCount(mutual.length);
+  };
+
+  const fetchFriends = async () => {
+    if (!userId) return;
+    setFriendsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('friendships')
+        .select(`
+          id,
+          requester_id,
+          addressee_id,
+          requester:hubook_profiles!requester_id(id, display_name, profile_photo_url, work),
+          addressee:hubook_profiles!addressee_id(id, display_name, profile_photo_url, work)
+        `)
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+      if (error) throw error;
+
+      const friends = (data || []).map((f: any) => {
+        const friend = f.requester_id === userId ? f.addressee : f.requester;
+        return { ...friend, friendship_id: f.id };
+      });
+
+      setProfileFriends(friends);
+    } catch (err) {
+      console.error('Error fetching friends:', err);
+    } finally {
+      setFriendsLoading(false);
+    }
   };
 
   const checkBlockStatus = async () => {
@@ -971,6 +1007,16 @@ export default function PublicUserProfile() {
             >
               Photos
             </button>
+            <button
+              onClick={() => setActiveTab('friends')}
+              className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'friends'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Friends {user.friend_count > 0 ? `(${user.friend_count})` : ''}
+            </button>
           </nav>
         </div>
 
@@ -1108,6 +1154,97 @@ export default function PublicUserProfile() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'friends' && (
+          <div className="p-6">
+            {friendsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              </div>
+            ) : profileFriends.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No friends yet</h3>
+                <p className="text-gray-600">{user.display_name} hasn't added any friends yet.</p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-3 mb-5">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={friendsSearch}
+                      onChange={(e) => setFriendsSearch(e.target.value)}
+                      placeholder="Search friends by name..."
+                      className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setFriendsSortAZ((prev) => !prev)}
+                    title={friendsSortAZ ? 'Switch to most recent' : 'Sort A-Z'}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      friendsSortAZ
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <ArrowUpDown className="w-4 h-4" />
+                    A-Z
+                  </button>
+                </div>
+                {(() => {
+                  const filtered = profileFriends.filter((f) =>
+                    f.display_name?.toLowerCase().includes(friendsSearch.toLowerCase())
+                  );
+                  const sorted = friendsSortAZ
+                    ? [...filtered].sort((a, b) =>
+                        (a.display_name || '').localeCompare(b.display_name || '')
+                      )
+                    : filtered;
+
+                  if (sorted.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500 text-sm">
+                        No friends match your search.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {sorted.map((friend) => (
+                        <Link
+                          key={friend.id}
+                          to={`/hubook/user/${friend.id}`}
+                          className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          {friend.profile_photo_url ? (
+                            <img
+                              src={friend.profile_photo_url}
+                              alt={friend.display_name}
+                              className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                              {friend.display_name?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">{friend.display_name}</p>
+                            {friend.work && (
+                              <p className="text-sm text-gray-500 truncate">{friend.work}</p>
+                            )}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
