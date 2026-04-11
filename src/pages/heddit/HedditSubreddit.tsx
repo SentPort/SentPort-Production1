@@ -189,10 +189,9 @@ export default function HedditSubreddit() {
     communityIdRef.current = communityData.id;
 
     const { count } = await supabase
-      .from('heddit_posts')
+      .from('heddit_post_subreddits')
       .select('*', { count: 'exact', head: true })
-      .eq('subreddit_id', communityData.id)
-      .eq('is_draft', false);
+      .eq('subreddit_id', communityData.id);
 
     setPostCount(count || 0);
 
@@ -207,6 +206,15 @@ export default function HedditSubreddit() {
       await loadUserAuthData(communityData.id);
     }
 
+    const { data: crossPostData } = await supabase
+      .from('heddit_post_subreddits')
+      .select('post_id')
+      .eq('subreddit_id', communityData.id);
+
+    const crossPostIds = (crossPostData || []).map((r: any) => r.post_id);
+
+    const allPostIds = crossPostIds.length > 0 ? crossPostIds : ['00000000-0000-0000-0000-000000000000'];
+
     const [pinnedRes, postsRes] = await Promise.all([
       supabase
         .from('heddit_posts')
@@ -215,7 +223,7 @@ export default function HedditSubreddit() {
           heddit_subreddits(name, display_name),
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
-        .eq('subreddit_id', communityData.id)
+        .in('id', allPostIds)
         .eq('is_pinned', true)
         .eq('is_draft', false)
         .order('pinned_at', { ascending: false }),
@@ -226,7 +234,7 @@ export default function HedditSubreddit() {
           heddit_subreddits(name, display_name),
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
-        .eq('subreddit_id', communityData.id)
+        .in('id', allPostIds)
         .eq('is_pinned', false)
         .eq('is_draft', false)
         .order('created_at', { ascending: false })
