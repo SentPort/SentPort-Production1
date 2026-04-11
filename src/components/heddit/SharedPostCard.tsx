@@ -141,6 +141,7 @@ export default function SharedPostCard({ sharePost, onNavigate, currentAccountId
     try {
       const { error } = await supabase.rpc('pin_heddit_post', {
         post_id: sharePost.id,
+        subreddit_id: subredditId,
         should_pin: !sharePost.is_pinned
       });
 
