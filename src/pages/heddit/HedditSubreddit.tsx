@@ -83,6 +83,7 @@ export default function HedditSubreddit() {
   const [moderatorCount, setModeratorCount] = useState(0);
   const [postVotes, setPostVotes] = useState<PostVote>({});
   const [voteScores, setVoteScores] = useState<{ [postId: string]: number }>({});
+  const [pinnerUsernameMap, setPinnerUsernameMap] = useState<{ [postId: string]: string }>({});
 
   useEffect(() => {
     if (subredditName) {
@@ -217,7 +218,7 @@ export default function HedditSubreddit() {
 
     const { data: communityPinsData } = await supabase
       .from('heddit_community_pins')
-      .select('post_id, pinned_at')
+      .select('post_id, pinned_at, pinned_by')
       .eq('subreddit_id', communityData.id)
       .order('pinned_at', { ascending: false });
 
@@ -227,6 +228,23 @@ export default function HedditSubreddit() {
 
     const pinnedQueryIds = pinnedPostIds.length > 0 ? pinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
     const unpinnedQueryIds = unpinnedPostIds.length > 0 ? unpinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
+
+    const pinnerUserIds = [...new Set((communityPinsData || []).map((r: any) => r.pinned_by).filter(Boolean))];
+    const pinnerUsernameResult: { [postId: string]: string } = {};
+    if (pinnerUserIds.length > 0) {
+      const { data: pinnerAccounts } = await supabase
+        .from('heddit_accounts')
+        .select('user_id, username')
+        .in('user_id', pinnerUserIds);
+      const userIdToUsername: { [uid: string]: string } = {};
+      (pinnerAccounts || []).forEach((a: any) => { userIdToUsername[a.user_id] = a.username; });
+      (communityPinsData || []).forEach((r: any) => {
+        if (r.pinned_by && userIdToUsername[r.pinned_by]) {
+          pinnerUsernameResult[r.post_id] = userIdToUsername[r.pinned_by];
+        }
+      });
+    }
+    setPinnerUsernameMap(pinnerUsernameResult);
 
     const [pinnedRes, postsRes] = await Promise.all([
       supabase
@@ -725,9 +743,14 @@ export default function HedditSubreddit() {
                             <div className="flex-1 min-w-0 p-4 overflow-hidden">
                               <div className="flex items-center justify-between mb-2 min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 min-w-0">
-                                  <div className="flex items-center gap-1 text-orange-600 font-semibold">
-                                    <Pin size={16} className="fill-orange-600" />
-                                    <span>Pinned</span>
+                                  <div className="flex flex-col">
+                                    <div className="flex items-center gap-1 text-orange-600 font-semibold">
+                                      <Pin size={16} className="fill-orange-600" />
+                                      <span>Pinned by Moderator</span>
+                                    </div>
+                                    {pinnerUsernameMap[post.id] && (
+                                      <span className="text-xs text-gray-400 ml-5">by u/{pinnerUsernameMap[post.id]}</span>
+                                    )}
                                   </div>
                                   <span>•</span>
                                   <span>Posted by</span>
