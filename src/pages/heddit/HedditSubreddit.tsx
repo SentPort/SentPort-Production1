@@ -430,14 +430,23 @@ export default function HedditSubreddit() {
         .eq('account_id', account.id);
 
       setIsMember(false);
-      setCommunity({ ...community, member_count: community.member_count - 1 });
     } else {
       await supabase
         .from('heddit_subreddit_members')
         .insert({ subreddit_id: community.id, account_id: account.id });
 
       setIsMember(true);
-      setCommunity({ ...community, member_count: community.member_count + 1 });
+    }
+
+    const { data: updated } = await supabase
+      .from('heddit_subreddits')
+      .select('member_count')
+      .eq('id', community.id)
+      .maybeSingle();
+
+    if (updated) {
+      setCommunity({ ...community, member_count: updated.member_count });
+      setMemberCount(updated.member_count);
     }
   };
 
