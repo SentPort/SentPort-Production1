@@ -286,15 +286,15 @@ export default function MakeYourOwnSite() {
                       Claim Another Subdomain
                     </h3>
                     <div className="mb-4">
-                      <div className="flex items-center gap-0 max-w-md mx-auto">
+                      <div className="flex items-center gap-0 max-w-md mx-auto w-full">
                         <input
                           type="text"
                           value={subdomain}
                           onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
                           placeholder="yourname"
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          className="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                         />
-                        <div className="px-4 py-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-700 font-medium">
+                        <div className="shrink-0 whitespace-nowrap px-4 py-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-700 font-medium">
                           .sentport.com
                         </div>
                       </div>
@@ -316,16 +316,16 @@ export default function MakeYourOwnSite() {
                   <label className="block text-sm font-semibold text-gray-900 mb-3">
                     Choose Your Subdomain
                   </label>
-                  <div className="flex items-center gap-0">
+                  <div className="flex items-center gap-0 w-full">
                     <input
                       type="text"
                       value={subdomain}
                       onChange={(e) => setSubdomain(e.target.value.toLowerCase())}
                       placeholder="yourname"
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      className="flex-1 min-w-0 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       disabled={!isVerified && !isAdmin}
                     />
-                    <div className="px-4 py-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-700 font-medium">
+                    <div className="shrink-0 whitespace-nowrap px-4 py-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-700 font-medium">
                       .sentport.com
                     </div>
                   </div>
