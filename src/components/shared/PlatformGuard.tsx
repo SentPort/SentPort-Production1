@@ -84,7 +84,11 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
   }
 
   if (!user || (!isEmailVerified && !isAdmin) || (!isVerified && !isAdmin)) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
   }
 
   if (isPlatformAccountsLoading) {
@@ -96,7 +100,11 @@ export default function PlatformGuard({ platform, children }: PlatformGuardProps
   }
 
   if (!hasPlatformAccount) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
   }
 
   return <>{children}</>;

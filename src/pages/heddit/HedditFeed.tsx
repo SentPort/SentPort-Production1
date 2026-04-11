@@ -107,19 +107,21 @@ export default function HedditFeed() {
     ]);
 
     if (pinnedRes.data) {
-      setPinnedPosts(pinnedRes.data);
-      loadTagsForPosts(pinnedRes.data.map(p => p.id));
+      const validPinned = pinnedRes.data.filter(p => p.heddit_subreddits && p.heddit_accounts);
+      setPinnedPosts(validPinned);
+      loadTagsForPosts(validPinned.map(p => p.id));
       const scores: { [key: string]: number } = {};
-      pinnedRes.data.forEach(p => {
+      validPinned.forEach(p => {
         scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
       });
       setVoteScores(prev => ({ ...prev, ...scores }));
     }
     if (postsRes.data) {
-      setPosts(postsRes.data);
-      loadTagsForPosts(postsRes.data.map(p => p.id));
+      const validPosts = postsRes.data.filter(p => p.heddit_subreddits && p.heddit_accounts);
+      setPosts(validPosts);
+      loadTagsForPosts(validPosts.map(p => p.id));
       const scores: { [key: string]: number } = {};
-      postsRes.data.forEach(p => {
+      validPosts.forEach(p => {
         scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
       });
       setVoteScores(prev => ({ ...prev, ...scores }));
@@ -145,7 +147,9 @@ export default function HedditFeed() {
         if (!tagsByPost[item.post_id]) {
           tagsByPost[item.post_id] = [];
         }
-        tagsByPost[item.post_id].push(item.heddit_custom_tags.display_name);
+        if (item.heddit_custom_tags) {
+          tagsByPost[item.post_id].push(item.heddit_custom_tags.display_name);
+        }
       });
       setPostTags(prev => ({ ...prev, ...tagsByPost }));
     }
@@ -165,7 +169,9 @@ export default function HedditFeed() {
         if (!tagsBySubreddit[item.subreddit_id]) {
           tagsBySubreddit[item.subreddit_id] = [];
         }
-        tagsBySubreddit[item.subreddit_id].push(item.heddit_custom_tags.display_name);
+        if (item.heddit_custom_tags) {
+          tagsBySubreddit[item.subreddit_id].push(item.heddit_custom_tags.display_name);
+        }
       });
       setSubredditTags(prev => ({ ...prev, ...tagsBySubreddit }));
     }
