@@ -792,9 +792,6 @@ export default function HedditProfile() {
                             <span className={`text-xs font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
                               {postLikeCounts[post.id] || 0}
                             </span>
-                            <span className={`text-xs font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
-                              {postDislikeCounts[post.id] || 0}
-                            </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
                               className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${
@@ -803,6 +800,9 @@ export default function HedditProfile() {
                             >
                               <ArrowBigDown className="w-5 h-5" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
+                            <span className={`text-xs font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
+                            </span>
                           </div>
                           <div className="flex-1 min-w-0 p-3">
                             <div className="flex items-start justify-between gap-2 mb-2">

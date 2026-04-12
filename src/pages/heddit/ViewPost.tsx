@@ -277,9 +277,6 @@ export default function ViewPost() {
                 <span className={`text-sm font-bold ${userVote === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
                   {likeCount}
                 </span>
-                <span className={`text-sm font-bold ${userVote === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
-                  {dislikeCount}
-                </span>
                 <button
                   onClick={() => handleVote('down')}
                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -288,6 +285,9 @@ export default function ViewPost() {
                 >
                   <ArrowBigDown className="w-6 h-6" fill={userVote === 'down' ? 'currentColor' : 'none'} />
                 </button>
+                <span className={`text-sm font-bold ${userVote === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {dislikeCount}
+                </span>
               </div>
 
               <div className="flex-1 min-w-0 p-3 sm:p-4">

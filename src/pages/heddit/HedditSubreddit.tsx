@@ -734,9 +734,6 @@ export default function HedditSubreddit() {
                                 <span className={`text-sm font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
                                   {postLikeCounts[post.id] || 0}
                                 </span>
-                                <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
-                                  {postDislikeCounts[post.id] || 0}
-                                </span>
                                 <button
                                   onClick={() => handleVote(post.id, 'down', post)}
                                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -745,6 +742,9 @@ export default function HedditSubreddit() {
                                 >
                                   <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                                 </button>
+                                <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                                  {postDislikeCounts[post.id] || 0}
+                                </span>
                               </div>
                             <div className="flex-1 min-w-0 p-4 overflow-hidden">
                               <div className="flex items-center justify-between mb-2 min-w-0">

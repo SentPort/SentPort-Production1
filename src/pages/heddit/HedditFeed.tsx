@@ -383,9 +383,6 @@ export default function HedditFeed() {
                             <span className={`text-sm font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
                               {postLikeCounts[post.id] || 0}
                             </span>
-                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
-                              {postDislikeCounts[post.id] || 0}
-                            </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -394,6 +391,9 @@ export default function HedditFeed() {
                             >
                               <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
+                            </span>
                           </div>
                         <div className="flex-1 p-4 min-w-0">
                           <div className="flex items-start justify-between mb-2 gap-2">
@@ -555,9 +555,6 @@ export default function HedditFeed() {
                             <span className={`text-sm font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
                               {postLikeCounts[post.id] || 0}
                             </span>
-                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
-                              {postDislikeCounts[post.id] || 0}
-                            </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -566,6 +563,9 @@ export default function HedditFeed() {
                             >
                               <ArrowBigDown className="w-6 h-6" fill={postVotes[post.id] === 'down' ? 'currentColor' : 'none'} />
                             </button>
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
+                            </span>
                           </div>
                         <div className="flex-1 p-4 min-w-0">
                           <div className="flex items-start justify-between mb-2 gap-2">
