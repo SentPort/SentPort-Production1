@@ -37,6 +37,10 @@ export default function UniversalComment({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchReplies();
+  }, []);
+
+  useEffect(() => {
     if (showReplies) {
       fetchReplies();
     }
