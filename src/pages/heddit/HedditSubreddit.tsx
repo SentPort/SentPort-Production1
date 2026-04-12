@@ -1282,7 +1282,7 @@ export default function HedditSubreddit() {
             <button
               onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
               className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-orange-600 text-white flex flex-col items-center justify-center rounded-l-lg shadow-lg"
-              style={{ width: '28px', paddingTop: '10px', paddingBottom: '10px' }}
+              style={{ width: '42px', paddingTop: '12px', paddingBottom: '12px' }}
               aria-label={isModerator ? 'Mod Tools' : 'Mod Notes'}
             >
               <span className="text-[10px] font-bold leading-tight tracking-wide uppercase">MOD</span>
