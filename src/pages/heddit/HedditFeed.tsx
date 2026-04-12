@@ -70,11 +70,6 @@ export default function HedditFeed() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (user && posts.length > 0) {
-      loadUserVotes();
-    }
-  }, [user]);
 
   const loadData = async () => {
     const [pinnedRes, postsRes, subredditsRes] = await Promise.all([
@@ -125,6 +120,13 @@ export default function HedditFeed() {
         scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
       });
       setVoteScores(prev => ({ ...prev, ...scores }));
+
+      const validPinned = pinnedRes.data?.filter(p => p.heddit_subreddits && p.heddit_accounts) || [];
+      const allFetchedIds = [
+        ...validPinned.map(p => p.id),
+        ...validPosts.map(p => p.id)
+      ];
+      loadUserVotes(allFetchedIds);
     }
     if (subredditsRes.data) {
       setSubreddits(subredditsRes.data);
@@ -191,17 +193,14 @@ export default function HedditFeed() {
     }
   };
 
-  const loadUserVotes = async () => {
-    if (!user) return;
-
-    const allPostIds = [...pinnedPosts, ...posts].map(p => p.id);
-    if (allPostIds.length === 0) return;
+  const loadUserVotes = async (postIds: string[]) => {
+    if (!user || postIds.length === 0) return;
 
     const { data } = await supabase
       .from('heddit_votes')
       .select('post_id, vote_type')
       .eq('user_id', user.id)
-      .in('post_id', allPostIds);
+      .in('post_id', postIds);
 
     if (data) {
       const votes: PostVote = {};

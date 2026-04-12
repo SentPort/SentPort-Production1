@@ -113,11 +113,6 @@ export default function HedditProfile() {
     loadProfile();
   }, [username]);
 
-  useEffect(() => {
-    if (currentAccountId && posts.length > 0) {
-      loadUserVotes();
-    }
-  }, [currentAccountId]);
 
   useEffect(() => {
     if (profile) {
@@ -233,6 +228,7 @@ export default function HedditProfile() {
           scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
         });
         setVoteScores(scores);
+        loadUserVotes(postsWithQuality.map(p => p.id));
       }
     } else if (activeTab === 'communities') {
       const { data } = await supabase
@@ -328,11 +324,8 @@ export default function HedditProfile() {
     }
   };
 
-  const loadUserVotes = async () => {
-    if (!currentAccountId) return;
-
-    const postIds = posts.map(p => p.id);
-    if (postIds.length === 0) return;
+  const loadUserVotes = async (postIds: string[]) => {
+    if (!currentAccountId || postIds.length === 0) return;
 
     const { data: userResponse } = await supabase
       .from('heddit_accounts')

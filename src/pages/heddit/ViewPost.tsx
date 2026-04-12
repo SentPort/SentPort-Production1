@@ -212,8 +212,6 @@ export default function ViewPost() {
         }
       }
 
-      // Refresh post data after successful vote
-      loadPost();
     } catch (error) {
       console.error('Error voting:', error);
       // Rollback optimistic updates on error

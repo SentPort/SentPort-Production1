@@ -97,11 +97,6 @@ export default function HedditSubreddit() {
     loadUserAuthData(communityIdRef.current);
   }, [user, authLoading]);
 
-  useEffect(() => {
-    if (user && posts.length > 0) {
-      loadUserVotes();
-    }
-  }, [user]);
 
   const loadUserAuthData = async (subredditId: string) => {
     if (!user) {
@@ -295,6 +290,12 @@ export default function HedditSubreddit() {
         scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
       });
       setVoteScores(prev => ({ ...prev, ...scores }));
+
+      const allFetchedIds = [
+        ...(pinnedRes.data || []).map(p => p.id),
+        ...postsRes.data.map(p => p.id)
+      ];
+      loadUserVotes(allFetchedIds);
     }
 
     const { data: tagsData } = await supabase
@@ -347,17 +348,14 @@ export default function HedditSubreddit() {
     }
   };
 
-  const loadUserVotes = async () => {
-    if (!user) return;
-
-    const allPostIds = [...pinnedPosts, ...posts].map(p => p.id);
-    if (allPostIds.length === 0) return;
+  const loadUserVotes = async (postIds: string[]) => {
+    if (!user || postIds.length === 0) return;
 
     const { data } = await supabase
       .from('heddit_votes')
       .select('post_id, vote_type')
       .eq('user_id', user.id)
-      .in('post_id', allPostIds);
+      .in('post_id', postIds);
 
     if (data) {
       const votes: PostVote = {};
