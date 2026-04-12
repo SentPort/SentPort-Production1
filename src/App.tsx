@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { HuBookProvider } from './contexts/HuBookContext';
+import { SearchPreferencesProvider } from './contexts/SearchPreferencesContext';
 import Header from './components/Header';
 import TestingModeBanner from './components/shared/TestingModeBanner';
 import ErrorBoundary from './components/shared/ErrorBoundary';
@@ -421,11 +422,13 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <HuBookProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </HuBookProvider>
+      <SearchPreferencesProvider>
+        <HuBookProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </HuBookProvider>
+      </SearchPreferencesProvider>
     </AuthProvider>
   );
 }

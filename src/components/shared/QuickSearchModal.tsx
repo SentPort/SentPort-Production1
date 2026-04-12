@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { trackSearch } from '../../lib/analytics';
 import { useAuth } from '../../contexts/AuthContext';
 import { safeGetHostname } from '../../lib/urlHelpers';
-import { useSearchPreferences } from '../../hooks/useSearchPreferences';
+import { useSearchPreferencesContext } from '../../contexts/SearchPreferencesContext';
 import { analyzeQuery, QueryAnalysis } from '../../lib/queryAnalyzer';
 import { Calculator } from './Calculator';
 import { UnitConverter } from './UnitConverter';
@@ -46,7 +46,7 @@ interface QuickSearchModalProps {
 
 export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }: QuickSearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
-  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferences();
+  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferencesContext();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');

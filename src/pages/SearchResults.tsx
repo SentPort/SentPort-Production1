@@ -8,7 +8,7 @@ import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
 import { SearchWithHistory } from '../components/shared/SearchWithHistory';
 import { safeGetHostname } from '../lib/urlHelpers';
-import { useSearchPreferences } from '../hooks/useSearchPreferences';
+import { useSearchPreferencesContext } from '../contexts/SearchPreferencesContext';
 import { deduplicateSearchResults, getDomainStats } from '../lib/searchDeduplication';
 import { SentPortPagination } from '../components/shared/SentPortPagination';
 import { PeopleAlsoSearchFor } from '../components/shared/PeopleAlsoSearchFor';
@@ -63,7 +63,7 @@ export default function SearchResults() {
   usePageTracking('search');
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
-  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferences();
+  const { includeExternalContent, setIncludeExternalContent } = useSearchPreferencesContext();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
