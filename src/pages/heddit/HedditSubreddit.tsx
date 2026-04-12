@@ -92,6 +92,7 @@ export default function HedditSubreddit() {
   const [totalUnpinnedCount, setTotalUnpinnedCount] = useState(0);
   const [postsLoading, setPostsLoading] = useState(false);
   const [communityNotices, setCommunityNotices] = useState<CommunityNotice[]>([]);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const allUnpinnedPostIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -1213,7 +1214,8 @@ export default function HedditSubreddit() {
                 )}
               </div>
 
-              <div className="space-y-4">
+              {/* Desktop sidebar - hidden on mobile */}
+              <div className="hidden lg:block space-y-4">
                 {isModerator && moderatorPermissions && (
                   <ModeratorToolsPanel
                     communityId={community.id}
@@ -1260,6 +1262,108 @@ export default function HedditSubreddit() {
                     <Link
                       to="/heddit/join"
                       className="block w-full text-center bg-orange-600 text-white px-4 py-2 rounded-full hover:bg-orange-700"
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
+                )}
+
+                <CommunityNoticesPanel
+                  subredditId={community.id}
+                  notices={communityNotices}
+                  isModerator={isModerator}
+                  currentAccountId={userAccountId}
+                  onNoticesChange={setCommunityNotices}
+                />
+              </div>
+            </div>
+
+            {/* Mobile sidebar toggle button - fixed to right edge, mobile only */}
+            <button
+              onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+              className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-orange-600 text-white flex flex-col items-center justify-center rounded-l-lg shadow-lg"
+              style={{ width: '28px', paddingTop: '10px', paddingBottom: '10px' }}
+              aria-label={isModerator ? 'Mod Tools' : 'Mod Notes'}
+            >
+              <span className="text-[10px] font-bold leading-tight tracking-wide uppercase">MOD</span>
+              <span className="text-[10px] font-bold leading-tight tracking-wide uppercase">{isModerator ? 'TOOLS' : 'NOTES'}</span>
+            </button>
+
+            {/* Mobile sidebar overlay backdrop */}
+            {mobileSidebarOpen && (
+              <div
+                className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                onClick={() => setMobileSidebarOpen(false)}
+              />
+            )}
+
+            {/* Mobile sidebar slide-in panel */}
+            <div
+              className={`lg:hidden fixed top-0 right-0 h-full w-[85vw] max-w-sm bg-gray-100 z-50 overflow-y-auto shadow-2xl transition-transform duration-300 ease-in-out ${
+                mobileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+              }`}
+            >
+              <div className="flex items-center justify-between px-4 py-3 bg-orange-600 text-white">
+                <span className="font-bold text-sm">
+                  {isModerator ? 'Mod Tools' : 'Mod Notes'}
+                </span>
+                <button
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="p-1 rounded hover:bg-orange-700 transition-colors"
+                  aria-label="Close sidebar"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-4">
+                {isModerator && moderatorPermissions && (
+                  <ModeratorToolsPanel
+                    communityId={community.id}
+                    communityName={community.name}
+                    permissions={moderatorPermissions}
+                    onEditCommunity={() => { setShowCommunitySettings(true); setMobileSidebarOpen(false); }}
+                    onManageModerators={() => { setShowModManagement(true); setMobileSidebarOpen(false); }}
+                    onDeleteCommunity={() => { handleDeleteCommunity(); setMobileSidebarOpen(false); }}
+                  />
+                )}
+
+                <div className="bg-white rounded-lg p-4">
+                  <h3 className="font-bold text-gray-900 mb-3">About Community</h3>
+                  <p className="text-sm text-gray-600 mb-4">{community.description}</p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <Users size={16} />
+                    <span className="font-semibold">{community.member_count.toLocaleString()}</span>
+                    <span>Members</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Calendar size={16} />
+                    <span>Created {new Date(community.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {user && (
+                    <button
+                      onClick={() => { handleJoinLeave(); setMobileSidebarOpen(false); }}
+                      className={`w-full mt-4 px-4 py-2 rounded-full font-semibold transition-colors ${
+                        isMember
+                          ? 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                          : 'bg-orange-600 text-white hover:bg-orange-700'
+                      }`}
+                    >
+                      {isMember ? 'Leave Community' : 'Join Community'}
+                    </button>
+                  )}
+                </div>
+
+                {!user && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <h3 className="font-bold text-orange-900 mb-2">Join Heddit</h3>
+                    <p className="text-sm text-orange-800 mb-3">
+                      Create an account to join this community and start posting.
+                    </p>
+                    <Link
+                      to="/heddit/join"
+                      className="block w-full text-center bg-orange-600 text-white px-4 py-2 rounded-full hover:bg-orange-700"
+                      onClick={() => setMobileSidebarOpen(false)}
                     >
                       Sign Up
                     </Link>
