@@ -220,7 +220,6 @@ export default function UniversalComment({
 
     try {
       if (liked) {
-        // Unlike - remove from platform_likes
         await supabase
           .from('platform_likes')
           .delete()
@@ -229,14 +228,14 @@ export default function UniversalComment({
           .eq('content_type', 'comment')
           .eq('content_id', comment.id);
 
-        await supabase
-          .from('platform_comments')
-          .update({ like_count: Math.max(0, (comment.like_count || 0) - 1) })
-          .eq('id', comment.id);
+        await supabase.rpc('adjust_comment_count', {
+          p_comment_id: comment.id,
+          p_field: 'like_count',
+          p_delta: -1
+        });
 
         setLiked(false);
       } else {
-        // Like - add to platform_likes
         await supabase
           .from('platform_likes')
           .insert({
@@ -246,14 +245,14 @@ export default function UniversalComment({
             content_id: comment.id
           });
 
-        await supabase
-          .from('platform_comments')
-          .update({ like_count: (comment.like_count || 0) + 1 })
-          .eq('id', comment.id);
+        await supabase.rpc('adjust_comment_count', {
+          p_comment_id: comment.id,
+          p_field: 'like_count',
+          p_delta: 1
+        });
 
         setLiked(true);
 
-        // If previously disliked, remove dislike
         if (disliked) {
           await supabase
             .from('platform_dislikes')
@@ -263,10 +262,11 @@ export default function UniversalComment({
             .eq('content_type', 'comment')
             .eq('content_id', comment.id);
 
-          await supabase
-            .from('platform_comments')
-            .update({ dislike_count: Math.max(0, (comment.dislike_count || 0) - 1) })
-            .eq('id', comment.id);
+          await supabase.rpc('adjust_comment_count', {
+            p_comment_id: comment.id,
+            p_field: 'dislike_count',
+            p_delta: -1
+          });
 
           setDisliked(false);
         }
@@ -283,7 +283,6 @@ export default function UniversalComment({
 
     try {
       if (disliked) {
-        // Remove dislike - remove from platform_dislikes
         await supabase
           .from('platform_dislikes')
           .delete()
@@ -292,14 +291,14 @@ export default function UniversalComment({
           .eq('content_type', 'comment')
           .eq('content_id', comment.id);
 
-        await supabase
-          .from('platform_comments')
-          .update({ dislike_count: Math.max(0, (comment.dislike_count || 0) - 1) })
-          .eq('id', comment.id);
+        await supabase.rpc('adjust_comment_count', {
+          p_comment_id: comment.id,
+          p_field: 'dislike_count',
+          p_delta: -1
+        });
 
         setDisliked(false);
       } else {
-        // Dislike - add to platform_dislikes
         await supabase
           .from('platform_dislikes')
           .insert({
@@ -309,14 +308,14 @@ export default function UniversalComment({
             content_id: comment.id
           });
 
-        await supabase
-          .from('platform_comments')
-          .update({ dislike_count: (comment.dislike_count || 0) + 1 })
-          .eq('id', comment.id);
+        await supabase.rpc('adjust_comment_count', {
+          p_comment_id: comment.id,
+          p_field: 'dislike_count',
+          p_delta: 1
+        });
 
         setDisliked(true);
 
-        // If previously liked, remove like
         if (liked) {
           await supabase
             .from('platform_likes')
@@ -326,10 +325,11 @@ export default function UniversalComment({
             .eq('content_type', 'comment')
             .eq('content_id', comment.id);
 
-          await supabase
-            .from('platform_comments')
-            .update({ like_count: Math.max(0, (comment.like_count || 0) - 1) })
-            .eq('id', comment.id);
+          await supabase.rpc('adjust_comment_count', {
+            p_comment_id: comment.id,
+            p_field: 'like_count',
+            p_delta: -1
+          });
 
           setLiked(false);
         }
