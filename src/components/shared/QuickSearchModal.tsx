@@ -10,8 +10,9 @@ import { Calculator } from './Calculator';
 import { UnitConverter } from './UnitConverter';
 import { WikipediaKnowledgePanel } from './WikipediaKnowledgePanel';
 import { DidYouMean } from './DidYouMean';
-import { calculateSimilarity } from '../../lib/queryPreprocessing';
-import { markSuggestionClicked } from '../../lib/spellCorrection';
+import { calculateSimilarity, generateSearchVariations, expandAcronyms, isLikelyAcronym } from '../../lib/queryPreprocessing';
+import { markSuggestionClicked, recordSpellCheckAttempt, getLearnedCorrection } from '../../lib/spellCorrection';
+import { checkWikipediaSpelling } from '../../lib/wikipediaService';
 
 interface SearchResult {
   id: string;
@@ -130,36 +131,173 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     }
 
     try {
+      const acronymExpansion = expandAcronyms(searchTerm);
+      const queryIsAcronym = isLikelyAcronym(searchTerm);
+
+      const searchVariations = generateSearchVariations(searchTerm);
+      if (acronymExpansion && !searchVariations.includes(acronymExpansion)) {
+        searchVariations.push(acronymExpansion);
+      }
+
       const exactResults: SearchResult[] = [];
 
+      const wikipediaSpellCheckPromise = (async () => {
+        if (searchTerm.length >= 3) {
+          const learnedCorrection = await getLearnedCorrection(searchTerm);
+
+          if (currentController.signal.aborted || !isMountedRef.current) return null;
+
+          if (learnedCorrection) {
+            return {
+              suggestion: learnedCorrection.correction,
+              confidence: learnedCorrection.confidence,
+              source: 'wikipedia_opensearch' as const
+            };
+          }
+
+          const wikiSpellCheck = await checkWikipediaSpelling(searchTerm);
+
+          if (currentController.signal.aborted || !isMountedRef.current) return null;
+
+          if (wikiSpellCheck) {
+            return wikiSpellCheck;
+          }
+        }
+        return null;
+      })();
+
       const exactSearchPromise = (async () => {
-        let dbQuery = supabase
-          .from('search_index')
-          .select('*')
-          .abortSignal(currentController.signal);
+        let foundResults = false;
 
-        if (!includeExternalContent) {
-          dbQuery = dbQuery.eq('is_internal', true);
+        for (const variation of searchVariations) {
+          const isAcronymVariation = acronymExpansion === variation;
+
+          let dbQuery = supabase
+            .from('search_index')
+            .select('*')
+            .abortSignal(currentController.signal);
+
+          if (!includeExternalContent) {
+            dbQuery = dbQuery.eq('is_internal', true);
+          }
+
+          const searchTermLower = variation.toLowerCase();
+          dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+
+          const { data, error } = await dbQuery;
+
+          if (currentController.signal.aborted || !isMountedRef.current) return;
+
+          if (data && !error) {
+            const tagged = data.map(r => ({ ...r, _searchVariation: variation, _isAcronymExpanded: isAcronymVariation }));
+            exactResults.push(...tagged);
+          }
+
+          if (data && data.length > 0) {
+            foundResults = true;
+            if (!isAcronymVariation) break;
+          }
         }
 
-        const searchTermLower = searchTerm.toLowerCase();
-        dbQuery = dbQuery.or(`title.ilike.%${searchTermLower}%,description.ilike.%${searchTermLower}%,content_snippet.ilike.%${searchTermLower}%`);
+        if (!foundResults && searchTerm.trim().split(/\s+/).length >= 3) {
+          const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(t => t.length > 3);
+          const tokenQueries = tokens.slice(0, 3).map(token => {
+            let q = supabase
+              .from('search_index')
+              .select('*')
+              .abortSignal(currentController.signal);
 
-        const { data, error } = await dbQuery;
+            if (!includeExternalContent) {
+              q = q.eq('is_internal', true);
+            }
 
-        if (currentController.signal.aborted || !isMountedRef.current) {
-          return;
-        }
+            q = q.or(`title.ilike.%${token}%,description.ilike.%${token}%`);
+            return q;
+          });
 
-        if (data && !error) {
-          exactResults.push(...data);
+          const tokenResults = await Promise.all(tokenQueries);
+
+          if (currentController.signal.aborted || !isMountedRef.current) return;
+
+          const tokenScoreMap = new Map<string, number>();
+          tokenResults.forEach(({ data }) => {
+            if (data) {
+              data.forEach(r => {
+                tokenScoreMap.set(r.id, (tokenScoreMap.get(r.id) || 0) + 1);
+              });
+            }
+          });
+
+          const allTokenData: SearchResult[] = [];
+          tokenResults.forEach(({ data }) => {
+            if (data) allTokenData.push(...data);
+          });
+
+          const seenIds = new Set<string>();
+          allTokenData.forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id);
+              const tokenHits = tokenScoreMap.get(r.id) || 1;
+              exactResults.push({ ...r, _searchVariation: 'token', _tokenHits: tokenHits } as any);
+            }
+          });
         }
       })();
 
-      await Promise.all([exactSearchPromise]);
+      const [wikiSpellCheckResult] = await Promise.all([
+        wikipediaSpellCheckPromise,
+        exactSearchPromise
+      ]);
 
-      if (currentController.signal.aborted || !isMountedRef.current) {
-        return;
+      if (currentController.signal.aborted || !isMountedRef.current) return;
+
+      if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm && isMountedRef.current) {
+        setSpellSuggestions([{
+          correctedQuery: wikiSpellCheckResult.suggestion,
+          confidence: wikiSpellCheckResult.confidence
+        }]);
+
+        const suggestionSource = wikiSpellCheckResult.source === 'wikipedia_direct' ? 'wikipedia' : 'wikipedia_opensearch';
+        const logId = await recordSpellCheckAttempt(
+          searchTerm,
+          wikiSpellCheckResult.suggestion,
+          wikiSpellCheckResult.confidence,
+          0,
+          suggestionSource
+        );
+
+        if (logId && isMountedRef.current) {
+          setSpellCheckLogId(logId);
+        }
+      } else if (isMountedRef.current) {
+        setSpellSuggestions([]);
+        setSpellCheckLogId(null);
+        await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
+      }
+
+      const fuzzyResults: SearchResult[] = [];
+
+      if (exactResults.length < 5 && searchTerm.trim().split(/\s+/).length <= 3 && searchTerm.length >= 3) {
+        const fuzzyTerms = [searchTerm];
+        if (acronymExpansion) fuzzyTerms.push(acronymExpansion);
+
+        for (const term of fuzzyTerms) {
+          if (currentController.signal.aborted || !isMountedRef.current) break;
+          try {
+            const { data: fuzzyData, error: fuzzyError } = await supabase
+              .rpc('fuzzy_search_content', { search_query: term, similarity_threshold: 0.3, max_results: 20 })
+              .abortSignal(currentController.signal);
+
+            if (!fuzzyError && fuzzyData && fuzzyData.length > 0) {
+              const tagged = fuzzyData.map((r: SearchResult) => ({ ...r, searchSource: 'fuzzy' }));
+              fuzzyResults.push(...tagged);
+            }
+          } catch (fuzzyErr: any) {
+            if (fuzzyErr.name !== 'AbortError') {
+              console.log('[QuickSearchModal] Fuzzy search not available or failed:', fuzzyErr.message);
+            }
+          }
+        }
       }
 
       const allResultsMap = new Map<string, SearchResult>();
@@ -170,61 +308,88 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         }
       });
 
+      fuzzyResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, r);
+        }
+      });
+
       let allResults = Array.from(allResultsMap.values());
 
-      if (allResults.length > 0) {
-        const searchTermLower = searchTerm.toLowerCase();
-        const scoredResults = allResults.map(result => {
-          let score = result.relevance_score || 0;
+      if (currentController.signal.aborted || !isMountedRef.current) return;
 
-          const titleLower = result.title?.toLowerCase() || '';
-          const descLower = result.description?.toLowerCase() || '';
-          const contentLower = result.content_snippet?.toLowerCase() || '';
+      const searchTermLower = searchTerm.toLowerCase();
+      const expandedTermLower = acronymExpansion?.toLowerCase() || null;
 
-          const titleMatch = titleLower.includes(searchTermLower);
-          const descMatch = descLower.includes(searchTermLower);
-          const contentMatch = contentLower.includes(searchTermLower);
+      const scoredResults = allResults.map(result => {
+        let score = result.relevance_score || 0;
 
-          if (titleMatch) score += 30;
-          if (descMatch) score += 20;
-          if (contentMatch) score += 10;
+        const titleLower = result.title?.toLowerCase() || '';
+        const descLower = result.description?.toLowerCase() || '';
+        const contentLower = result.content_snippet?.toLowerCase() || '';
 
-          const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
-          const descSimilarity = calculateSimilarity(searchTermLower, descLower);
+        const titleMatch = titleLower.includes(searchTermLower);
+        const descMatch = descLower.includes(searchTermLower);
+        const contentMatch = contentLower.includes(searchTermLower);
 
-          score += titleSimilarity * 25;
-          score += descSimilarity * 15;
+        if (titleMatch) score += 30;
+        if (descMatch) score += 20;
+        if (contentMatch) score += 10;
 
-          const searchSource = (result as any).searchSource;
-          if ((result as any).similarity_score) {
-            const simScore = (result as any).similarity_score;
-            score += simScore * 40;
-
-            if (searchSource === 'fuzzy') {
-              score += simScore * 20;
-            } else if (searchSource === 'typo') {
-              score += simScore * 15;
-            }
-          }
-
-          if (result.is_internal) {
-            score *= 10;
-          } else if (result.is_verified_external) {
-            score *= 5;
-          }
-
-          return { ...result, calculatedScore: score };
-        });
-
-        scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
-
-        if (isMountedRef.current && !currentController.signal.aborted) {
-          setResults(scoredResults);
+        if (expandedTermLower) {
+          if (titleLower.includes(expandedTermLower)) score += 50;
+          if (descLower.includes(expandedTermLower)) score += 30;
+          if (contentLower.includes(expandedTermLower)) score += 15;
         }
 
-        if (user && isMountedRef.current) {
-          trackSearch(searchTerm, scoredResults.length);
+        const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
+        const descSimilarity = calculateSimilarity(searchTermLower, descLower);
+
+        score += titleSimilarity * 25;
+        score += descSimilarity * 15;
+
+        const searchSource = (result as any).searchSource;
+        if ((result as any).similarity_score) {
+          const simScore = (result as any).similarity_score;
+          score += simScore * 40;
+
+          if (searchSource === 'fuzzy') {
+            score += simScore * 20;
+          } else if (searchSource === 'typo') {
+            score += simScore * 15;
+          }
         }
+
+        const tokenHits: number = (result as any)._tokenHits || 0;
+        if (tokenHits > 1) {
+          score += tokenHits * 8;
+        }
+
+        if (queryIsAcronym && !titleMatch && !descMatch) {
+          const titleHasExpanded = expandedTermLower && titleLower.includes(expandedTermLower);
+          const descHasExpanded = expandedTermLower && descLower.includes(expandedTermLower);
+          if (!titleHasExpanded && !descHasExpanded) {
+            score *= 0.3;
+          }
+        }
+
+        if (result.is_internal) {
+          score *= 10;
+        } else if (result.is_verified_external) {
+          score *= 5;
+        }
+
+        return { ...result, calculatedScore: score };
+      });
+
+      scoredResults.sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+      if (isMountedRef.current && !currentController.signal.aborted) {
+        setResults(scoredResults);
+      }
+
+      if (user && isMountedRef.current) {
+        trackSearch(searchTerm, scoredResults.length);
       }
 
       if (isMountedRef.current) {
@@ -243,44 +408,8 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     performSearch(query);
   };
 
-  const recordSpellCheckAttempt = async (
-    original: string,
-    suggestion: string | null,
-    confidence: number,
-    resultCount: number,
-    source: string
-  ): Promise<string | null> => {
-    if (!user) return null;
-
-    try {
-      const { data, error } = await supabase
-        .from('spell_check_suggestions_log')
-        .insert({
-          user_id: user.id,
-          original_query: original,
-          suggested_query: suggestion,
-          confidence_score: confidence,
-          result_count: resultCount,
-          suggestion_source: source,
-          was_accepted: false
-        })
-        .select('id')
-        .single();
-
-      if (error) throw error;
-      return data?.id || null;
-    } catch (err) {
-      console.error('[QuickSearchModal] Error recording spell check:', err);
-      return null;
-    }
-  };
-
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
-    console.log('[QuickSearchModal] Received Wikipedia panel spelling suggestion:', suggestion, 'confidence:', confidence);
-
     if (suggestion !== query && isMountedRef.current) {
-      console.log('[QuickSearchModal] Setting Wikipedia panel suggestion as spell correction');
-
       setSpellSuggestions([{
         correctedQuery: suggestion,
         confidence: confidence
@@ -300,7 +429,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
         console.error('[QuickSearchModal] Error recording Wikipedia spell check:', err);
       });
     }
-  }, [query, results.length, user]);
+  }, [query, results.length]);
 
   const handleSpellingSuggestionAccepted = async (suggestion: string) => {
     if (spellCheckLogId) {
