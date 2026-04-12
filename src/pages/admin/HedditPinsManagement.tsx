@@ -282,7 +282,7 @@ export default function HedditPinsManagement() {
                 {posts.map(post => renderPostCard(post, false))}
               </div>
 
-              {totalPages > 1 && (
+              {totalPages >= 1 && (
                 <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
                   <p className="text-sm text-gray-600">
                     Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount} posts

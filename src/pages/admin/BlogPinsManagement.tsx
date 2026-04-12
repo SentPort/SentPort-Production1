@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Pin, X, Search, Calendar, User, Eye, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { Pin, X, Search, Calendar, User, Eye, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface BlogPost {
   id: string;
@@ -20,53 +20,84 @@ interface BlogPost {
   };
 }
 
+const PAGE_SIZE = 25;
+
 export default function BlogPinsManagement() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [pinnedPosts, setPinnedPosts] = useState<BlogPost[]>([]);
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pinningPostId, setPinningPostId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadPosts();
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(0);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const loadPinnedPosts = useCallback(async () => {
+    const { data } = await supabase
+      .from('blog_posts')
+      .select(`
+        id, title, content, view_count, created_at, is_pinned, pinned_at, pinned_by, account_id,
+        author:blog_accounts!account_id (username, display_name)
+      `)
+      .eq('status', 'published')
+      .eq('is_pinned', true)
+      .order('pinned_at', { ascending: false });
+
+    setPinnedPosts(data || []);
   }, []);
 
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
+    if (!user) return;
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('blog_posts')
         .select(`
-          id,
-          title,
-          content,
-          view_count,
-          created_at,
-          is_pinned,
-          pinned_at,
-          pinned_by,
-          account_id,
-          author:blog_accounts!account_id (
-            username,
-            display_name
-          )
-        `)
+          id, title, content, view_count, created_at, is_pinned, pinned_at, pinned_by, account_id,
+          author:blog_accounts!account_id (username, display_name)
+        `, { count: 'exact' })
         .eq('status', 'published')
-        .order('is_pinned', { ascending: false })
-        .order('pinned_at', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
+        .eq('is_pinned', false);
+
+      if (debouncedSearch.trim()) {
+        query = query.or(
+          `title.ilike.%${debouncedSearch}%,content.ilike.%${debouncedSearch}%,author.username.ilike.%${debouncedSearch}%`
+        );
+      }
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (error) throw error;
 
       setPosts(data || []);
+      setTotalCount(count || 0);
     } catch (error) {
       console.error('Error loading posts:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, page, debouncedSearch]);
+
+  useEffect(() => {
+    loadPinnedPosts();
+  }, [loadPinnedPosts]);
+
+  useEffect(() => {
+    loadPosts();
+  }, [loadPosts]);
 
   const togglePin = async (postId: string, currentlyPinned: boolean) => {
     try {
@@ -84,7 +115,7 @@ export default function BlogPinsManagement() {
           throw error;
         }
       } else {
-        await loadPosts();
+        await Promise.all([loadPinnedPosts(), loadPosts()]);
       }
     } catch (error) {
       console.error('Error toggling pin:', error);
@@ -93,19 +124,6 @@ export default function BlogPinsManagement() {
       setPinningPostId(null);
     }
   };
-
-  const filteredPosts = posts.filter(post => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      post.title.toLowerCase().includes(searchLower) ||
-      post.content.toLowerCase().includes(searchLower) ||
-      post.author?.username.toLowerCase().includes(searchLower) ||
-      post.author?.display_name.toLowerCase().includes(searchLower)
-    );
-  });
-
-  const pinnedPosts = filteredPosts.filter(p => p.is_pinned);
-  const unpinnedPosts = filteredPosts.filter(p => !p.is_pinned);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -118,17 +136,11 @@ export default function BlogPinsManagement() {
   };
 
   const truncateContent = (content: string, maxLength: number = 200) => {
-    if (content.length <= maxLength) return content;
+    if (!content || content.length <= maxLength) return content || '';
     return content.substring(0, maxLength) + '...';
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading posts...</div>
-      </div>
-    );
-  }
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -146,24 +158,18 @@ export default function BlogPinsManagement() {
           <p className="text-gray-600">Pin important blog posts to appear at the top of everyone's feed</p>
         </div>
 
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search posts by title, content, or author..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <Pin className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-amber-800">
+            You can pin any published blog post to the platform-wide feed. Pinned posts appear at the top of the HuBlog feed with a "Pinned by Admin" badge. Up to 5 posts can be pinned at once.
+          </p>
         </div>
 
         {pinnedPosts.length > 0 && (
           <div className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <Pin className="w-5 h-5 text-blue-600" />
-              Pinned Posts ({pinnedPosts.length}/5)
+              Currently Pinned ({pinnedPosts.length}/5)
             </h2>
             <div className="space-y-4">
               {pinnedPosts.map(post => (
@@ -172,18 +178,19 @@ export default function BlogPinsManagement() {
                   className="bg-white border-2 border-blue-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3 mb-3">
                         <Pin className="w-5 h-5 text-blue-600 mt-1 flex-shrink-0" />
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
-                          <p className="text-gray-600 mb-4">{truncateContent(post.content)}</p>
-
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <User className="w-4 h-4" />
-                              <span>{post.author?.display_name || post.author?.username}</span>
-                            </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2 truncate">{post.title}</h3>
+                          <p className="text-gray-600 mb-4 text-sm">{truncateContent(post.content)}</p>
+                          <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+                            {post.author && (
+                              <div className="flex items-center gap-1">
+                                <User className="w-4 h-4" />
+                                <span>{post.author.display_name || post.author.username}</span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-1">
                               <Eye className="w-4 h-4" />
                               <span>{post.view_count || 0} views</span>
@@ -193,7 +200,7 @@ export default function BlogPinsManagement() {
                               <span>Created {formatDate(post.created_at)}</span>
                             </div>
                             {post.pinned_at && (
-                              <div className="flex items-center gap-1 text-blue-600">
+                              <div className="flex items-center gap-1 text-blue-600 font-medium">
                                 <Pin className="w-4 h-4" />
                                 <span>Pinned {formatDate(post.pinned_at)}</span>
                               </div>
@@ -202,11 +209,10 @@ export default function BlogPinsManagement() {
                         </div>
                       </div>
                     </div>
-
                     <button
                       onClick={() => togglePin(post.id, post.is_pinned)}
                       disabled={pinningPostId === post.id}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap flex-shrink-0"
                     >
                       <X className="w-4 h-4" />
                       Unpin
@@ -219,53 +225,101 @@ export default function BlogPinsManagement() {
         )}
 
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            All Published Posts
-          </h2>
-          {unpinnedPosts.length === 0 ? (
-            <div className="bg-white rounded-lg p-8 text-center text-gray-500">
-              {searchTerm ? 'No posts match your search' : 'No posts available'}
+          <div className="flex items-center justify-between mb-4 gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">All Published Posts</h2>
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search by title, content, or author..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="bg-white rounded-lg p-8 text-center text-gray-500 border border-gray-200">
+              Loading posts...
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="bg-white rounded-lg p-8 text-center text-gray-500 border border-gray-200">
+              <Pin className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="font-medium text-gray-600">
+                {debouncedSearch ? 'No posts match your search' : 'No posts found'}
+              </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {unpinnedPosts.map(post => (
-                <div
-                  key={post.id}
-                  className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h3>
-                      <p className="text-gray-600 mb-4">{truncateContent(post.content)}</p>
-
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <User className="w-4 h-4" />
-                          <span>{post.author?.display_name || post.author?.username}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4" />
-                          <span>{post.view_count || 0} views</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>Created {formatDate(post.created_at)}</span>
+            <>
+              <div className="space-y-4 mb-6">
+                {posts.map(post => (
+                  <div
+                    key={post.id}
+                    className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 truncate">{post.title}</h3>
+                        <p className="text-gray-600 mb-4 text-sm">{truncateContent(post.content)}</p>
+                        <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+                          {post.author && (
+                            <div className="flex items-center gap-1">
+                              <User className="w-4 h-4" />
+                              <span>{post.author.display_name || post.author.username}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-4 h-4" />
+                            <span>{post.view_count || 0} views</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            <span>Created {formatDate(post.created_at)}</span>
+                          </div>
                         </div>
                       </div>
+                      <button
+                        onClick={() => togglePin(post.id, post.is_pinned)}
+                        disabled={pinningPostId === post.id || pinnedPosts.length >= 5}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                        title={pinnedPosts.length >= 5 ? 'Maximum 5 posts can be pinned at once' : ''}
+                      >
+                        <Pin className="w-4 h-4" />
+                        Pin
+                      </button>
                     </div>
+                  </div>
+                ))}
+              </div>
 
+              {totalPages >= 1 && (
+                <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-3">
+                  <p className="text-sm text-gray-600">
+                    Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount} posts
+                  </p>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => togglePin(post.id, post.is_pinned)}
-                      disabled={pinningPostId === post.id}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      onClick={() => setPage(p => Math.max(0, p - 1))}
+                      disabled={page === 0}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Pin className="w-4 h-4" />
-                      Pin
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm font-medium text-gray-700 px-2">
+                      Page {page + 1} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                      disabled={page >= totalPages - 1}
+                      className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
