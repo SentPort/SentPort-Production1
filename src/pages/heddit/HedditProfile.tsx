@@ -106,7 +106,8 @@ export default function HedditProfile() {
   const [showBadgesModal, setShowBadgesModal] = useState(false);
   const [hasGivenKindness, setHasGivenKindness] = useState(false);
   const [postVotes, setPostVotes] = useState<PostVote>({});
-  const [voteScores, setVoteScores] = useState<{ [postId: string]: number }>({});
+  const [postLikeCounts, setPostLikeCounts] = useState<{ [postId: string]: number }>({});
+  const [postDislikeCounts, setPostDislikeCounts] = useState<{ [postId: string]: number }>({});
 
   useEffect(() => {
     loadCurrentAccount();
@@ -223,11 +224,14 @@ export default function HedditProfile() {
         });
 
         setPosts(postsWithQuality);
-        const scores: { [key: string]: number } = {};
+        const likes: { [key: string]: number } = {};
+        const dislikes: { [key: string]: number } = {};
         postsWithQuality.forEach(p => {
-          scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
+          likes[p.id] = p.like_count || 0;
+          dislikes[p.id] = p.dislike_count || 0;
         });
-        setVoteScores(scores);
+        setPostLikeCounts(likes);
+        setPostDislikeCounts(dislikes);
         loadUserVotes(postsWithQuality.map(p => p.id));
       }
     } else if (activeTab === 'communities') {
@@ -363,15 +367,18 @@ export default function HedditProfile() {
 
     const userId = userResponse.user_id;
     const currentVote = postVotes[postId];
-    const previousScore = voteScores[postId] || 0;
+    const previousLikes = postLikeCounts[postId] || 0;
+    const previousDislikes = postDislikeCounts[postId] || 0;
 
     try {
       if (currentVote === voteType) {
-        // Removing vote - optimistic UI update
         setPostVotes(prev => ({ ...prev, [postId]: null }));
-        setVoteScores(prev => ({ ...prev, [postId]: prev[postId] + (voteType === 'up' ? -1 : 1) }));
+        if (voteType === 'up') {
+          setPostLikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+        } else {
+          setPostDislikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+        }
 
-        // Delete vote record
         const { error: deleteError } = await supabase
           .from('heddit_votes')
           .delete()
@@ -380,7 +387,6 @@ export default function HedditProfile() {
 
         if (deleteError) throw deleteError;
 
-        // Use SQL to decrement count (prevents race condition with stale data)
         const { error: updateError } = await supabase.rpc(
           voteType === 'up' ? 'decrement_heddit_like_count' : 'decrement_heddit_dislike_count',
           { post_id: postId }
@@ -388,19 +394,20 @@ export default function HedditProfile() {
 
         if (updateError) throw updateError;
       } else {
-        // Switching or adding vote - optimistic UI update
-        setVoteScores(prev => {
-          const current = prev[postId] || 0;
-          if (currentVote) {
-            return { ...prev, [postId]: current + (voteType === 'up' ? 2 : -2) };
-          } else {
-            return { ...prev, [postId]: current + (voteType === 'up' ? 1 : -1) };
-          }
-        });
         setPostVotes(prev => ({ ...prev, [postId]: voteType }));
+        if (voteType === 'up') {
+          setPostLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
+          if (currentVote === 'down') {
+            setPostDislikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+          }
+        } else {
+          setPostDislikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
+          if (currentVote === 'up') {
+            setPostLikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+          }
+        }
 
         if (currentVote) {
-          // Update existing vote
           const { error: updateVoteError } = await supabase
             .from('heddit_votes')
             .update({ vote_type: voteType })
@@ -409,7 +416,6 @@ export default function HedditProfile() {
 
           if (updateVoteError) throw updateVoteError;
 
-          // Use SQL to switch counts (increment new, decrement old)
           const { error: updateCountsError } = await supabase.rpc('switch_heddit_vote', {
             post_id: postId,
             new_vote_type: voteType
@@ -417,7 +423,6 @@ export default function HedditProfile() {
 
           if (updateCountsError) throw updateCountsError;
         } else {
-          // Insert new vote
           const { error: insertError } = await supabase
             .from('heddit_votes')
             .insert({
@@ -428,7 +433,6 @@ export default function HedditProfile() {
 
           if (insertError) throw insertError;
 
-          // Use SQL to increment count
           const { error: incrementError } = await supabase.rpc(
             voteType === 'up' ? 'increment_heddit_like_count' : 'increment_heddit_dislike_count',
             { post_id: postId }
@@ -439,9 +443,9 @@ export default function HedditProfile() {
       }
     } catch (error) {
       console.error('Error voting:', error);
-      // Rollback optimistic updates on error
       setPostVotes(prev => ({ ...prev, [postId]: currentVote }));
-      setVoteScores(prev => ({ ...prev, [postId]: previousScore }));
+      setPostLikeCounts(prev => ({ ...prev, [postId]: previousLikes }));
+      setPostDislikeCounts(prev => ({ ...prev, [postId]: previousDislikes }));
     }
   };
 
@@ -785,10 +789,11 @@ export default function HedditProfile() {
                             >
                               <ArrowBigUp className="w-5 h-5" fill={postVotes[post.id] === 'up' ? 'currentColor' : 'none'} />
                             </button>
-                            <span className={`text-xs font-bold ${
-                              (voteScores[post.id] || 0) > 0 ? 'text-orange-600' : (voteScores[post.id] || 0) < 0 ? 'text-blue-600' : 'text-gray-600'
-                            }`}>
-                              {voteScores[post.id] || 0}
+                            <span className={`text-xs font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
+                              {postLikeCounts[post.id] || 0}
+                            </span>
+                            <span className={`text-xs font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
                             </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}

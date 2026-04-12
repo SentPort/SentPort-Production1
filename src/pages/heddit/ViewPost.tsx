@@ -21,7 +21,8 @@ export default function ViewPost() {
   const { user } = useAuth();
   const [post, setPost] = useState<any>(null);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
-  const [voteScore, setVoteScore] = useState(0);
+  const [likeCount, setLikeCount] = useState(0);
+  const [dislikeCount, setDislikeCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [editTagsModalOpen, setEditTagsModalOpen] = useState(false);
@@ -74,7 +75,8 @@ export default function ViewPost() {
     }
 
     setPost(data);
-    setVoteScore((data?.like_count || 0) - (data?.dislike_count || 0));
+    setLikeCount(data?.like_count || 0);
+    setDislikeCount(data?.dislike_count || 0);
     setLoading(false);
   };
 
@@ -136,15 +138,18 @@ export default function ViewPost() {
     if (!user || !postId) return;
 
     const previousVote = userVote;
-    const previousScore = voteScore;
+    const previousLikes = likeCount;
+    const previousDislikes = dislikeCount;
 
     try {
       if (userVote === voteType) {
-        // Removing vote - optimistic UI update
         setUserVote(null);
-        setVoteScore(prev => prev + (voteType === 'up' ? -1 : 1));
+        if (voteType === 'up') {
+          setLikeCount(prev => Math.max(0, prev - 1));
+        } else {
+          setDislikeCount(prev => Math.max(0, prev - 1));
+        }
 
-        // Delete vote record
         const { error: deleteError } = await supabase
           .from('heddit_votes')
           .delete()
@@ -153,7 +158,6 @@ export default function ViewPost() {
 
         if (deleteError) throw deleteError;
 
-        // Use SQL to decrement count (prevents race condition with stale data)
         const { error: updateError } = await supabase.rpc(
           voteType === 'up' ? 'decrement_heddit_like_count' : 'decrement_heddit_dislike_count',
           { post_id: postId }
@@ -161,20 +165,16 @@ export default function ViewPost() {
 
         if (updateError) throw updateError;
       } else {
-        // Switching or adding vote - optimistic UI update
-        setVoteScore(prev => {
-          if (userVote) {
-            // Switching: remove old, add new (net change = 2)
-            return prev + (voteType === 'up' ? 2 : -2);
-          } else {
-            // New vote
-            return prev + (voteType === 'up' ? 1 : -1);
-          }
-        });
         setUserVote(voteType);
+        if (voteType === 'up') {
+          setLikeCount(prev => prev + 1);
+          if (userVote === 'down') setDislikeCount(prev => Math.max(0, prev - 1));
+        } else {
+          setDislikeCount(prev => prev + 1);
+          if (userVote === 'up') setLikeCount(prev => Math.max(0, prev - 1));
+        }
 
         if (userVote) {
-          // Update existing vote
           const { error: updateVoteError } = await supabase
             .from('heddit_votes')
             .update({ vote_type: voteType })
@@ -183,7 +183,6 @@ export default function ViewPost() {
 
           if (updateVoteError) throw updateVoteError;
 
-          // Use SQL to switch counts (increment new, decrement old)
           const { error: updateCountsError } = await supabase.rpc('switch_heddit_vote', {
             post_id: postId,
             new_vote_type: voteType
@@ -191,7 +190,6 @@ export default function ViewPost() {
 
           if (updateCountsError) throw updateCountsError;
         } else {
-          // Insert new vote
           const { error: insertError } = await supabase
             .from('heddit_votes')
             .insert({
@@ -202,7 +200,6 @@ export default function ViewPost() {
 
           if (insertError) throw insertError;
 
-          // Use SQL to increment count
           const { error: incrementError } = await supabase.rpc(
             voteType === 'up' ? 'increment_heddit_like_count' : 'increment_heddit_dislike_count',
             { post_id: postId }
@@ -214,9 +211,9 @@ export default function ViewPost() {
 
     } catch (error) {
       console.error('Error voting:', error);
-      // Rollback optimistic updates on error
       setUserVote(previousVote);
-      setVoteScore(previousScore);
+      setLikeCount(previousLikes);
+      setDislikeCount(previousDislikes);
     }
   };
 
@@ -268,7 +265,7 @@ export default function ViewPost() {
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 w-full">
           <div className="bg-white rounded-lg border border-gray-300 overflow-hidden w-full">
             <div className="flex">
-              <div className="w-10 sm:w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
+              <div className="w-10 sm:w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-0.5">
                 <button
                   onClick={() => handleVote('up')}
                   className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -277,10 +274,11 @@ export default function ViewPost() {
                 >
                   <ArrowBigUp className="w-6 h-6" fill={userVote === 'up' ? 'currentColor' : 'none'} />
                 </button>
-                <span className={`text-sm font-bold ${
-                  voteScore > 0 ? 'text-orange-600' : voteScore < 0 ? 'text-blue-600' : 'text-gray-600'
-                }`}>
-                  {voteScore}
+                <span className={`text-sm font-bold ${userVote === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
+                  {likeCount}
+                </span>
+                <span className={`text-sm font-bold ${userVote === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {dislikeCount}
                 </span>
                 <button
                   onClick={() => handleVote('down')}

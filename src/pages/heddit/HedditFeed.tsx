@@ -56,7 +56,8 @@ export default function HedditFeed() {
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [postVotes, setPostVotes] = useState<PostVote>({});
-  const [voteScores, setVoteScores] = useState<{ [postId: string]: number }>({});
+  const [postLikeCounts, setPostLikeCounts] = useState<{ [postId: string]: number }>({});
+  const [postDislikeCounts, setPostDislikeCounts] = useState<{ [postId: string]: number }>({});
 
   useEffect(() => {
     loadData();
@@ -105,21 +106,27 @@ export default function HedditFeed() {
       const validPinned = pinnedRes.data.filter(p => p.heddit_subreddits && p.heddit_accounts);
       setPinnedPosts(validPinned);
       loadTagsForPosts(validPinned.map(p => p.id));
-      const scores: { [key: string]: number } = {};
+      const likes: { [key: string]: number } = {};
+      const dislikes: { [key: string]: number } = {};
       validPinned.forEach(p => {
-        scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
+        likes[p.id] = p.like_count || 0;
+        dislikes[p.id] = p.dislike_count || 0;
       });
-      setVoteScores(prev => ({ ...prev, ...scores }));
+      setPostLikeCounts(prev => ({ ...prev, ...likes }));
+      setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
     }
     if (postsRes.data) {
       const validPosts = postsRes.data.filter(p => p.heddit_subreddits && p.heddit_accounts);
       setPosts(validPosts);
       loadTagsForPosts(validPosts.map(p => p.id));
-      const scores: { [key: string]: number } = {};
+      const likes: { [key: string]: number } = {};
+      const dislikes: { [key: string]: number } = {};
       validPosts.forEach(p => {
-        scores[p.id] = (p.like_count || 0) - (p.dislike_count || 0);
+        likes[p.id] = p.like_count || 0;
+        dislikes[p.id] = p.dislike_count || 0;
       });
-      setVoteScores(prev => ({ ...prev, ...scores }));
+      setPostLikeCounts(prev => ({ ...prev, ...likes }));
+      setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
 
       const validPinned = pinnedRes.data?.filter(p => p.heddit_subreddits && p.heddit_accounts) || [];
       const allFetchedIds = [
@@ -215,15 +222,19 @@ export default function HedditFeed() {
     if (!user) return;
 
     const currentVote = postVotes[postId];
-    const previousScore = voteScores[postId] || 0;
+    const previousLikes = postLikeCounts[postId] || 0;
+    const previousDislikes = postDislikeCounts[postId] || 0;
 
     try {
       if (currentVote === voteType) {
         // Removing vote - optimistic UI update
         setPostVotes(prev => ({ ...prev, [postId]: null }));
-        setVoteScores(prev => ({ ...prev, [postId]: prev[postId] + (voteType === 'up' ? -1 : 1) }));
+        if (voteType === 'up') {
+          setPostLikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+        } else {
+          setPostDislikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+        }
 
-        // Delete vote record
         const { error: deleteError } = await supabase
           .from('heddit_votes')
           .delete()
@@ -232,7 +243,6 @@ export default function HedditFeed() {
 
         if (deleteError) throw deleteError;
 
-        // Use SQL to decrement count (prevents race condition with stale data)
         const { error: updateError } = await supabase.rpc(
           voteType === 'up' ? 'decrement_heddit_like_count' : 'decrement_heddit_dislike_count',
           { post_id: postId }
@@ -241,18 +251,20 @@ export default function HedditFeed() {
         if (updateError) throw updateError;
       } else {
         // Switching or adding vote - optimistic UI update
-        setVoteScores(prev => {
-          const current = prev[postId] || 0;
-          if (currentVote) {
-            return { ...prev, [postId]: current + (voteType === 'up' ? 2 : -2) };
-          } else {
-            return { ...prev, [postId]: current + (voteType === 'up' ? 1 : -1) };
-          }
-        });
         setPostVotes(prev => ({ ...prev, [postId]: voteType }));
+        if (voteType === 'up') {
+          setPostLikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
+          if (currentVote === 'down') {
+            setPostDislikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+          }
+        } else {
+          setPostDislikeCounts(prev => ({ ...prev, [postId]: (prev[postId] || 0) + 1 }));
+          if (currentVote === 'up') {
+            setPostLikeCounts(prev => ({ ...prev, [postId]: Math.max(0, (prev[postId] || 0) - 1) }));
+          }
+        }
 
         if (currentVote) {
-          // Update existing vote
           const { error: updateVoteError } = await supabase
             .from('heddit_votes')
             .update({ vote_type: voteType })
@@ -261,7 +273,6 @@ export default function HedditFeed() {
 
           if (updateVoteError) throw updateVoteError;
 
-          // Use SQL to switch counts (increment new, decrement old)
           const { error: updateCountsError } = await supabase.rpc('switch_heddit_vote', {
             post_id: postId,
             new_vote_type: voteType
@@ -269,7 +280,6 @@ export default function HedditFeed() {
 
           if (updateCountsError) throw updateCountsError;
         } else {
-          // Insert new vote
           const { error: insertError } = await supabase
             .from('heddit_votes')
             .insert({
@@ -280,7 +290,6 @@ export default function HedditFeed() {
 
           if (insertError) throw insertError;
 
-          // Use SQL to increment count
           const { error: incrementError } = await supabase.rpc(
             voteType === 'up' ? 'increment_heddit_like_count' : 'increment_heddit_dislike_count',
             { post_id: postId }
@@ -291,9 +300,9 @@ export default function HedditFeed() {
       }
     } catch (error) {
       console.error('Error voting:', error);
-      // Rollback optimistic updates on error
       setPostVotes(prev => ({ ...prev, [postId]: currentVote }));
-      setVoteScores(prev => ({ ...prev, [postId]: previousScore }));
+      setPostLikeCounts(prev => ({ ...prev, [postId]: previousLikes }));
+      setPostDislikeCounts(prev => ({ ...prev, [postId]: previousDislikes }));
     }
   };
 
@@ -362,7 +371,7 @@ export default function HedditFeed() {
                     ) : (
                       <div key={post.id} className="bg-white rounded-lg border-l-4 border-l-orange-500 border-t border-r border-b border-gray-300 overflow-hidden min-w-0 hover:border-gray-400 transition-colors">
                         <div className="flex min-w-0">
-                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-0.5">
                             <button
                               onClick={() => handleVote(post.id, 'up', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -371,10 +380,11 @@ export default function HedditFeed() {
                             >
                               <ArrowBigUp className="w-6 h-6" fill={postVotes[post.id] === 'up' ? 'currentColor' : 'none'} />
                             </button>
-                            <span className={`text-sm font-bold ${
-                              (voteScores[post.id] || 0) > 0 ? 'text-orange-600' : (voteScores[post.id] || 0) < 0 ? 'text-blue-600' : 'text-gray-600'
-                            }`}>
-                              {voteScores[post.id] || 0}
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
+                              {postLikeCounts[post.id] || 0}
+                            </span>
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
                             </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
@@ -533,7 +543,7 @@ export default function HedditFeed() {
                     ) : (
                       <div key={post.id} className="bg-white rounded-lg border border-gray-300 overflow-hidden min-w-0 hover:border-gray-400 transition-colors">
                         <div className="flex min-w-0">
-                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-1">
+                          <div className="w-12 flex-shrink-0 bg-gray-50 flex flex-col items-center py-2 gap-0.5">
                             <button
                               onClick={() => handleVote(post.id, 'up', post)}
                               className={`p-1 rounded hover:bg-gray-200 transition-colors ${
@@ -542,10 +552,11 @@ export default function HedditFeed() {
                             >
                               <ArrowBigUp className="w-6 h-6" fill={postVotes[post.id] === 'up' ? 'currentColor' : 'none'} />
                             </button>
-                            <span className={`text-sm font-bold ${
-                              (voteScores[post.id] || 0) > 0 ? 'text-orange-600' : (voteScores[post.id] || 0) < 0 ? 'text-blue-600' : 'text-gray-600'
-                            }`}>
-                              {voteScores[post.id] || 0}
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'up' ? 'text-orange-600' : 'text-gray-600'}`}>
+                              {postLikeCounts[post.id] || 0}
+                            </span>
+                            <span className={`text-sm font-bold ${postVotes[post.id] === 'down' ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {postDislikeCounts[post.id] || 0}
                             </span>
                             <button
                               onClick={() => handleVote(post.id, 'down', post)}
