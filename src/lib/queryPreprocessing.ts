@@ -1,3 +1,87 @@
+const ACRONYM_EXPANSIONS: Record<string, string> = {
+  'nyc': 'New York City',
+  'la': 'Los Angeles',
+  'dc': 'Washington DC',
+  'sf': 'San Francisco',
+  'uk': 'United Kingdom',
+  'usa': 'United States',
+  'us': 'United States',
+  'eu': 'European Union',
+  'un': 'United Nations',
+  'uae': 'United Arab Emirates',
+  'nba': 'National Basketball Association',
+  'nfl': 'National Football League',
+  'mlb': 'Major League Baseball',
+  'nhl': 'National Hockey League',
+  'mls': 'Major League Soccer',
+  'nasa': 'National Aeronautics and Space Administration',
+  'fbi': 'Federal Bureau of Investigation',
+  'cia': 'Central Intelligence Agency',
+  'cdc': 'Centers for Disease Control',
+  'who': 'World Health Organization',
+  'imf': 'International Monetary Fund',
+  'gdp': 'Gross Domestic Product',
+  'gop': 'Republican Party',
+  'ceo': 'Chief Executive Officer',
+  'cfo': 'Chief Financial Officer',
+  'cto': 'Chief Technology Officer',
+  'ai': 'Artificial Intelligence',
+  'ml': 'Machine Learning',
+  'nlp': 'Natural Language Processing',
+  'api': 'Application Programming Interface',
+  'ui': 'User Interface',
+  'ux': 'User Experience',
+  'nyse': 'New York Stock Exchange',
+  'nasdaq': 'Nasdaq Stock Market',
+  'atm': 'Automated Teller Machine',
+  'dna': 'Deoxyribonucleic Acid',
+  'rna': 'Ribonucleic Acid',
+  'gmo': 'Genetically Modified Organism',
+  'ufo': 'Unidentified Flying Object',
+  'ngo': 'Non-Governmental Organization',
+  'phd': 'Doctor of Philosophy',
+  'md': 'Doctor of Medicine',
+  'mph': 'miles per hour',
+  'km': 'kilometers',
+  'kg': 'kilograms',
+  'lbs': 'pounds',
+  'asap': 'As Soon As Possible',
+  'fyi': 'For Your Information',
+  'diy': 'Do It Yourself',
+};
+
+export function expandAcronyms(query: string): string | null {
+  const trimmed = query.trim();
+  const lower = trimmed.toLowerCase();
+
+  if (ACRONYM_EXPANSIONS[lower]) {
+    return ACRONYM_EXPANSIONS[lower];
+  }
+
+  const words = trimmed.split(/\s+/);
+  let hasExpansion = false;
+  const expanded = words.map(word => {
+    const wordLower = word.toLowerCase();
+    if (ACRONYM_EXPANSIONS[wordLower]) {
+      hasExpansion = true;
+      return ACRONYM_EXPANSIONS[wordLower];
+    }
+    return word;
+  });
+
+  if (hasExpansion) {
+    return expanded.join(' ');
+  }
+
+  return null;
+}
+
+export function isLikelyAcronym(query: string): boolean {
+  const trimmed = query.trim();
+  if (trimmed.length > 6) return false;
+  return /^[A-Z]{2,6}$/.test(trimmed) || ACRONYM_EXPANSIONS[trimmed.toLowerCase()] !== undefined;
+}
+
 const QUESTION_WORDS = [
   'who', 'what', 'when', 'where', 'why', 'how', 'is', 'are', 'was', 'were',
   'does', 'do', 'did', 'can', 'could', 'would', 'should', 'will', 'shall',

@@ -19,7 +19,7 @@ import { analyzeQuery } from '../lib/queryAnalyzer';
 import { Calculator } from '../components/shared/Calculator';
 import { WikipediaKnowledgePanel } from '../components/shared/WikipediaKnowledgePanel';
 import { UnitConverter } from '../components/shared/UnitConverter';
-import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch } from '../lib/queryPreprocessing';
+import { generateSearchVariations, calculateSimilarity, findBestFuzzyMatch, expandAcronyms, isLikelyAcronym } from '../lib/queryPreprocessing';
 import { recordSpellCheckAttempt, getLearnedCorrection } from '../lib/spellCorrection';
 import { checkWikipediaSpelling } from '../lib/wikipediaService';
 import { DidYouMean } from '../components/shared/DidYouMean';
@@ -134,8 +134,14 @@ export default function SearchResults() {
     }
 
     try {
+      const acronymExpansion = expandAcronyms(searchTerm);
+      const queryIsAcronym = isLikelyAcronym(searchTerm);
+
       const searchVariations = generateSearchVariations(searchTerm);
-      console.log('[Search] Search variations:', searchVariations);
+      if (acronymExpansion && !searchVariations.includes(acronymExpansion)) {
+        searchVariations.push(acronymExpansion);
+      }
+      console.log('[Search] Search variations:', searchVariations, acronymExpansion ? `(acronym expanded: ${acronymExpansion})` : '');
 
       const exactResults: SearchResult[] = [];
 
@@ -190,7 +196,10 @@ export default function SearchResults() {
       })();
 
       const exactSearchPromise = (async () => {
+        let foundResults = false;
         for (const variation of searchVariations) {
+          const isAcronymVariation = acronymExpansion === variation;
+
           let dbQuery = supabase
             .from('search_index')
             .select('*')
@@ -212,12 +221,62 @@ export default function SearchResults() {
           }
 
           if (data && !error) {
-            exactResults.push(...data);
+            const tagged = data.map(r => ({ ...r, _searchVariation: variation, _isAcronymExpanded: isAcronymVariation }));
+            exactResults.push(...tagged);
           }
 
           if (data && data.length > 0) {
-            break;
+            foundResults = true;
+            if (!isAcronymVariation) {
+              break;
+            }
           }
+        }
+
+        if (!foundResults && searchTerm.trim().split(/\s+/).length >= 3) {
+          const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(t => t.length > 3);
+          const tokenQueries = tokens.slice(0, 3).map(token => {
+            let q = supabase
+              .from('search_index')
+              .select('*')
+              .abortSignal(currentController.signal);
+
+            if (!includeExternalContent) {
+              q = q.eq('is_internal', true);
+            }
+
+            q = q.or('language_backfill_processed.eq.true,language_backfill_processed.eq.false,language_backfill_processed.is.null');
+            q = q.or(`title.ilike.%${token}%,description.ilike.%${token}%`);
+
+            return q;
+          });
+
+          const tokenResults = await Promise.all(tokenQueries);
+
+          if (currentController.signal.aborted || !isMountedRef.current) return;
+
+          const tokenScoreMap = new Map<string, number>();
+          tokenResults.forEach(({ data }) => {
+            if (data) {
+              data.forEach(r => {
+                tokenScoreMap.set(r.id, (tokenScoreMap.get(r.id) || 0) + 1);
+              });
+            }
+          });
+
+          const allTokenData: SearchResult[] = [];
+          tokenResults.forEach(({ data }) => {
+            if (data) allTokenData.push(...data);
+          });
+
+          const seenIds = new Set<string>();
+          allTokenData.forEach(r => {
+            if (!seenIds.has(r.id)) {
+              seenIds.add(r.id);
+              const tokenHits = tokenScoreMap.get(r.id) || 1;
+              exactResults.push({ ...r, _searchVariation: 'token', _tokenHits: tokenHits } as any);
+            }
+          });
         }
       })();
 
@@ -305,11 +364,43 @@ export default function SearchResults() {
       openSearchCompletedRef.current = true;
       console.log('[Search] OpenSearch spell check completed, flag set to true');
 
+      const fuzzyResults: SearchResult[] = [];
+
+      if (exactResults.length < 5 && searchTerm.trim().split(/\s+/).length <= 3 && searchTerm.length >= 3) {
+        const fuzzyTerms = [searchTerm];
+        if (acronymExpansion) fuzzyTerms.push(acronymExpansion);
+
+        for (const term of fuzzyTerms) {
+          if (currentController.signal.aborted || !isMountedRef.current) break;
+          try {
+            const { data: fuzzyData, error: fuzzyError } = await supabase
+              .rpc('fuzzy_search_content', { search_query: term, similarity_threshold: 0.3, max_results: 20 })
+              .abortSignal(currentController.signal);
+
+            if (!fuzzyError && fuzzyData && fuzzyData.length > 0) {
+              const tagged = fuzzyData.map((r: SearchResult) => ({ ...r, searchSource: 'fuzzy' }));
+              fuzzyResults.push(...tagged);
+              console.log(`[Search] Fuzzy search for "${term}" returned ${fuzzyData.length} results`);
+            }
+          } catch (fuzzyErr: any) {
+            if (fuzzyErr.name !== 'AbortError') {
+              console.log('[Search] Fuzzy search not available or failed:', fuzzyErr.message);
+            }
+          }
+        }
+      }
+
       const allResultsMap = new Map<string, SearchResult>();
 
       exactResults.forEach(r => {
         if (!allResultsMap.has(r.id)) {
           allResultsMap.set(r.id, { ...r, searchSource: 'exact' } as any);
+        }
+      });
+
+      fuzzyResults.forEach(r => {
+        if (!allResultsMap.has(r.id)) {
+          allResultsMap.set(r.id, r);
         }
       });
 
@@ -379,6 +470,8 @@ export default function SearchResults() {
       console.log(`[Search] Language filtering: ${initialResultCount} -> ${englishResults.length} (filtered ${filteredCount})`);
 
       const searchTermLower = searchTerm.toLowerCase();
+      const expandedTermLower = acronymExpansion?.toLowerCase() || null;
+
       const scoredResults = englishResults.map(result => {
         let score = result.relevance_score || 0;
 
@@ -393,6 +486,16 @@ export default function SearchResults() {
         if (titleMatch) score += 30;
         if (descMatch) score += 20;
         if (contentMatch) score += 10;
+
+        if (expandedTermLower) {
+          const expandedTitleMatch = titleLower.includes(expandedTermLower);
+          const expandedDescMatch = descLower.includes(expandedTermLower);
+          const expandedContentMatch = contentLower.includes(expandedTermLower);
+
+          if (expandedTitleMatch) score += 50;
+          if (expandedDescMatch) score += 30;
+          if (expandedContentMatch) score += 15;
+        }
 
         const titleSimilarity = calculateSimilarity(searchTermLower, titleLower);
         const descSimilarity = calculateSimilarity(searchTermLower, descLower);
@@ -409,6 +512,19 @@ export default function SearchResults() {
             score += simScore * 20;
           } else if (searchSource === 'typo') {
             score += simScore * 15;
+          }
+        }
+
+        const tokenHits: number = (result as any)._tokenHits || 0;
+        if (tokenHits > 1) {
+          score += tokenHits * 8;
+        }
+
+        if (queryIsAcronym && !titleMatch && !descMatch) {
+          const titleHasExpanded = expandedTermLower && titleLower.includes(expandedTermLower);
+          const descHasExpanded = expandedTermLower && descLower.includes(expandedTermLower);
+          if (!titleHasExpanded && !descHasExpanded) {
+            score *= 0.3;
           }
         }
 
