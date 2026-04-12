@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { TrendingUp, Pin, CheckCircle2, Trash2, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag, Users } from 'lucide-react';
+import { TrendingUp, Pin, CheckCircle2, Trash2, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const POSTS_PER_PAGE = 20;
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -58,6 +60,10 @@ export default function HedditFeed() {
   const [postVotes, setPostVotes] = useState<PostVote>({});
   const [postLikeCounts, setPostLikeCounts] = useState<{ [postId: string]: number }>({});
   const [postDislikeCounts, setPostDislikeCounts] = useState<{ [postId: string]: number }>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPostCount, setTotalPostCount] = useState(0);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const allPostIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     loadData();
@@ -73,7 +79,7 @@ export default function HedditFeed() {
 
 
   const loadData = async () => {
-    const [pinnedRes, postsRes, subredditsRes] = await Promise.all([
+    const [pinnedRes, allPostIdsRes, subredditsRes] = await Promise.all([
       supabase
         .from('heddit_posts')
         .select(`
@@ -86,15 +92,10 @@ export default function HedditFeed() {
         .order('pinned_at', { ascending: false }),
       supabase
         .from('heddit_posts')
-        .select(`
-          *,
-          heddit_subreddits(name, display_name),
-          heddit_accounts(username, display_name, karma, kindness, quality_score)
-        `)
+        .select('id, created_at')
         .eq('is_pinned', false)
         .eq('is_draft', false)
-        .order('created_at', { ascending: false })
-        .limit(20),
+        .order('created_at', { ascending: false }),
       supabase
         .from('heddit_subreddits')
         .select('*')
@@ -115,31 +116,91 @@ export default function HedditFeed() {
       setPostLikeCounts(prev => ({ ...prev, ...likes }));
       setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
     }
-    if (postsRes.data) {
-      const validPosts = postsRes.data.filter(p => p.heddit_subreddits && p.heddit_accounts);
-      setPosts(validPosts);
-      loadTagsForPosts(validPosts.map(p => p.id));
-      const likes: { [key: string]: number } = {};
-      const dislikes: { [key: string]: number } = {};
-      validPosts.forEach(p => {
-        likes[p.id] = p.like_count || 0;
-        dislikes[p.id] = p.dislike_count || 0;
-      });
-      setPostLikeCounts(prev => ({ ...prev, ...likes }));
-      setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
 
-      const validPinned = pinnedRes.data?.filter(p => p.heddit_subreddits && p.heddit_accounts) || [];
-      const allFetchedIds = [
-        ...validPinned.map(p => p.id),
-        ...validPosts.map(p => p.id)
-      ];
-      loadUserVotes(allFetchedIds);
+    const allIds = (allPostIdsRes.data || []).map((p: any) => p.id);
+    allPostIdsRef.current = allIds;
+    setTotalPostCount(allIds.length);
+
+    const firstPageIds = allIds.slice(0, POSTS_PER_PAGE);
+    if (firstPageIds.length > 0) {
+      const { data: postsData } = await supabase
+        .from('heddit_posts')
+        .select(`
+          *,
+          heddit_subreddits(name, display_name),
+          heddit_accounts(username, display_name, karma, kindness, quality_score)
+        `)
+        .in('id', firstPageIds)
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false });
+
+      if (postsData) {
+        const validPosts = postsData.filter(p => p.heddit_subreddits && p.heddit_accounts);
+        setPosts(validPosts);
+        loadTagsForPosts(validPosts.map(p => p.id));
+        const likes: { [key: string]: number } = {};
+        const dislikes: { [key: string]: number } = {};
+        validPosts.forEach(p => {
+          likes[p.id] = p.like_count || 0;
+          dislikes[p.id] = p.dislike_count || 0;
+        });
+        setPostLikeCounts(prev => ({ ...prev, ...likes }));
+        setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
+
+        const validPinned = pinnedRes.data?.filter(p => p.heddit_subreddits && p.heddit_accounts) || [];
+        loadUserVotes([...validPinned.map(p => p.id), ...validPosts.map(p => p.id)]);
+      }
     }
+
     if (subredditsRes.data) {
       setSubreddits(subredditsRes.data);
       loadTagsForSubreddits(subredditsRes.data.map(s => s.id));
     }
+    setCurrentPage(1);
     setLoading(false);
+  };
+
+  const loadPostsPage = async (page: number) => {
+    setPostsLoading(true);
+
+    const allIds = allPostIdsRef.current;
+    const start = (page - 1) * POSTS_PER_PAGE;
+    const end = start + POSTS_PER_PAGE - 1;
+    const pageIds = allIds.slice(start, end + 1);
+
+    if (pageIds.length > 0) {
+      const { data } = await supabase
+        .from('heddit_posts')
+        .select(`
+          *,
+          heddit_subreddits(name, display_name),
+          heddit_accounts(username, display_name, karma, kindness, quality_score)
+        `)
+        .in('id', pageIds)
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        const validPosts = data.filter(p => p.heddit_subreddits && p.heddit_accounts);
+        setPosts(validPosts);
+        loadTagsForPosts(validPosts.map(p => p.id));
+        const likes: { [key: string]: number } = {};
+        const dislikes: { [key: string]: number } = {};
+        validPosts.forEach(p => {
+          likes[p.id] = p.like_count || 0;
+          dislikes[p.id] = p.dislike_count || 0;
+        });
+        setPostLikeCounts(prev => ({ ...prev, ...likes }));
+        setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
+        loadUserVotes(validPosts.map(p => p.id));
+      }
+    } else {
+      setPosts([]);
+    }
+
+    setCurrentPage(page);
+    setPostsLoading(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const loadTagsForPosts = async (postIds: string[]) => {
@@ -696,6 +757,30 @@ export default function HedditFeed() {
                       </div>
                     )
                   ))}
+
+                  {totalPostCount > POSTS_PER_PAGE && (
+                    <div className="flex items-center justify-center gap-3 bg-white rounded-lg border border-gray-300 px-4 py-3">
+                      <button
+                        onClick={() => loadPostsPage(currentPage - 1)}
+                        disabled={currentPage === 1 || postsLoading}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <ChevronLeft size={16} />
+                        Previous
+                      </button>
+                      <span className="text-sm text-gray-600">
+                        Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{Math.ceil(totalPostCount / POSTS_PER_PAGE)}</span>
+                      </span>
+                      <button
+                        onClick={() => loadPostsPage(currentPage + 1)}
+                        disabled={currentPage >= Math.ceil(totalPostCount / POSTS_PER_PAGE) || postsLoading}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>

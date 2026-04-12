@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Users, Calendar, Hash, Plus, Pin, TrendingUp, Trash2, MoreVertical, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag } from 'lucide-react';
+import { Users, Calendar, Hash, Plus, Pin, TrendingUp, Trash2, MoreVertical, Star, Heart, Trophy, ArrowBigUp, ArrowBigDown, MessageCircle, Share2, Flag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import PlatformGuard from '../../components/shared/PlatformGuard';
@@ -19,6 +19,9 @@ import ShareModal from '../../components/heddit/ShareModal';
 import HedditContentRenderer from '../../components/heddit/HedditContentRenderer';
 import SharedPostCard from '../../components/heddit/SharedPostCard';
 import HedditMediaGallery from '../../components/heddit/HedditMediaGallery';
+import CommunityNoticesPanel, { CommunityNotice } from '../../components/heddit/CommunityNoticesPanel';
+
+const POSTS_PER_PAGE = 20;
 
 interface Community {
   id: string;
@@ -85,6 +88,11 @@ export default function HedditSubreddit() {
   const [postLikeCounts, setPostLikeCounts] = useState<{ [postId: string]: number }>({});
   const [postDislikeCounts, setPostDislikeCounts] = useState<{ [postId: string]: number }>({});
   const [pinnerUsernameMap, setPinnerUsernameMap] = useState<{ [postId: string]: string }>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalUnpinnedCount, setTotalUnpinnedCount] = useState(0);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [communityNotices, setCommunityNotices] = useState<CommunityNotice[]>([]);
+  const allUnpinnedPostIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (subredditName) {
@@ -223,7 +231,9 @@ export default function HedditSubreddit() {
     const unpinnedPostIds = allPostIds.filter((id: string) => !pinnedPostIdSet.has(id));
 
     const pinnedQueryIds = pinnedPostIds.length > 0 ? pinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
-    const unpinnedQueryIds = unpinnedPostIds.length > 0 ? unpinnedPostIds : ['00000000-0000-0000-0000-000000000000'];
+
+    allUnpinnedPostIdsRef.current = unpinnedPostIds;
+    setTotalUnpinnedCount(unpinnedPostIds.length);
 
     const pinnerUserIds = [...new Set((communityPinsData || []).map((r: any) => r.pinned_by).filter(Boolean))];
     const pinnerUsernameResult: { [postId: string]: string } = {};
@@ -242,7 +252,12 @@ export default function HedditSubreddit() {
     }
     setPinnerUsernameMap(pinnerUsernameResult);
 
-    const [pinnedRes, postsRes] = await Promise.all([
+    const pageStart = 0;
+    const pageEnd = POSTS_PER_PAGE - 1;
+    const firstPageUnpinnedIds = unpinnedPostIds.slice(pageStart, pageEnd + 1);
+    const firstPageQueryIds = firstPageUnpinnedIds.length > 0 ? firstPageUnpinnedIds : ['00000000-0000-0000-0000-000000000000'];
+
+    const [pinnedRes, postsRes, noticesRes] = await Promise.all([
       supabase
         .from('heddit_posts')
         .select(`
@@ -259,11 +274,22 @@ export default function HedditSubreddit() {
           heddit_subreddits(name, display_name),
           heddit_accounts(username, display_name, karma, kindness, quality_score)
         `)
-        .in('id', unpinnedQueryIds)
+        .in('id', firstPageQueryIds)
         .eq('is_draft', false)
-        .order('created_at', { ascending: false })
-        .limit(20)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('heddit_community_notices')
+        .select(`
+          *,
+          heddit_accounts(username, display_name)
+        `)
+        .eq('subreddit_id', communityData.id)
+        .order('created_at', { ascending: true }),
     ]);
+
+    if (noticesRes.data) {
+      setCommunityNotices(noticesRes.data);
+    }
 
     if (pinnedRes.data) {
       const pinTimeMap: { [key: string]: string } = {};
@@ -314,7 +340,50 @@ export default function HedditSubreddit() {
       setCommunityTags(tagsData.map((t: any) => t.heddit_custom_tags.display_name));
     }
 
+    setCurrentPage(1);
     setLoading(false);
+  };
+
+  const loadPostsPage = async (page: number) => {
+    if (!communityIdRef.current) return;
+
+    setPostsLoading(true);
+
+    const allUnpinnedIds = allUnpinnedPostIdsRef.current;
+    const start = (page - 1) * POSTS_PER_PAGE;
+    const end = start + POSTS_PER_PAGE - 1;
+    const pageIds = allUnpinnedIds.slice(start, end + 1);
+    const queryIds = pageIds.length > 0 ? pageIds : ['00000000-0000-0000-0000-000000000000'];
+
+    const { data } = await supabase
+      .from('heddit_posts')
+      .select(`
+        *,
+        heddit_subreddits(name, display_name),
+        heddit_accounts(username, display_name, karma, kindness, quality_score)
+      `)
+      .in('id', queryIds)
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setPosts(data);
+      loadTagsForPosts(data.map(p => p.id));
+      loadPostModerators(data);
+      const likes: { [key: string]: number } = {};
+      const dislikes: { [key: string]: number } = {};
+      data.forEach(p => {
+        likes[p.id] = p.like_count || 0;
+        dislikes[p.id] = p.dislike_count || 0;
+      });
+      setPostLikeCounts(prev => ({ ...prev, ...likes }));
+      setPostDislikeCounts(prev => ({ ...prev, ...dislikes }));
+      loadUserVotes(data.map(p => p.id));
+    }
+
+    setCurrentPage(page);
+    setPostsLoading(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const loadTagsForPosts = async (postIds: string[]) => {
@@ -1072,6 +1141,30 @@ export default function HedditSubreddit() {
                           </div>
                           )
                         ))}
+
+                        {totalUnpinnedCount > POSTS_PER_PAGE && (
+                          <div className="flex items-center justify-center gap-3 bg-white rounded-lg border border-gray-300 px-4 py-3 mt-2">
+                            <button
+                              onClick={() => loadPostsPage(currentPage - 1)}
+                              disabled={currentPage === 1 || postsLoading}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <ChevronLeft size={16} />
+                              Previous
+                            </button>
+                            <span className="text-sm text-gray-600">
+                              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{Math.ceil(totalUnpinnedCount / POSTS_PER_PAGE)}</span>
+                            </span>
+                            <button
+                              onClick={() => loadPostsPage(currentPage + 1)}
+                              disabled={currentPage >= Math.ceil(totalUnpinnedCount / POSTS_PER_PAGE) || postsLoading}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Next
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -1172,6 +1265,14 @@ export default function HedditSubreddit() {
                     </Link>
                   </div>
                 )}
+
+                <CommunityNoticesPanel
+                  subredditId={community.id}
+                  notices={communityNotices}
+                  isModerator={isModerator}
+                  currentAccountId={userAccountId}
+                  onNoticesChange={setCommunityNotices}
+                />
               </div>
             </div>
           </div>
