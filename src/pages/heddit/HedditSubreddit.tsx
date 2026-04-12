@@ -1142,7 +1142,7 @@ export default function HedditSubreddit() {
                           )
                         ))}
 
-                        {totalUnpinnedCount > POSTS_PER_PAGE && (
+                        {totalUnpinnedCount > 0 && (
                           <div className="flex items-center justify-center gap-3 bg-white rounded-lg border border-gray-300 px-4 py-3 mt-2">
                             <button
                               onClick={() => loadPostsPage(currentPage - 1)}
@@ -1153,7 +1153,7 @@ export default function HedditSubreddit() {
                               Previous
                             </button>
                             <span className="text-sm text-gray-600">
-                              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{Math.ceil(totalUnpinnedCount / POSTS_PER_PAGE)}</span>
+                              Page <span className="font-semibold">{currentPage}</span> of <span className="font-semibold">{Math.max(1, Math.ceil(totalUnpinnedCount / POSTS_PER_PAGE))}</span>
                             </span>
                             <button
                               onClick={() => loadPostsPage(currentPage + 1)}
