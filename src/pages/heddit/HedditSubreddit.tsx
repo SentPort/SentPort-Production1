@@ -101,7 +101,7 @@ export default function HedditSubreddit() {
     if (user && posts.length > 0) {
       loadUserVotes();
     }
-  }, [user, posts]);
+  }, [user]);
 
   const loadUserAuthData = async (subredditId: string) => {
     if (!user) {
@@ -364,7 +364,7 @@ export default function HedditSubreddit() {
       data.forEach(vote => {
         votes[vote.post_id] = vote.vote_type;
       });
-      setPostVotes(votes);
+      setPostVotes(prev => ({ ...prev, ...votes }));
     }
   };
 

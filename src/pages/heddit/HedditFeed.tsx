@@ -74,7 +74,7 @@ export default function HedditFeed() {
     if (user && posts.length > 0) {
       loadUserVotes();
     }
-  }, [user, posts]);
+  }, [user]);
 
   const loadData = async () => {
     const [pinnedRes, postsRes, subredditsRes] = await Promise.all([
@@ -208,7 +208,7 @@ export default function HedditFeed() {
       data.forEach(vote => {
         votes[vote.post_id] = vote.vote_type;
       });
-      setPostVotes(votes);
+      setPostVotes(prev => ({ ...prev, ...votes }));
     }
   };
 

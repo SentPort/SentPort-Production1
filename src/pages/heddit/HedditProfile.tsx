@@ -117,7 +117,7 @@ export default function HedditProfile() {
     if (currentAccountId && posts.length > 0) {
       loadUserVotes();
     }
-  }, [currentAccountId, posts]);
+  }, [currentAccountId]);
 
   useEffect(() => {
     if (profile) {
@@ -353,7 +353,7 @@ export default function HedditProfile() {
       data.forEach(vote => {
         votes[vote.post_id] = vote.vote_type;
       });
-      setPostVotes(votes);
+      setPostVotes(prev => ({ ...prev, ...votes }));
     }
   };
 
