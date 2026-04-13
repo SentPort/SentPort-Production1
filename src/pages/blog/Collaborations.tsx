@@ -21,6 +21,7 @@ interface Collaboration {
   status: string;
   creator_id: string;
   created_at: string;
+  is_proposal?: boolean;
   creator: {
     username: string;
     display_name: string;
@@ -58,6 +59,20 @@ function CollaborationsContent() {
     }
   }, [user, activeTab]);
 
+  const enrichCollaboration = async (collab: any) => {
+    const { count: memberCount } = await supabase
+      .from('blog_collaboration_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('collaboration_id', collab.id)
+      .in('status', ['accepted', 'active']);
+
+    return {
+      ...collab,
+      member_count: memberCount || 0,
+      post_count: collab.published_post_id ? 1 : 0,
+    };
+  };
+
   const loadCollaborations = async () => {
     if (!user) return;
 
@@ -67,8 +82,8 @@ function CollaborationsContent() {
         const { data: memberData } = await supabase
           .from('blog_collaboration_members')
           .select('collaboration_id')
-          .eq('account_id', user.id)
-          .eq('status', 'accepted');
+          .eq('user_id', user.id)
+          .in('status', ['accepted', 'active']);
 
         const collabIds = memberData?.map((m) => m.collaboration_id) || [];
 
@@ -79,72 +94,45 @@ function CollaborationsContent() {
               *,
               creator:creator_id (username, display_name, avatar_url)
             `)
-            .in('id', collabIds);
+            .in('id', collabIds)
+            .order('created_at', { ascending: false });
 
           if (data) {
-            const collaborationsWithCounts = await Promise.all(
-              data.map(async (collab: any) => {
-                const { count: memberCount } = await supabase
-                  .from('blog_collaboration_members')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('collaboration_id', collab.id)
-                  .eq('status', 'accepted');
-
-                const { count: postCount } = await supabase
-                  .from('blog_collaboration_posts')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('collaboration_id', collab.id);
-
-                return {
-                  ...collab,
-                  member_count: memberCount || 0,
-                  post_count: postCount || 0,
-                };
-              })
-            );
-
-            setCollaborations(collaborationsWithCounts);
+            const enriched = await Promise.all(data.map(enrichCollaboration));
+            setCollaborations(enriched);
           }
         } else {
           setCollaborations([]);
         }
       } else if (activeTab === 'invited') {
-        const { data: invites } = await supabase
-          .from('blog_collaboration_members')
+        const { data: proposals } = await supabase
+          .from('blog_collaboration_proposal_members')
           .select(`
-            collaboration_id,
-            blog_collaborations (
-              *,
-              creator:creator_id (username, display_name, avatar_url)
+            proposal_id,
+            blog_collaboration_proposals (
+              id,
+              title,
+              description,
+              status,
+              initiator_id,
+              created_at,
+              initiator:initiator_id (username, display_name, avatar_url)
             )
           `)
-          .eq('account_id', user.id)
+          .eq('invitee_id', user.id)
           .eq('status', 'invited');
 
-        if (invites) {
-          const collaborationsWithCounts = await Promise.all(
-            invites.map(async (invite: any) => {
-              const collab = invite.blog_collaborations;
-              const { count: memberCount } = await supabase
-                .from('blog_collaboration_members')
-                .select('*', { count: 'exact', head: true })
-                .eq('collaboration_id', collab.id)
-                .eq('status', 'accepted');
-
-              const { count: postCount } = await supabase
-                .from('blog_collaboration_posts')
-                .select('*', { count: 'exact', head: true })
-                .eq('collaboration_id', collab.id);
-
-              return {
-                ...collab,
-                member_count: memberCount || 0,
-                post_count: postCount || 0,
-              };
-            })
-          );
-
-          setCollaborations(collaborationsWithCounts);
+        if (proposals) {
+          const pendingProposals = proposals
+            .filter((p: any) => p.blog_collaboration_proposals?.status === 'pending')
+            .map((p: any) => ({
+              ...p.blog_collaboration_proposals,
+              creator: p.blog_collaboration_proposals?.initiator,
+              member_count: 0,
+              post_count: 0,
+              is_proposal: true,
+            }));
+          setCollaborations(pendingProposals);
         }
       } else {
         const { data } = await supabase
@@ -158,28 +146,8 @@ function CollaborationsContent() {
           .limit(20);
 
         if (data) {
-          const collaborationsWithCounts = await Promise.all(
-            data.map(async (collab: any) => {
-              const { count: memberCount } = await supabase
-                .from('blog_collaboration_members')
-                .select('*', { count: 'exact', head: true })
-                .eq('collaboration_id', collab.id)
-                .eq('status', 'accepted');
-
-              const { count: postCount } = await supabase
-                .from('blog_collaboration_posts')
-                .select('*', { count: 'exact', head: true })
-                .eq('collaboration_id', collab.id);
-
-              return {
-                ...collab,
-                member_count: memberCount || 0,
-                post_count: postCount || 0,
-              };
-            })
-          );
-
-          setCollaborations(collaborationsWithCounts);
+          const enriched = await Promise.all(data.map(enrichCollaboration));
+          setCollaborations(enriched);
         }
       }
     } catch (error) {
@@ -383,7 +351,7 @@ function CollaborationsContent() {
               {activeTab === 'my'
                 ? 'Start a new collaboration project to work with other writers!'
                 : activeTab === 'invited'
-                ? 'You have no pending invitations'
+                ? 'You have no pending collaboration proposals'
                 : 'No public collaborations available right now'}
             </p>
             {activeTab === 'my' && (
@@ -401,7 +369,7 @@ function CollaborationsContent() {
             {collaborations.map((collab) => (
               <Link
                 key={collab.id}
-                to={`/blog/collaboration/${collab.id}`}
+                to={collab.is_proposal ? `/blog/collaborations/proposal/${collab.id}` : `/blog/collaborations/workspace/${collab.id}`}
                 className="bg-slate-800/70 backdrop-blur-md border border-slate-600/50 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all border-2 border-transparent hover:border-purple-200"
               >
                 <div className="flex items-start justify-between mb-4">

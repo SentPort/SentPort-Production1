@@ -167,16 +167,44 @@ function ProposalReviewContent() {
         .eq('proposal_id', proposalId)
         .eq('invitee_id', user.id);
 
-      // Check if all members approved and create collaboration if so
+      // Notify all other members (including initiator) that this person approved
+      const otherMembers = members.filter(m => m.invitee_id !== user.id);
+      if (otherMembers.length > 0) {
+        await supabase
+          .from('blog_notifications')
+          .insert(
+            otherMembers.map(m => ({
+              recipient_id: m.invitee_id,
+              actor_id: user.id,
+              type: 'collaboration_proposal',
+              message: `approved the collaboration proposal "${proposal.title}"`,
+            }))
+          );
+      }
+
+      // Check if all members approved — the DB trigger handles creating the
+      // collaboration, but we also handle it here as a fallback
       const { data: allMembers } = await supabase
         .from('blog_collaboration_proposal_members')
-        .select('status')
+        .select('status, invitee_id, is_initiator')
         .eq('proposal_id', proposalId);
 
       const allApproved = allMembers?.every(m => m.status === 'approved');
 
       if (allApproved) {
-        // Create the actual collaboration
+        // Check if collaboration was already created by the trigger
+        const { data: existingCollab } = await supabase
+          .from('blog_collaborations')
+          .select('id')
+          .eq('proposal_id', proposalId)
+          .maybeSingle();
+
+        if (existingCollab) {
+          navigate(`/blog/collaborations/workspace/${existingCollab.id}`);
+          return;
+        }
+
+        // Create the actual collaboration if trigger didn't
         const { data: collab } = await supabase
           .from('blog_collaborations')
           .insert({
@@ -191,11 +219,10 @@ function ProposalReviewContent() {
           .single();
 
         if (collab) {
-          // Add all members to the collaboration
-          const memberInserts = members.map(m => ({
+          const memberInserts = (allMembers || []).map(m => ({
             collaboration_id: collab.id,
             user_id: m.invitee_id,
-            role: m.is_initiator ? 'admin' : 'member',
+            role: m.is_initiator ? 'admin' : 'editor',
             status: 'accepted',
           }));
 
@@ -203,14 +230,10 @@ function ProposalReviewContent() {
             .from('blog_collaboration_members')
             .insert(memberInserts);
 
-          // Create workspace content
           await supabase
             .from('blog_collaboration_workspace_content')
-            .insert({
-              collaboration_id: collab.id,
-            });
+            .insert({ collaboration_id: collab.id });
 
-          // Send system message
           await supabase
             .from('blog_collaboration_workspace_messages')
             .insert({
@@ -220,7 +243,6 @@ function ProposalReviewContent() {
               message_type: 'system',
             });
 
-          // Navigate to workspace
           navigate(`/blog/collaborations/workspace/${collab.id}`);
         }
       } else {
@@ -249,6 +271,21 @@ function ProposalReviewContent() {
         .from('blog_collaboration_proposals')
         .update({ status: 'rejected' })
         .eq('id', proposalId);
+
+      // Notify all other members (including initiator) that someone rejected
+      const otherMembers = members.filter(m => m.invitee_id !== user.id);
+      if (otherMembers.length > 0) {
+        await supabase
+          .from('blog_notifications')
+          .insert(
+            otherMembers.map(m => ({
+              recipient_id: m.invitee_id,
+              actor_id: user.id,
+              type: 'collaboration_proposal',
+              message: `declined the collaboration proposal "${proposal.title}"`,
+            }))
+          );
+      }
 
       navigate('/blog/collaborations/proposals');
     } catch (error) {
@@ -288,10 +325,14 @@ function ProposalReviewContent() {
         message: `revised the proposal "${proposal.title}"`,
       }));
 
-      await supabase
-        .from('blog_notifications')
-        .insert(notificationInserts);
+      if (notificationInserts.length > 0) {
+        await supabase
+          .from('blog_notifications')
+          .insert(notificationInserts);
+      }
 
+      setShowRevisionModal(false);
+      setRevisionNotes('');
       navigate('/blog/collaborations/proposals');
     } catch (error) {
       console.error('Error requesting revision:', error);

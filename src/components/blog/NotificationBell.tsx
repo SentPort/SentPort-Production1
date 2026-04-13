@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, X, Heart, MessageCircle, UserPlus, Sparkles, Film } from 'lucide-react';
+import { Bell, X, Heart, MessageCircle, UserPlus, Sparkles, Film, Users, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
@@ -12,6 +12,7 @@ interface Notification {
   post_title?: string;
   post_id?: string;
   reaction_type?: string;
+  message?: string;
   is_read: boolean;
   created_at: string;
 }
@@ -33,6 +34,7 @@ export default function NotificationBell() {
           id,
           type,
           reaction_type,
+          message,
           is_read,
           created_at,
           actor:actor_id (
@@ -46,7 +48,7 @@ export default function NotificationBell() {
         `)
         .eq('recipient_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(30);
 
       if (error) throw error;
 
@@ -58,6 +60,7 @@ export default function NotificationBell() {
         post_title: notif.post?.title,
         post_id: notif.post?.id,
         reaction_type: notif.reaction_type,
+        message: notif.message,
         is_read: notif.is_read,
         created_at: notif.created_at
       }));
@@ -70,11 +73,29 @@ export default function NotificationBell() {
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      loadNotifications();
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
-    }
+    if (!user) return;
+
+    loadNotifications();
+
+    const channel = supabase
+      .channel(`blog-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'blog_notifications',
+          filter: `recipient_id=eq.${user.id}`,
+        },
+        () => {
+          loadNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, loadNotifications]);
 
   const markAsRead = async (notificationIds: string[]) => {
@@ -116,9 +137,13 @@ export default function NotificationBell() {
   const getNotificationIcon = (type: string, reactionType?: string) => {
     if (type === 'new_follower') return <UserPlus className="w-4 h-4 text-blue-500" />;
     if (type === 'screenplay_inspiration') return <Film className="w-4 h-4 text-amber-500" />;
+    if (type === 'collaboration_proposal') return <Users className="w-4 h-4 text-blue-400" />;
+    if (type === 'collaboration_published') return <CheckCircle className="w-4 h-4 text-green-500" />;
+    if (type === 'proposal_rescinded') return <XCircle className="w-4 h-4 text-red-500" />;
+    if (type === 'proposal_approved') return <CheckCircle className="w-4 h-4 text-emerald-500" />;
     if (type === 'reaction') {
       if (reactionType === 'love') return <Heart className="w-4 h-4 text-red-500" />;
-      if (reactionType === 'inspiring') return <Sparkles className="w-4 h-4 text-purple-500" />;
+      if (reactionType === 'inspiring') return <Sparkles className="w-4 h-4 text-yellow-500" />;
       return <Heart className="w-4 h-4 text-blue-500" />;
     }
     if (type === 'comment' || type === 'comment_reply') return <MessageCircle className="w-4 h-4 text-green-500" />;
@@ -128,7 +153,7 @@ export default function NotificationBell() {
   const getNotificationMessage = (notif: Notification) => {
     const username = <span className="font-semibold">@{notif.actor_username}</span>;
     const postTitle = notif.post_title ? (
-      <span className="font-semibold text-gray-900">"{notif.post_title.slice(0, 40)}..."</span>
+      <span className="font-semibold text-gray-900">"{notif.post_title.slice(0, 40)}{notif.post_title.length > 40 ? '...' : ''}"</span>
     ) : null;
 
     switch (notif.type) {
@@ -141,10 +166,35 @@ export default function NotificationBell() {
       case 'comment':
         return <span>{username} commented on {postTitle}</span>;
       case 'comment_reply':
-        return <span>{username} replied to your comment</span>;
+        return <span>{username} replied to your comment on {postTitle}</span>;
+      case 'collaboration_proposal':
+        return <span>{username} {notif.message || 'invited you to collaborate'}</span>;
+      case 'collaboration_published':
+        return <span>{notif.message || 'Your collaborative post was published!'}</span>;
+      case 'proposal_rescinded':
+        return <span>{username} withdrew a collaboration proposal</span>;
+      case 'proposal_approved':
+        return <span>{notif.message || 'A collaboration proposal was fully approved!'}</span>;
       default:
         return <span>New notification from {username}</span>;
     }
+  };
+
+  const getNotificationLink = (notif: Notification) => {
+    if (notif.type === 'collaboration_published' && notif.post_id) {
+      return `/blog/post/${notif.post_id}`;
+    }
+    if (
+      notif.type === 'collaboration_proposal' ||
+      notif.type === 'proposal_rescinded' ||
+      notif.type === 'proposal_approved'
+    ) {
+      return '/blog/collaborations/proposals';
+    }
+    if (notif.post_id) {
+      return `/blog/post/${notif.post_id}`;
+    }
+    return '#';
   };
 
   const formatTimeAgo = (timestamp: string) => {
@@ -216,7 +266,7 @@ export default function NotificationBell() {
                   {notifications.map((notif) => (
                     <Link
                       key={notif.id}
-                      to={notif.post_id ? `/blog/post/${notif.post_id}` : '#'}
+                      to={getNotificationLink(notif)}
                       onClick={() => {
                         if (!notif.is_read) {
                           markAsRead([notif.id]);
@@ -231,10 +281,10 @@ export default function NotificationBell() {
                         <img
                           src={notif.actor_avatar}
                           alt={notif.actor_username}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-400 flex items-center justify-center text-white font-bold">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-400 flex items-center justify-center text-white font-bold flex-shrink-0">
                           {notif.actor_username[0]?.toUpperCase()}
                         </div>
                       )}
@@ -250,7 +300,7 @@ export default function NotificationBell() {
                         </p>
                       </div>
                       {!notif.is_read && (
-                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
                       )}
                     </Link>
                   ))}
