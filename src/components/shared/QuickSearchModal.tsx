@@ -53,10 +53,15 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
   const [analysis, setAnalysis] = useState<QueryAnalysis | null>(null);
   const [spellSuggestions, setSpellSuggestions] = useState<{ correctedQuery: string; confidence: number }[]>([]);
   const [spellCheckLogId, setSpellCheckLogId] = useState<string | null>(null);
+  const [originalTypedQuery, setOriginalTypedQuery] = useState<string | null>(null);
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
+  const [noCorrect, setNoCorrect] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);
+  const suggestionSourceRef = useRef<'opensearch' | 'wikipedia_panel' | null>(null);
+  const programmaticQueryUpdateRef = useRef(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -84,6 +89,10 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       setQuery('');
       setSpellSuggestions([]);
       setSpellCheckLogId(null);
+      setOriginalTypedQuery(null);
+      setCorrectedQuery(null);
+      setNoCorrect(false);
+      suggestionSourceRef.current = null;
     }
   }, [isOpen, initialQuery]);
 
@@ -111,7 +120,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
     };
   }, [isOpen, onClose]);
 
-  const performSearch = useCallback(async (searchTerm: string) => {
+  const performSearch = useCallback(async (searchTerm: string, skipCorrection = false) => {
     if (!searchTerm.trim()) {
       if (isMountedRef.current) {
         setResults([]);
@@ -125,6 +134,8 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
     abortControllerRef.current = new AbortController();
     const currentController = abortControllerRef.current;
+
+    suggestionSourceRef.current = null;
 
     if (isMountedRef.current) {
       setLoading(true);
@@ -143,16 +154,23 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
       const wikipediaSpellCheckPromise = (async () => {
         if (searchTerm.length >= 3) {
-          const learnedCorrection = await getLearnedCorrection(searchTerm);
+          if (!skipCorrection) {
+            console.log('[QuickSearchModal] Step 1: Checking database for learned Wikipedia corrections...');
+            const learnedCorrection = await getLearnedCorrection(searchTerm);
 
-          if (currentController.signal.aborted || !isMountedRef.current) return null;
+            if (currentController.signal.aborted || !isMountedRef.current) return null;
 
-          if (learnedCorrection) {
-            return {
-              suggestion: learnedCorrection.correction,
-              confidence: learnedCorrection.confidence,
-              source: 'wikipedia_opensearch' as const
-            };
+            if (learnedCorrection) {
+              console.log(`[QuickSearchModal] Found learned correction: "${learnedCorrection.correction}"`);
+              return {
+                suggestion: learnedCorrection.correction,
+                confidence: learnedCorrection.confidence,
+                source: 'wikipedia_opensearch' as const,
+                isLearned: true
+              };
+            }
+          } else {
+            console.log('[QuickSearchModal] SKIPPING learned correction check (user chose to search original term)');
           }
 
           const wikiSpellCheck = await checkWikipediaSpelling(searchTerm);
@@ -160,7 +178,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           if (currentController.signal.aborted || !isMountedRef.current) return null;
 
           if (wikiSpellCheck) {
-            return wikiSpellCheck;
+            return { ...wikiSpellCheck, isLearned: false };
           }
         }
         return null;
@@ -252,6 +270,17 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       if (currentController.signal.aborted || !isMountedRef.current) return;
 
       if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm && isMountedRef.current) {
+        if ((wikiSpellCheckResult as any).isLearned) {
+          console.log('[QuickSearchModal] LEARNED correction - auto-correcting to:', wikiSpellCheckResult.suggestion);
+          setOriginalTypedQuery(searchTerm);
+          setCorrectedQuery(wikiSpellCheckResult.suggestion);
+          programmaticQueryUpdateRef.current = true;
+          setQuery(wikiSpellCheckResult.suggestion);
+          performSearch(wikiSpellCheckResult.suggestion, true);
+          return;
+        }
+
+        suggestionSourceRef.current = 'opensearch';
         setSpellSuggestions([{
           correctedQuery: wikiSpellCheckResult.suggestion,
           confidence: wikiSpellCheckResult.confidence
@@ -270,8 +299,11 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
           setSpellCheckLogId(logId);
         }
       } else if (isMountedRef.current) {
-        setSpellSuggestions([]);
-        setSpellCheckLogId(null);
+        if (suggestionSourceRef.current !== 'wikipedia_panel') {
+          setSpellSuggestions([]);
+          setSpellCheckLogId(null);
+          suggestionSourceRef.current = null;
+        }
         await recordSpellCheckAttempt(searchTerm, null, 0.0, 0, 'wikipedia_opensearch');
       }
 
@@ -410,6 +442,7 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
 
   const handleWikipediaSpellingSuggestion = useCallback((suggestion: string, confidence: number) => {
     if (suggestion !== query && isMountedRef.current) {
+      suggestionSourceRef.current = 'wikipedia_panel';
       setSpellSuggestions([{
         correctedQuery: suggestion,
         confidence: confidence
@@ -437,14 +470,30 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
       await markSuggestionClicked(spellCheckLogId, 0);
     }
 
+    setOriginalTypedQuery(query);
+    setCorrectedQuery(suggestion);
+    setNoCorrect(false);
+    programmaticQueryUpdateRef.current = true;
     setQuery(suggestion);
     setSpellSuggestions([]);
     setSpellCheckLogId(null);
+    suggestionSourceRef.current = null;
   };
 
   useEffect(() => {
     if (query) {
+      const isProgrammatic = programmaticQueryUpdateRef.current;
+      programmaticQueryUpdateRef.current = false;
+
+      if (isProgrammatic) {
+        return;
+      }
+
       const timer = setTimeout(() => {
+        setOriginalTypedQuery(null);
+        setCorrectedQuery(null);
+        setNoCorrect(false);
+        suggestionSourceRef.current = null;
         performSearch(query);
       }, 500);
       return () => clearTimeout(timer);
@@ -628,6 +677,25 @@ export default function QuickSearchModal({ isOpen, onClose, initialQuery = '' }:
                 Found <span className="font-semibold text-gray-900">{filteredResults.length}</span> results for{' '}
                 <span className="font-semibold text-gray-900">"{query}"</span>
               </p>
+              {correctedQuery && originalTypedQuery && correctedQuery.toLowerCase() !== originalTypedQuery.toLowerCase() && (
+                <div className="mt-1 text-sm text-gray-600">
+                  Showing results for <span className="font-semibold text-gray-900">"{correctedQuery}"</span>
+                  {' · '}
+                  <button
+                    onClick={() => {
+                      setNoCorrect(true);
+                      setOriginalTypedQuery(null);
+                      setCorrectedQuery(null);
+                      programmaticQueryUpdateRef.current = true;
+                      setQuery(originalTypedQuery);
+                      performSearch(originalTypedQuery, true);
+                    }}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Search instead for "{originalTypedQuery}"
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
