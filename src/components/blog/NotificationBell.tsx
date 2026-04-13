@@ -3,6 +3,7 @@ import { Bell, X, Heart, MessageCircle, UserPlus, Sparkles, Film, Users, CheckCi
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
+import { usePlatformNotifications } from '../../contexts/PlatformNotificationsContext';
 
 interface Notification {
   id: string;
@@ -23,6 +24,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const { refreshCount } = usePlatformNotifications();
 
   const loadNotifications = useCallback(async () => {
     if (!user) return;
@@ -114,6 +116,7 @@ export default function NotificationBell() {
         )
       );
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
+      refreshCount('hublog');
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
@@ -127,6 +130,7 @@ export default function NotificationBell() {
       await supabase.rpc('mark_all_blog_notifications_read');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      refreshCount('hublog');
     } catch (error) {
       console.error('Error marking all as read:', error);
     } finally {

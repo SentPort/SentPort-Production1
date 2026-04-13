@@ -3,6 +3,7 @@ import { Home, Search, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ALL_PLATFORMS } from '../../lib/platformHelpers';
 import QuickSearchModal from './QuickSearchModal';
+import { usePlatformNotifications } from '../../contexts/PlatformNotificationsContext';
 
 interface UniversalNavigationDropdownProps {
   currentPlatform?: string;
@@ -13,6 +14,7 @@ export default function UniversalNavigationDropdown({ currentPlatform }: Univers
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { counts, formatBadge } = usePlatformNotifications();
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -119,6 +121,8 @@ export default function UniversalNavigationDropdown({ currentPlatform }: Univers
                 };
                 const iconColorClass = colorMap[platform.iconColor] || 'bg-gray-100 text-gray-600';
 
+                const badgeLabel = formatBadge(counts[platform.name as keyof typeof counts] ?? 0);
+
                 return (
                   <Link
                     key={platform.name}
@@ -129,9 +133,14 @@ export default function UniversalNavigationDropdown({ currentPlatform }: Univers
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconColorClass}`}>
                       <Icon className="w-5 h-5" />
                     </div>
-                    <span className="text-sm font-medium text-gray-900 group-hover:text-gray-700">
+                    <span className="flex-1 text-sm font-medium text-gray-900 group-hover:text-gray-700">
                       {platform.displayName}
                     </span>
+                    {badgeLabel && (
+                      <span className="min-w-[20px] h-5 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+                        {badgeLabel}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

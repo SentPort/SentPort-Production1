@@ -6,9 +6,12 @@ import { supabase } from '../lib/supabase';
 import AdminModeToggle from './shared/AdminModeToggle';
 import CompactShareButtons from './CompactShareButtons';
 import UniversalNavigationDropdown from './shared/UniversalNavigationDropdown';
+import NotificationBadge from './shared/NotificationBadge';
+import { usePlatformNotifications } from '../contexts/PlatformNotificationsContext';
 
 export default function Header() {
   const { user, isAdmin, userProfile, loading, isRefreshingSession, sessionExpired } = useAuth();
+  const { counts, formatBadge } = usePlatformNotifications();
   const [pendingAlerts, setPendingAlerts] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,12 +95,30 @@ export default function Header() {
                 <span>My Sites</span>
                 <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded font-semibold ml-1">3 FREE</span>
               </Link>
-              <Link to="/heddit" className="text-gray-700 hover:text-gray-900">Heddit</Link>
-              <Link to="/hubook" className="text-gray-700 hover:text-gray-900">HuBook</Link>
-              <Link to="/hutube" className="text-gray-700 hover:text-gray-900">HuTube</Link>
-              <Link to="/hinsta" className="text-gray-700 hover:text-gray-900">Hinsta</Link>
-              <Link to="/switter" className="text-gray-700 hover:text-gray-900">Switter</Link>
-              <Link to="/blog" className="text-gray-700 hover:text-gray-900">HuBlog</Link>
+              <Link to="/heddit" className="relative text-gray-700 hover:text-gray-900">
+                Heddit
+                <NotificationBadge label={formatBadge(counts.heddit)} />
+              </Link>
+              <Link to="/hubook" className="relative text-gray-700 hover:text-gray-900">
+                HuBook
+                <NotificationBadge label={formatBadge(counts.hubook)} />
+              </Link>
+              <Link to="/hutube" className="relative text-gray-700 hover:text-gray-900">
+                HuTube
+                <NotificationBadge label={formatBadge(counts.hutube)} />
+              </Link>
+              <Link to="/hinsta" className="relative text-gray-700 hover:text-gray-900">
+                Hinsta
+                <NotificationBadge label={formatBadge(counts.hinsta)} />
+              </Link>
+              <Link to="/switter" className="relative text-gray-700 hover:text-gray-900">
+                Switter
+                <NotificationBadge label={formatBadge(counts.switter)} />
+              </Link>
+              <Link to="/blog" className="relative text-gray-700 hover:text-gray-900">
+                HuBlog
+                <NotificationBadge label={formatBadge(counts.hublog)} />
+              </Link>
               <Link to="/about" className="text-gray-700 hover:text-gray-900">About</Link>
               <Link to="/manifesto" className="text-gray-700 hover:text-gray-900">Manifesto</Link>
             </nav>
@@ -194,12 +215,42 @@ export default function Header() {
                 My Sites
                 <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded font-semibold">3 FREE</span>
               </Link>
-              <Link to="/heddit" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Heddit</Link>
-              <Link to="/hubook" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuBook</Link>
-              <Link to="/hutube" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuTube</Link>
-              <Link to="/hinsta" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Hinsta</Link>
-              <Link to="/switter" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Switter</Link>
-              <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">HuBlog</Link>
+              <Link to="/heddit" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                Heddit
+                {formatBadge(counts.heddit) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.heddit)}</span>
+                )}
+              </Link>
+              <Link to="/hubook" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                HuBook
+                {formatBadge(counts.hubook) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.hubook)}</span>
+                )}
+              </Link>
+              <Link to="/hutube" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                HuTube
+                {formatBadge(counts.hutube) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.hutube)}</span>
+                )}
+              </Link>
+              <Link to="/hinsta" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                Hinsta
+                {formatBadge(counts.hinsta) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.hinsta)}</span>
+                )}
+              </Link>
+              <Link to="/switter" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                Switter
+                {formatBadge(counts.switter) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.switter)}</span>
+                )}
+              </Link>
+              <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="relative px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium flex items-center gap-2">
+                HuBlog
+                {formatBadge(counts.hublog) && (
+                  <span className="ml-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{formatBadge(counts.hublog)}</span>
+                )}
+              </Link>
               <Link to="/about" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">About</Link>
               <Link to="/manifesto" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium">Manifesto</Link>
               {isAdmin && (

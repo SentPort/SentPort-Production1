@@ -3,6 +3,7 @@ import { Bell, X, Check, Loader2, UserPlus, MessageCircle, Heart, Share2, AtSign
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePlatformNotifications } from '../../contexts/PlatformNotificationsContext';
 
 interface Notification {
   id: string;
@@ -32,6 +33,7 @@ export default function NotificationBellDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { refreshCount } = usePlatformNotifications();
 
   useEffect(() => {
     if (user) {
@@ -145,6 +147,7 @@ export default function NotificationBellDropdown() {
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      refreshCount('hubook');
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -165,6 +168,7 @@ export default function NotificationBellDropdown() {
 
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
+      refreshCount('hubook');
     } catch (error) {
       console.error('Error marking all as read:', error);
     }

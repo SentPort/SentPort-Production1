@@ -4,6 +4,7 @@ import { Bell, Heart, Repeat2, MessageCircle, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDistanceToNow } from '../../lib/platformHelpers';
+import { usePlatformNotifications } from '../../contexts/PlatformNotificationsContext';
 
 interface Notification {
   id: string;
@@ -26,6 +27,7 @@ export default function NotificationBellDropdown() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const { refreshCount } = usePlatformNotifications();
 
   useEffect(() => {
     if (user) {
@@ -83,6 +85,7 @@ export default function NotificationBellDropdown() {
       .eq('id', notificationId);
 
     loadNotifications();
+    refreshCount('switter');
   };
 
   const getNotificationIcon = (type: string) => {

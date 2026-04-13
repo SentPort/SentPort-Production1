@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Bell, Check, Trash2, MessageSquare, TrendingUp, MessageCircle, Users, UserPlus, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
+import { usePlatformNotifications } from '../../contexts/PlatformNotificationsContext';
 
 interface HedditNotification {
   id: string;
@@ -29,6 +30,7 @@ export default function NotificationBellDropdown() {
   const [loading, setLoading] = useState(false);
   const [hedditAccountId, setHedditAccountId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { refreshCount } = usePlatformNotifications();
 
   useEffect(() => {
     loadHedditAccount();
@@ -122,6 +124,7 @@ export default function NotificationBellDropdown() {
       prev.map(n => (n.id === notificationId ? { ...n, is_read: true } : n))
     );
     setUnreadCount(prev => Math.max(0, prev - 1));
+    refreshCount('heddit');
   };
 
   const markAllAsRead = async () => {
@@ -133,6 +136,7 @@ export default function NotificationBellDropdown() {
 
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    refreshCount('heddit');
   };
 
   const deleteNotification = async (notificationId: string) => {
