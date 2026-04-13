@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { markSuggestionClicked } from '../../lib/spellCorrection';
+import { markSuggestionClicked, learnFromWikipediaCorrections } from '../../lib/spellCorrection';
 
 interface DidYouMeanProps {
   originalQuery: string;
@@ -29,6 +29,12 @@ export function DidYouMean({
     if (spellCheckLogId) {
       console.log('[DidYouMean] Recording click for suggestion:', suggestion, 'logId:', spellCheckLogId, 'index:', index);
       await markSuggestionClicked(spellCheckLogId, index);
+      learnFromWikipediaCorrections().then(results => {
+        const learned = results.filter(r => r.learned);
+        if (learned.length > 0) {
+          console.log('[DidYouMean] Learned new corrections:', learned);
+        }
+      });
     }
 
     if (onSuggestionClick) {
