@@ -547,7 +547,7 @@ function BlogFeedContent() {
             )}
 
             {Array.isArray(pinnedPosts) && pinnedPosts.length > 0 && (
-              <div className="mb-8 mt-16">
+              <div className="mb-8 mt-40">
                 <BlogWheel
                   posts={pinnedPosts.filter(post => post && post.id)}
                   onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
