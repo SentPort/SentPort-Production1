@@ -63,6 +63,7 @@ export default function SearchResults() {
   usePageTracking('search');
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
+  const originalQuery = searchParams.get('original') || null;
   const { includeExternalContent, setIncludeExternalContent } = useSearchPreferencesContext();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,9 +165,10 @@ export default function SearchResults() {
             const result = {
               suggestion: learnedCorrection.correction,
               confidence: learnedCorrection.confidence,
-              source: 'wikipedia_opensearch' as const
+              source: 'wikipedia_opensearch' as const,
+              isLearned: true
             };
-            console.log('[Search] Returning learned correction:', result);
+            console.log('[Search] Returning learned correction (will auto-redirect):', result);
             return result;
           }
 
@@ -184,7 +186,7 @@ export default function SearchResults() {
           if (wikiSpellCheck) {
             console.log(`[Search] ✓ Wikipedia spell suggestion found: "${wikiSpellCheck.suggestion}" (confidence: ${wikiSpellCheck.confidence})`);
             console.log('[Search] ========== WIKIPEDIA SPELL CHECK END (SUCCESS) ==========');
-            return wikiSpellCheck;
+            return { ...wikiSpellCheck, isLearned: false };
           } else {
             console.log('[Search] ✗ No Wikipedia spell suggestion');
             console.log('[Search] ========== WIKIPEDIA SPELL CHECK END (NO RESULT) ==========');
@@ -295,10 +297,17 @@ export default function SearchResults() {
       }
 
       // Use ONLY Wikipedia suggestions (with database-first check for learned corrections)
-      // NO fuzzy matching, NO combining multiple sources
-      // IMPORTANT: Use exact string comparison, not case-insensitive
-      // We want "Adam Smith" to be suggested when user types "adma smith"
+      // If correction is LEARNED (from DB), auto-redirect immediately.
+      // If correction is from Wikipedia API, show the "Try searching for" suggestion box.
       if (wikiSpellCheckResult && wikiSpellCheckResult.suggestion !== searchTerm && isMountedRef.current) {
+        if ((wikiSpellCheckResult as any).isLearned) {
+          console.log('[Search] ✓ LEARNED correction found - auto-redirecting to:', wikiSpellCheckResult.suggestion);
+          setShowingResultsFor(searchTerm);
+          setCorrectedQuery(wikiSpellCheckResult.suggestion);
+          navigate(`/search?q=${encodeURIComponent(wikiSpellCheckResult.suggestion)}&original=${encodeURIComponent(searchTerm)}`, { replace: true });
+          return;
+        }
+
         console.log('[Search] ✓ Spell suggestion ACCEPTED - Creating suggestion UI');
         console.log('[Search] Wikipedia spell suggestion accepted:', {
           original: searchTerm,
@@ -846,19 +855,15 @@ export default function SearchResults() {
                     {filteredByLanguageCount} non-English result{filteredByLanguageCount !== 1 ? 's' : ''} filtered
                   </p>
                 )}
-                {showingResultsFor && showingResultsFor.toLowerCase() !== query.toLowerCase() && (
-                  <div className="mt-3 text-sm">
-                    <p className="text-gray-600">
-                      Showing results for <span className="font-semibold text-gray-900">{showingResultsFor}</span>
-                    </p>
+                {originalQuery && originalQuery.toLowerCase() !== query.toLowerCase() && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    Showing results for <span className="font-semibold text-gray-900">"{query}"</span>
+                    {' · '}
                     <button
-                      onClick={() => {
-                        navigate(`/search?q=${encodeURIComponent(query)}`);
-                        window.location.reload();
-                      }}
-                      className="text-blue-600 hover:underline text-sm mt-1"
+                      onClick={() => navigate(`/search?q=${encodeURIComponent(originalQuery)}`)}
+                      className="text-blue-600 hover:underline"
                     >
-                      Search instead for {query}
+                      Search instead for "{originalQuery}"
                     </button>
                   </div>
                 )}
