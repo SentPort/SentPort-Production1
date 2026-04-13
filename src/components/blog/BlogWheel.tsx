@@ -220,7 +220,7 @@ export default function BlogWheel({ posts, onPostClick, title, subtitle, onRemov
     <>
       <div
         ref={wheelRef}
-        className="relative min-h-[450px] md:min-h-[550px] mb-20 overflow-visible select-none w-full"
+        className="relative min-h-[450px] md:min-h-[550px] mb-4 overflow-visible select-none w-full"
         style={{
           perspective: '2000px',
           filter: 'drop-shadow(0 0 40px rgba(251, 191, 36, 0.15))'
@@ -298,7 +298,7 @@ export default function BlogWheel({ posts, onPostClick, title, subtitle, onRemov
         )}
       </div>
 
-      <div className="w-full mt-8 space-y-6">
+      <div className="w-full mt-0 space-y-6">
         {(title || subtitle) && (
           <div className="text-center px-4 relative z-50">
             {title && (
