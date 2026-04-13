@@ -154,6 +154,22 @@ function ProposalReviewContent() {
     }
   };
 
+  const sendCollabNotifications = async (
+    recipients: ProposalMember[],
+    message: string
+  ) => {
+    if (!user || recipients.length === 0) return;
+    const notifications = recipients.map(m => ({
+      recipient_id: m.invitee_id,
+      actor_id: user.id,
+      type: 'collaboration_proposal',
+      message,
+    }));
+    await supabase.rpc('insert_blog_collaboration_notifications', {
+      p_notifications: notifications,
+    });
+  };
+
   const handleApprove = async () => {
     if (!user || !proposalId) return;
 
@@ -167,23 +183,12 @@ function ProposalReviewContent() {
         .eq('proposal_id', proposalId)
         .eq('invitee_id', user.id);
 
-      // Notify all other members (including initiator) that this person approved
       const otherMembers = members.filter(m => m.invitee_id !== user.id);
-      if (otherMembers.length > 0) {
-        await supabase
-          .from('blog_notifications')
-          .insert(
-            otherMembers.map(m => ({
-              recipient_id: m.invitee_id,
-              actor_id: user.id,
-              type: 'collaboration_proposal',
-              message: `approved the collaboration proposal "${proposal.title}"`,
-            }))
-          );
-      }
+      await sendCollabNotifications(
+        otherMembers,
+        `approved the collaboration proposal "${proposal.title}"`
+      );
 
-      // Check if all members approved — the DB trigger handles creating the
-      // collaboration, but we also handle it here as a fallback
       const { data: allMembers } = await supabase
         .from('blog_collaboration_proposal_members')
         .select('status, invitee_id, is_initiator')
@@ -192,7 +197,6 @@ function ProposalReviewContent() {
       const allApproved = allMembers?.every(m => m.status === 'approved');
 
       if (allApproved) {
-        // Check if collaboration was already created by the trigger
         const { data: existingCollab } = await supabase
           .from('blog_collaborations')
           .select('id')
@@ -204,7 +208,6 @@ function ProposalReviewContent() {
           return;
         }
 
-        // Create the actual collaboration if trigger didn't
         const { data: collab } = await supabase
           .from('blog_collaborations')
           .insert({
@@ -222,8 +225,8 @@ function ProposalReviewContent() {
           const memberInserts = (allMembers || []).map(m => ({
             collaboration_id: collab.id,
             user_id: m.invitee_id,
-            role: m.is_initiator ? 'admin' : 'editor',
-            status: 'accepted',
+            role: m.is_initiator ? 'creator' : 'editor',
+            status: 'active',
           }));
 
           await supabase
@@ -272,20 +275,11 @@ function ProposalReviewContent() {
         .update({ status: 'rejected' })
         .eq('id', proposalId);
 
-      // Notify all other members (including initiator) that someone rejected
       const otherMembers = members.filter(m => m.invitee_id !== user.id);
-      if (otherMembers.length > 0) {
-        await supabase
-          .from('blog_notifications')
-          .insert(
-            otherMembers.map(m => ({
-              recipient_id: m.invitee_id,
-              actor_id: user.id,
-              type: 'collaboration_proposal',
-              message: `declined the collaboration proposal "${proposal.title}"`,
-            }))
-          );
-      }
+      await sendCollabNotifications(
+        otherMembers,
+        `declined the collaboration proposal "${proposal.title}"`
+      );
 
       navigate('/blog/collaborations/proposals');
     } catch (error) {
@@ -316,20 +310,11 @@ function ProposalReviewContent() {
           version_number: (proposal.current_version || 1) + 1,
         });
 
-      // Notify other members
       const otherMembers = members.filter(m => m.invitee_id !== user.id);
-      const notificationInserts = otherMembers.map(m => ({
-        recipient_id: m.invitee_id,
-        actor_id: user.id,
-        type: 'collaboration_proposal',
-        message: `revised the proposal "${proposal.title}"`,
-      }));
-
-      if (notificationInserts.length > 0) {
-        await supabase
-          .from('blog_notifications')
-          .insert(notificationInserts);
-      }
+      await sendCollabNotifications(
+        otherMembers,
+        `revised the proposal "${proposal.title}"`
+      );
 
       setShowRevisionModal(false);
       setRevisionNotes('');

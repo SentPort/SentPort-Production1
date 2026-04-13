@@ -33,7 +33,6 @@ interface CollaborationMember {
   user_profile: {
     username: string;
     display_name: string;
-    full_name: string;
     avatar_url: string | null;
   };
 }
@@ -47,7 +46,6 @@ interface ChatMessage {
   sender: {
     username: string;
     display_name: string;
-    full_name: string;
     avatar_url: string | null;
   };
 }
@@ -62,7 +60,6 @@ interface ActiveEditor {
   };
   user_profile: {
     display_name: string;
-    full_name: string;
     avatar_url: string | null;
   };
 }
@@ -234,12 +231,11 @@ function CollaborationWorkspaceContent() {
           user_profile:user_id (
             username,
             display_name,
-            full_name,
             avatar_url
           )
         `)
         .eq('collaboration_id', collaborationId)
-        .eq('status', 'accepted');
+        .in('status', ['active', 'accepted']);
 
       if (data) {
         setMembers(data);
@@ -262,7 +258,6 @@ function CollaborationWorkspaceContent() {
           cursor_position,
           user_profile:user_id (
             display_name,
-            full_name,
             avatar_url
           )
         `)
@@ -313,7 +308,6 @@ function CollaborationWorkspaceContent() {
           sender:sender_id (
             username,
             display_name,
-            full_name,
             avatar_url
           )
         `)
@@ -515,7 +509,7 @@ function CollaborationWorkspaceContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
-                to="/blog/collaborations/proposals"
+                to="/blog/collaborations"
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />

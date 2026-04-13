@@ -256,9 +256,9 @@ function CollaborationsContent() {
           message: `invited you to collaborate on "${newCollabTitle.trim()}"`,
         }));
 
-        await supabase
-          .from('blog_notifications')
-          .insert(notificationInserts);
+        await supabase.rpc('insert_blog_collaboration_notifications', {
+          p_notifications: notificationInserts,
+        });
 
         // Reset form and close modal
         setShowCreateModal(false);

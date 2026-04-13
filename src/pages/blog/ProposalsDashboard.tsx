@@ -79,16 +79,26 @@ function ProposalsDashboardContent() {
       if (activeTab === 'received') {
         query = query.eq('is_initiator', false).in('status', ['invited', 'revision_requested']);
       } else if (activeTab === 'sent') {
-        query = query.eq('is_initiator', true).neq('blog_collaboration_proposals.status', 'active');
+        query = query.eq('is_initiator', true);
       } else {
-        query = query.eq('blog_collaboration_proposals.status', 'active');
+        query = query.in('status', ['active', 'accepted']);
       }
 
       const { data } = await query;
 
       if (data) {
+        const filtered = data.filter((item: any) => {
+          const proposalStatus = item.blog_collaboration_proposals?.status;
+          if (activeTab === 'sent') {
+            return proposalStatus !== 'active';
+          } else if (activeTab === 'active') {
+            return proposalStatus === 'active';
+          }
+          return true;
+        });
+
         const proposalsWithCounts = await Promise.all(
-          data.map(async (item: any) => {
+          filtered.map(async (item: any) => {
             const proposal = item.blog_collaboration_proposals;
 
             const { count: totalMembers } = await supabase
