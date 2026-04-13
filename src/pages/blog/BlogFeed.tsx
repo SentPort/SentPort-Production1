@@ -507,8 +507,19 @@ function BlogFeedContent() {
           </div>
         ) : (
           <>
-            {Array.isArray(posts) && posts.length > 0 && (
+            {Array.isArray(pinnedPosts) && pinnedPosts.length > 0 && (
               <div className="mb-8 mt-16">
+                <BlogWheel
+                  posts={pinnedPosts.filter(post => post && post.id)}
+                  onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
+                  title="Featured Stories"
+                  subtitle="Handpicked by our community curators"
+                />
+              </div>
+            )}
+
+            {Array.isArray(posts) && posts.length > 0 && (
+              <div className={`mb-8 ${Array.isArray(pinnedPosts) && pinnedPosts.length > 0 ? 'mt-40' : 'mt-16'}`}>
                 <BlogWheel
                   posts={posts.filter(post => post && post.id)}
                   onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
@@ -543,17 +554,6 @@ function BlogFeedContent() {
                     }}
                   />
                 ))}
-              </div>
-            )}
-
-            {Array.isArray(pinnedPosts) && pinnedPosts.length > 0 && (
-              <div className="mb-8 mt-40">
-                <BlogWheel
-                  posts={pinnedPosts.filter(post => post && post.id)}
-                  onPostClick={(postId) => navigate(`/blog/post/${postId}`)}
-                  title="Featured Stories"
-                  subtitle="Handpicked by our community curators"
-                />
               </div>
             )}
           </>
