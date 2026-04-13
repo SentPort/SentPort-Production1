@@ -64,6 +64,7 @@ export default function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
   const originalQuery = searchParams.get('original') || null;
+  const noCorrect = searchParams.get('noCorrect') === 'true';
   const { includeExternalContent, setIncludeExternalContent } = useSearchPreferencesContext();
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,16 +104,16 @@ export default function SearchResults() {
 
   useEffect(() => {
     if (query) {
-      performSearch(query);
+      performSearch(query, noCorrect);
     }
-  }, [query, includeExternalContent]);
+  }, [query, includeExternalContent, noCorrect]);
 
   useEffect(() => {
     setCurrentPage(1);
     updatePageInUrl(1, searchParams, setSearchParams);
   }, [query, activeTab, showAllDuplicates, includeExternalContent]);
 
-  const performSearch = useCallback(async (searchTerm: string) => {
+  const performSearch = useCallback(async (searchTerm: string, skipCorrection = false) => {
     if (!searchTerm.trim()) {
       if (isMountedRef.current) {
         setResults([]);
@@ -152,24 +153,29 @@ export default function SearchResults() {
           console.log('[Search] Search term:', searchTerm);
 
           // Check database FIRST for learned corrections from Wikipedia
-          console.log('[Search] Step 1: Checking database for learned Wikipedia corrections...');
-          const learnedCorrection = await getLearnedCorrection(searchTerm);
+          // Skip this check if the user explicitly chose to search the original term
+          if (!skipCorrection) {
+            console.log('[Search] Step 1: Checking database for learned Wikipedia corrections...');
+            const learnedCorrection = await getLearnedCorrection(searchTerm);
 
-          if (currentController.signal.aborted || !isMountedRef.current) {
-            console.log('[Search] Aborted after database check');
-            return null;
-          }
+            if (currentController.signal.aborted || !isMountedRef.current) {
+              console.log('[Search] Aborted after database check');
+              return null;
+            }
 
-          if (learnedCorrection) {
-            console.log(`[Search] ✓ Found learned correction: "${learnedCorrection.correction}" (confidence: ${learnedCorrection.confidence})`);
-            const result = {
-              suggestion: learnedCorrection.correction,
-              confidence: learnedCorrection.confidence,
-              source: 'wikipedia_opensearch' as const,
-              isLearned: true
-            };
-            console.log('[Search] Returning learned correction (will auto-redirect):', result);
-            return result;
+            if (learnedCorrection) {
+              console.log(`[Search] ✓ Found learned correction: "${learnedCorrection.correction}" (confidence: ${learnedCorrection.confidence})`);
+              const result = {
+                suggestion: learnedCorrection.correction,
+                confidence: learnedCorrection.confidence,
+                source: 'wikipedia_opensearch' as const,
+                isLearned: true
+              };
+              console.log('[Search] Returning learned correction (will auto-redirect):', result);
+              return result;
+            }
+          } else {
+            console.log('[Search] Step 1: SKIPPING learned correction check (user chose to search original term)');
           }
 
           // If not in database, call Wikipedia OpenSearch API
@@ -860,7 +866,7 @@ export default function SearchResults() {
                     Showing results for <span className="font-semibold text-gray-900">"{query}"</span>
                     {' · '}
                     <button
-                      onClick={() => navigate(`/search?q=${encodeURIComponent(originalQuery)}`)}
+                      onClick={() => navigate(`/search?q=${encodeURIComponent(originalQuery)}&noCorrect=true`)}
                       className="text-blue-600 hover:underline"
                     >
                       Search instead for "{originalQuery}"
