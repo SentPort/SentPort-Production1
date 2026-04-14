@@ -12,6 +12,7 @@ import DeleteSubdomainModal from '../components/shared/DeleteSubdomainModal';
 import SetPrimarySubdomainModal from '../components/shared/SetPrimarySubdomainModal';
 import SubdomainDashboardNotification from '../components/shared/SubdomainDashboardNotification';
 import { getUserPlatformsWithStatus, PlatformInfo } from '../lib/platformHelpers';
+import { usePlatformNotifications } from '../contexts/PlatformNotificationsContext';
 
 interface PlatformStats {
   platform: string;
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [userPlatforms, setUserPlatforms] = useState<PlatformInfo[]>([]);
   const [loadingPlatforms, setLoadingPlatforms] = useState(true);
   const [platformRefreshTrigger, setPlatformRefreshTrigger] = useState(0);
+  const { counts, formatBadge } = usePlatformNotifications();
 
   useEffect(() => {
     // Only redirect if we're not loading, there's no user, no session,
@@ -332,14 +334,22 @@ export default function Dashboard() {
                     .filter(platform => platform.joined)
                     .map((platform) => {
                       const IconComponent = platform.icon;
+                      const badge = formatBadge(counts[platform.name as keyof typeof counts] ?? 0);
                       return (
                         <Link
                           key={platform.name}
                           to={platform.route}
                           className="flex flex-col items-center p-4 rounded-lg hover:bg-gray-50 transition-colors group"
                         >
-                          <div className={`${platform.iconColor} w-16 h-16 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                            <IconComponent className="w-8 h-8 text-white" />
+                          <div className="relative mb-3">
+                            <div className={`${platform.iconColor} w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                              <IconComponent className="w-8 h-8 text-white" />
+                            </div>
+                            {badge && (
+                              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">
+                                {badge}
+                              </span>
+                            )}
                           </div>
                           <span className="text-sm font-semibold text-gray-900">{platform.displayName}</span>
                         </Link>
