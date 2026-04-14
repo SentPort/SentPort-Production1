@@ -14,11 +14,31 @@ export default function BlogSidebar({ isOpen = true, onClose }: BlogSidebarProps
   const { user } = useAuth();
   const [stats, setStats] = useState({ posts: 0, reads: 0, followers: 0 });
   const [draftCount, setDraftCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       loadStats();
       loadDraftCount();
+      loadUnreadMessageCount();
+
+      const messagesSubscription = supabase
+        .channel('blog_sidebar_message_counts')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'blog_conversation_participants' },
+          () => { loadUnreadMessageCount(); }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'blog_messages' },
+          () => { loadUnreadMessageCount(); }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(messagesSubscription);
+      };
     }
   }, [user]);
 
@@ -71,6 +91,25 @@ export default function BlogSidebar({ isOpen = true, onClose }: BlogSidebarProps
     }
   };
 
+  const loadUnreadMessageCount = async () => {
+    if (!user) return;
+
+    try {
+      const { data } = await supabase
+        .from('blog_conversation_participants')
+        .select('unread_count')
+        .eq('account_id', user.id)
+        .is('deleted_at', null);
+
+      if (data) {
+        const total = data.reduce((sum: number, row: any) => sum + (row.unread_count || 0), 0);
+        setUnreadMessageCount(total);
+      }
+    } catch (error) {
+      console.error('Error loading unread message count:', error);
+    }
+  };
+
   const navItems = [
     { path: '/blog', icon: Home, label: 'Feed', exact: true },
     { path: '/blog/trending', icon: TrendingUp, label: 'Trending' },
@@ -79,7 +118,7 @@ export default function BlogSidebar({ isOpen = true, onClose }: BlogSidebarProps
     { path: '/blog/drafts', icon: FileText, label: 'Drafts', badge: draftCount },
     { path: '/blog/saved', icon: Bookmark, label: 'Saved' },
     { path: '/blog/collections', icon: FolderHeart, label: 'Collections' },
-    { path: '/blog/messages', icon: MessageCircle, label: 'Messages' },
+    { path: '/blog/messages', icon: MessageCircle, label: 'Messages', badge: unreadMessageCount },
     { path: '/blog/collaborations', icon: PenTool, label: 'Collaborations' },
     { path: '/blog/reading-history', icon: Clock, label: 'History' },
   ];
