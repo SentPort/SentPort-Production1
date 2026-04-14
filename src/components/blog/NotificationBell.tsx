@@ -14,6 +14,7 @@ interface Notification {
   post_id?: string;
   reaction_type?: string;
   message?: string;
+  conversation_id?: string;
   is_read: boolean;
   created_at: string;
 }
@@ -39,6 +40,7 @@ export default function NotificationBell() {
           message,
           is_read,
           created_at,
+          conversation_id,
           actor:actor_id (
             username,
             avatar_url
@@ -63,6 +65,7 @@ export default function NotificationBell() {
         post_id: notif.post?.id,
         reaction_type: notif.reaction_type,
         message: notif.message,
+        conversation_id: notif.conversation_id,
         is_read: notif.is_read,
         created_at: notif.created_at
       }));
@@ -145,6 +148,7 @@ export default function NotificationBell() {
     if (type === 'collaboration_published') return <CheckCircle className="w-4 h-4 text-green-500" />;
     if (type === 'proposal_rescinded') return <XCircle className="w-4 h-4 text-red-500" />;
     if (type === 'proposal_approved') return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+    if (type === 'message') return <MessageCircle className="w-4 h-4 text-emerald-500" />;
     if (type === 'reaction') {
       if (reactionType === 'love') return <Heart className="w-4 h-4 text-red-500" />;
       if (reactionType === 'inspiring') return <Sparkles className="w-4 h-4 text-yellow-500" />;
@@ -179,12 +183,17 @@ export default function NotificationBell() {
         return <span>{username} withdrew a collaboration proposal</span>;
       case 'proposal_approved':
         return <span>{notif.message || 'A collaboration proposal was fully approved!'}</span>;
+      case 'message':
+        return <span>{username} sent you a message</span>;
       default:
         return <span>New notification from {username}</span>;
     }
   };
 
   const getNotificationLink = (notif: Notification) => {
+    if (notif.type === 'message' && notif.conversation_id) {
+      return `/blog/messages?conversation=${notif.conversation_id}`;
+    }
     if (notif.type === 'collaboration_published' && notif.post_id) {
       return `/blog/post/${notif.post_id}`;
     }

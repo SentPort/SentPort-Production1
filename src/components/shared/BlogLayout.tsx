@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, SquarePen as PenSquare, Compass, Bookmark, Search, FileText, Menu } from 'lucide-react';
+import { BookOpen, SquarePen as PenSquare, Compass, Bookmark, Search, FileText, Menu, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PlatformHeaderDropdown from './PlatformHeaderDropdown';
@@ -22,13 +22,15 @@ export default function BlogLayout({ children, showCreateButton = true, showBack
   const { user } = useAuth();
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       loadDraftCount();
+      loadUnreadMessageCount();
       supabase.rpc('track_user_activity', { p_user_id: user.id, p_platform: 'blog' }).then(() => {});
 
-      const subscription = supabase
+      const draftsSubscription = supabase
         .channel('blog_drafts_changes')
         .on(
           'postgres_changes',
@@ -38,14 +40,27 @@ export default function BlogLayout({ children, showCreateButton = true, showBack
             table: 'blog_posts',
             filter: `account_id=eq.${user.id}`
           },
-          () => {
-            loadDraftCount();
-          }
+          () => { loadDraftCount(); }
+        )
+        .subscribe();
+
+      const messagesSubscription = supabase
+        .channel('blog_layout_message_counts')
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'blog_conversation_participants' },
+          () => { loadUnreadMessageCount(); }
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'blog_messages' },
+          () => { loadUnreadMessageCount(); }
         )
         .subscribe();
 
       return () => {
-        subscription.unsubscribe();
+        draftsSubscription.unsubscribe();
+        supabase.removeChannel(messagesSubscription);
       };
     }
   }, [user]);
@@ -61,6 +76,21 @@ export default function BlogLayout({ children, showCreateButton = true, showBack
 
     if (!error && count !== null) {
       setDraftCount(count);
+    }
+  };
+
+  const loadUnreadMessageCount = async () => {
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('blog_conversation_participants')
+      .select('unread_count')
+      .eq('account_id', user.id)
+      .is('deleted_at', null);
+
+    if (data) {
+      const total = data.reduce((sum: number, row: any) => sum + (row.unread_count || 0), 0);
+      setUnreadMessageCount(total);
     }
   };
 
@@ -128,6 +158,18 @@ export default function BlogLayout({ children, showCreateButton = true, showBack
                     title="Saved Stories"
                   >
                     <Bookmark className="w-6 h-6 text-gray-700" />
+                  </button>
+                  <button
+                    onClick={() => navigate('/blog/messages')}
+                    className="relative p-2 rounded-full hover:bg-gray-100 transition-colors hidden md:block"
+                    title="Messages"
+                  >
+                    <MessageCircle className="w-6 h-6 text-gray-700" />
+                    {unreadMessageCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                      </span>
+                    )}
                   </button>
                   <NotificationBell />
                 </>

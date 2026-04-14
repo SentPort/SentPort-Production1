@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, MessageCircle, Send, Paperclip } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { Send, MessageCircle, Star, MessageSquarePlus, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import BlogLayout from '../../components/shared/BlogLayout';
 import PlatformGuard from '../../components/shared/PlatformGuard';
+import BlogDeleteConversationModal from '../../components/blog/BlogDeleteConversationModal';
+import BlogConversationBlockedBanner from '../../components/blog/BlogConversationBlockedBanner';
+import BlogConversationOptionsMenu from '../../components/blog/BlogConversationOptionsMenu';
+import NewBlogConversationModal from '../../components/blog/NewBlogConversationModal';
 
 export default function Messages() {
   return (
@@ -14,231 +18,383 @@ export default function Messages() {
   );
 }
 
-interface Conversation {
-  id: string;
-  participant_1_id: string;
-  participant_2_id: string;
-  last_message_at: string;
-  other_user: {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar_url: string | null;
-  };
-  last_message?: {
-    content: string;
-    sender_id: string;
-  };
-  unread_count: number;
+interface ConversationSetting {
+  isFavorite: boolean;
+  isHidden: boolean;
 }
 
-interface Message {
+interface OtherUser {
   id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  read_at: string | null;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
 }
 
 function MessagesContent() {
+  const [searchParams] = useSearchParams();
+  const conversationParam = searchParams.get('conversation');
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [conversationOtherUsers, setConversationOtherUsers] = useState<Map<string, OtherUser>>(new Map());
+  const [conversationSettings, setConversationSettings] = useState<Map<string, ConversationSetting>>(new Map());
+  const [conversationUnreadCounts, setConversationUnreadCounts] = useState<Map<string, number>>(new Map());
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'favorites' | 'hidden'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
+  const [otherParticipantBlocked, setOtherParticipantBlocked] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const processedConversationParam = useRef<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      loadConversations();
-    }
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    if (user) loadConversations();
   }, [user]);
 
   useEffect(() => {
-    if (selectedConversation) {
-      loadMessages(selectedConversation);
-      markMessagesAsRead(selectedConversation);
+    if (!conversationParam || !user || processedConversationParam.current === conversationParam) return;
+    processedConversationParam.current = conversationParam;
+
+    const alreadyLoaded = conversations.some((c) => c.id === conversationParam);
+    if (alreadyLoaded) {
+      setSelectedConversation(conversationParam);
+      return;
     }
-  }, [selectedConversation]);
 
-  // Real-time subscription for new messages
+    setSelectedConversation(conversationParam);
+    loadConversations().then(() => {
+      setSelectedConversation(conversationParam);
+    });
+  }, [conversationParam, user, conversations.length]);
+
   useEffect(() => {
-    if (!selectedConversation) return;
+    if (!selectedConversation || !user) return;
 
-    const messagesChannel = supabase
-      .channel(`messages:${selectedConversation}`)
+    loadMessages(selectedConversation);
+    checkOtherParticipantBlocked(selectedConversation);
+
+    const channel = supabase
+      .channel(`blog-conv-${selectedConversation}`)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'blog_messages',
-          filter: `conversation_id=eq.${selectedConversation}`,
-        },
+        { event: 'INSERT', schema: 'public', table: 'blog_messages', filter: `conversation_id=eq.${selectedConversation}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
-          markMessagesAsRead(selectedConversation);
+          const msg = payload.new as any;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+          if (msg.sender_id !== user.id) {
+            markConversationRead(selectedConversation);
+          }
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(messagesChannel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [selectedConversation]);
 
-  // Real-time subscription for conversation updates
   useEffect(() => {
     if (!user) return;
 
-    const conversationsChannel = supabase
-      .channel('conversations')
+    const channel = supabase
+      .channel('blog-participant-changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'blog_conversations',
-        },
-        () => {
-          loadConversations();
-        }
+        { event: 'UPDATE', schema: 'public', table: 'blog_conversation_participants' },
+        () => { loadConversations(); }
       )
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'blog_messages',
-        },
-        () => {
-          loadConversations();
-        }
+        { event: 'INSERT', schema: 'public', table: 'blog_messages' },
+        () => { loadConversations(); }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(conversationsChannel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [user]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [messages.length]);
 
   const loadConversations = async () => {
     if (!user) return;
 
-    try {
-      const { data: convData } = await supabase
-        .from('blog_conversations')
-        .select('*')
-        .or(`participant_1_id.eq.${user.id},participant_2_id.eq.${user.id}`)
-        .order('last_message_at', { ascending: false });
+    const { data: participantData } = await supabase
+      .from('blog_conversation_participants')
+      .select('conversation_id, is_favorite, is_hidden, unread_count, blog_conversations!blog_conversation_participants_conversation_id_fkey(*)')
+      .eq('account_id', user.id)
+      .is('deleted_at', null)
+      .order('is_favorite', { ascending: false });
 
-      if (convData) {
-        const conversationsWithDetails = await Promise.all(
-          convData.map(async (conv) => {
-            const otherUserId = conv.participant_1_id === user.id ? conv.participant_2_id : conv.participant_1_id;
+    if (participantData) {
+      const convs = participantData
+        .map((p: any) => p.blog_conversations)
+        .filter(Boolean)
+        .sort((a: any, b: any) => {
+          const ta = a.last_message_at || a.created_at;
+          const tb = b.last_message_at || b.created_at;
+          return new Date(tb).getTime() - new Date(ta).getTime();
+        });
 
-            const { data: otherUser } = await supabase
-              .from('blog_accounts')
-              .select('id, username, display_name, avatar_url')
-              .eq('id', otherUserId)
-              .single();
+      setConversations(convs);
 
-            const { data: lastMsg } = await supabase
-              .from('blog_messages')
-              .select('content, sender_id')
-              .eq('conversation_id', conv.id)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
+      const settingsMap = new Map<string, ConversationSetting>();
+      const unreadMap = new Map<string, number>();
+      participantData.forEach((p: any) => {
+        settingsMap.set(p.conversation_id, {
+          isFavorite: p.is_favorite || false,
+          isHidden: p.is_hidden || false,
+        });
+        unreadMap.set(p.conversation_id, p.unread_count || 0);
+      });
+      setConversationSettings(settingsMap);
+      setConversationUnreadCounts(unreadMap);
 
-            const { count: unreadCount } = await supabase
-              .from('blog_messages')
-              .select('*', { count: 'exact', head: true })
-              .eq('conversation_id', conv.id)
-              .neq('sender_id', user.id)
-              .is('read_at', null);
-
-            return {
-              ...conv,
-              other_user: otherUser!,
-              last_message: lastMsg || undefined,
-              unread_count: unreadCount || 0,
-            };
-          })
-        );
-
-        setConversations(conversationsWithDetails);
+      const otherUsersMap = new Map<string, OtherUser>();
+      for (const conv of convs) {
+        const otherAccountId =
+          conv.participant_1_id === user.id ? conv.participant_2_id : conv.participant_1_id;
+        if (otherAccountId) {
+          const { data: acct } = await supabase
+            .from('blog_accounts')
+            .select('id, username, display_name, avatar_url')
+            .eq('id', otherAccountId)
+            .maybeSingle();
+          if (acct) otherUsersMap.set(conv.id, acct);
+        }
       }
-    } catch (error) {
-      console.error('Error loading conversations:', error);
-    } finally {
-      setLoading(false);
+      setConversationOtherUsers(otherUsersMap);
     }
+
+    setLoading(false);
   };
 
   const loadMessages = async (conversationId: string) => {
-    try {
-      const { data } = await supabase
-        .from('blog_messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+    const { data } = await supabase
+      .from('blog_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
 
-      if (data) {
-        setMessages(data);
-      }
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    }
+    if (data) setMessages(data);
+    markConversationRead(conversationId);
   };
 
-  const markMessagesAsRead = async (conversationId: string) => {
+  const checkOtherParticipantBlocked = async (conversationId: string) => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('blog_conversation_participants')
+      .select('permanently_blocked')
+      .eq('conversation_id', conversationId)
+      .neq('account_id', user.id)
+      .maybeSingle();
+
+    setOtherParticipantBlocked(data?.permanently_blocked || false);
+  };
+
+  const markConversationRead = async (conversationId: string) => {
     if (!user) return;
 
     await supabase
       .from('blog_messages')
-      .update({ read_at: new Date().toISOString() })
+      .update({ is_read: true })
       .eq('conversation_id', conversationId)
       .neq('sender_id', user.id)
-      .is('read_at', null);
+      .eq('is_read', false);
+
+    await supabase
+      .from('blog_conversation_participants')
+      .update({ unread_count: 0, last_read_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('account_id', user.id);
+
+    await supabase
+      .from('blog_notifications')
+      .update({ is_read: true })
+      .eq('recipient_id', user.id)
+      .eq('conversation_id', conversationId)
+      .eq('is_read', false);
+
+    setConversationUnreadCounts((prev) => {
+      const next = new Map(prev);
+      next.set(conversationId, 0);
+      return next;
+    });
   };
 
   const sendMessage = async () => {
-    if (!user || !selectedConversation || !newMessage.trim()) return;
+    if (!user || !selectedConversation || !newMessage.trim() || sending) return;
 
-    try {
-      const { error } = await supabase
-        .from('blog_messages')
-        .insert({
-          conversation_id: selectedConversation,
-          sender_id: user.id,
-          content: newMessage.trim(),
-        });
+    const content = newMessage.trim();
+    const tempId = `temp-${Date.now()}`;
+    const optimistic = {
+      id: tempId,
+      conversation_id: selectedConversation,
+      sender_id: user.id,
+      content,
+      created_at: new Date().toISOString(),
+      is_read: false,
+    };
 
-      if (!error) {
-        setNewMessage('');
-        loadMessages(selectedConversation);
-        loadConversations();
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
+    setMessages((prev) => [...prev, optimistic]);
+    setNewMessage('');
+    setSending(true);
+
+    setTimeout(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, 50);
+
+    const { data, error } = await supabase
+      .from('blog_messages')
+      .insert({ conversation_id: selectedConversation, sender_id: user.id, content })
+      .select()
+      .single();
+
+    setSending(false);
+
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setNewMessage(content);
+    } else if (data) {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)));
     }
   };
 
-  const selectedConv = conversations.find((c) => c.id === selectedConversation);
+  const handleToggleFavorite = async (conversationId: string) => {
+    if (!user) return;
+    const settings = conversationSettings.get(conversationId);
+    const next = !settings?.isFavorite;
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.other_user.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conv.other_user.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    await supabase
+      .from('blog_conversation_participants')
+      .update({ is_favorite: next })
+      .eq('conversation_id', conversationId)
+      .eq('account_id', user.id);
+
+    setConversationSettings((prev) => {
+      const m = new Map(prev);
+      m.set(conversationId, { ...settings!, isFavorite: next });
+      return m;
+    });
+
+    loadConversations();
+  };
+
+  const handleToggleHidden = async (conversationId: string) => {
+    if (!user) return;
+    const settings = conversationSettings.get(conversationId);
+    const next = !settings?.isHidden;
+
+    await supabase
+      .from('blog_conversation_participants')
+      .update({ is_hidden: next, hidden_at: next ? new Date().toISOString() : null })
+      .eq('conversation_id', conversationId)
+      .eq('account_id', user.id);
+
+    setConversationSettings((prev) => {
+      const m = new Map(prev);
+      m.set(conversationId, { ...settings!, isHidden: next });
+      return m;
+    });
+
+    if (selectedConversation === conversationId) setSelectedConversation(null);
+    loadConversations();
+  };
+
+  const handleDeleteConversation = async (conversationId: string, permanent: boolean) => {
+    if (!user) return;
+
+    const updateData: any = { deleted_at: new Date().toISOString() };
+    if (permanent) {
+      updateData.permanently_blocked = true;
+    }
+
+    await supabase
+      .from('blog_conversation_participants')
+      .update(updateData)
+      .eq('conversation_id', conversationId)
+      .eq('account_id', user.id);
+
+    setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+    if (selectedConversation === conversationId) {
+      setSelectedConversation(null);
+      navigate('/blog/messages');
+    }
+  };
+
+  const handleStartNewConversation = async (otherUserId: string) => {
+    if (!user) return;
+    setNewConversationModalOpen(false);
+
+    const { data, error } = await supabase.rpc('find_or_create_blog_conversation', {
+      p_user_a_id: user.id,
+      p_user_b_id: otherUserId,
+    });
+
+    if (!error && data) {
+      processedConversationParam.current = null;
+      await loadConversations();
+      navigate(`/blog/messages?conversation=${data}`);
+      setSelectedConversation(data as string);
+    }
+  };
+
+  const handleStartNewConversationWithCurrentOther = async () => {
+    if (!selectedConversation || !user) return;
+    const other = conversationOtherUsers.get(selectedConversation);
+    if (other) await handleStartNewConversation(other.id);
+  };
+
+  const filteredConversations = conversations.filter((conv) => {
+    const settings = conversationSettings.get(conv.id);
+    const other = conversationOtherUsers.get(conv.id);
+    const matchesSearch =
+      !searchQuery ||
+      other?.display_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      other?.username.toLowerCase().includes(searchQuery.toLowerCase());
+
+    if (!matchesSearch) return false;
+    if (conversationFilter === 'favorites') return settings?.isFavorite;
+    if (conversationFilter === 'hidden') return settings?.isHidden;
+    return !settings?.isHidden;
+  });
+
+  const selectedOtherUser = selectedConversation
+    ? conversationOtherUsers.get(selectedConversation)
+    : null;
+  const selectedSettings = selectedConversation
+    ? conversationSettings.get(selectedConversation)
+    : null;
+  const deleteTargetName = conversationToDelete
+    ? conversationOtherUsers.get(conversationToDelete)?.display_name || 'this user'
+    : 'this user';
 
   if (loading) {
     return (
       <BlogLayout>
         <div className="flex items-center justify-center min-h-screen">
-          <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       </BlogLayout>
     );
@@ -246,170 +402,258 @@ function MessagesContent() {
 
   return (
     <BlogLayout>
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <h1 className="text-3xl font-bold text-white mb-6">Messages</h1>
+      {deleteModalOpen && conversationToDelete && (
+        <BlogDeleteConversationModal
+          otherUserName={deleteTargetName}
+          onClose={() => { setDeleteModalOpen(false); setConversationToDelete(null); }}
+          onConfirm={(permanent) => {
+            handleDeleteConversation(conversationToDelete, permanent);
+            setDeleteModalOpen(false);
+            setConversationToDelete(null);
+          }}
+        />
+      )}
 
-        <div className="bg-slate-800/70 backdrop-blur-md border border-slate-600/50 rounded-2xl shadow-lg overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
-          <div className="flex h-full">
-            {/* Conversations List */}
-            <div className="w-1/3 border-r border-gray-200 flex flex-col">
-              <div className="p-4 border-b border-gray-200">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search conversations..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  />
-                </div>
+      {newConversationModalOpen && (
+        <NewBlogConversationModal
+          onClose={() => setNewConversationModalOpen(false)}
+          onSelectUser={handleStartNewConversation}
+        />
+      )}
+
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <div
+          className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex"
+          style={{ height: 'calc(100vh - 140px)', minHeight: 560 }}
+        >
+          {/* Sidebar */}
+          <div className={`w-full md:w-80 flex-shrink-0 border-r border-gray-200 flex flex-col ${isMobile && selectedConversation ? 'hidden' : ''}`}>
+            <div className="p-4 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <h1 className="text-lg font-bold text-gray-900">Messages</h1>
+                <button
+                  onClick={() => setNewConversationModalOpen(true)}
+                  className="p-2 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 transition-colors"
+                  title="New conversation"
+                >
+                  <MessageSquarePlus className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                {filteredConversations.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No conversations yet</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Start connecting with other writers!
-                    </p>
-                  </div>
-                ) : (
-                  filteredConversations.map((conv) => (
-                    <button
-                      key={conv.id}
-                      onClick={() => setSelectedConversation(conv.id)}
-                      className={`w-full p-4 flex items-start gap-3 hover:bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 transition-colors ${
-                        selectedConversation === conv.id ? 'bg-emerald-50 border-r-4 border-emerald-500' : ''
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-semibold flex-shrink-0">
-                        {conv.other_user.avatar_url ? (
-                          <img
-                            src={conv.other_user.avatar_url}
-                            alt={conv.other_user.display_name}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          conv.other_user.display_name.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-semibold text-white truncate">
-                            {conv.other_user.display_name}
-                          </p>
-                          {conv.unread_count > 0 && (
-                            <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                              {conv.unread_count}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-500 truncate">
-                          {conv.last_message?.content || 'No messages yet'}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                )}
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search conversations..."
+                className="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all mb-3"
+              />
+
+              <div className="flex gap-1">
+                {(['all', 'favorites', 'hidden'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    onClick={() => setConversationFilter(filter)}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${
+                      conversationFilter === filter
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {filter === 'favorites' && <Star className="w-3 h-3" />}
+                    {filter === 'all' ? 'All' : filter === 'favorites' ? 'Fav' : 'Hidden'}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Messages Panel */}
-            <div className="flex-1 flex flex-col">
-              {selectedConv ? (
-                <>
-                  {/* Header */}
-                  <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-                    <Link to={`/blog/profile/${selectedConv.other_user.username}`}>
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-semibold">
-                        {selectedConv.other_user.avatar_url ? (
-                          <img
-                            src={selectedConv.other_user.avatar_url}
-                            alt={selectedConv.other_user.display_name}
-                            className="w-full h-full rounded-full object-cover"
-                          />
+            <div className="flex-1 overflow-y-auto">
+              {filteredConversations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-12 text-center px-4">
+                  <MessageCircle className="w-10 h-10 text-gray-300 mb-3" />
+                  <p className="text-gray-500 text-sm font-medium">
+                    {conversationFilter === 'favorites'
+                      ? 'No favorite conversations'
+                      : conversationFilter === 'hidden'
+                      ? 'No hidden conversations'
+                      : 'No conversations yet'}
+                  </p>
+                  {conversationFilter === 'all' && (
+                    <p className="text-gray-400 text-xs mt-1">Start connecting with other writers</p>
+                  )}
+                </div>
+              ) : (
+                filteredConversations.map((conv) => {
+                  const other = conversationOtherUsers.get(conv.id);
+                  const settings = conversationSettings.get(conv.id);
+                  const unread = conversationUnreadCounts.get(conv.id) || 0;
+                  const isSelected = selectedConversation === conv.id;
+
+                  return (
+                    <div
+                      key={conv.id}
+                      className={`group relative flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-50 ${
+                        isSelected ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''
+                      } ${settings?.isFavorite && !isSelected ? 'border-l-4 border-l-amber-400' : ''}`}
+                      onClick={() => setSelectedConversation(conv.id)}
+                    >
+                      <div className="w-11 h-11 rounded-full flex-shrink-0 bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-semibold overflow-hidden">
+                        {other?.avatar_url ? (
+                          <img src={other.avatar_url} alt={other.display_name} className="w-full h-full object-cover" />
                         ) : (
-                          selectedConv.other_user.display_name.charAt(0).toUpperCase()
+                          <span className="text-base">{other?.display_name?.charAt(0).toUpperCase() || '?'}</span>
                         )}
                       </div>
-                    </Link>
-                    <div>
-                      <Link
-                        to={`/blog/profile/${selectedConv.other_user.username}`}
-                        className="font-semibold text-white hover:text-emerald-600"
-                      >
-                        {selectedConv.other_user.display_name}
-                      </Link>
-                      <p className="text-sm text-gray-500">@{selectedConv.other_user.username}</p>
-                    </div>
-                  </div>
 
-                  {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map((message) => {
-                      const isMine = message.sender_id === user?.id;
-                      return (
-                        <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                          <div
-                            className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                              isMine
-                                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                                : 'bg-gray-100 text-white'
-                            }`}
-                          >
-                            <p className="break-words">{message.content}</p>
-                            <p className={`text-xs mt-1 ${isMine ? 'text-emerald-100' : 'text-gray-500'}`}>
-                              {new Date(message.created_at).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`font-semibold text-sm truncate ${unread > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                            {other?.display_name || 'Unknown writer'}
+                          </span>
+                          {settings?.isFavorite && (
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400 flex-shrink-0" />
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+                        <p className="text-xs text-gray-500 truncate">@{other?.username}</p>
+                      </div>
 
-                  {/* Input */}
-                  <div className="p-4 border-t border-gray-200">
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        {unread > 0 && (
+                          <span className="bg-emerald-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-4">
+                            {unread > 9 ? '9+' : unread}
+                          </span>
+                        )}
+                        <BlogConversationOptionsMenu
+                          isFavorite={settings?.isFavorite || false}
+                          isHidden={settings?.isHidden || false}
+                          onToggleFavorite={() => handleToggleFavorite(conv.id)}
+                          onToggleHidden={() => handleToggleHidden(conv.id)}
+                          onDelete={() => { setConversationToDelete(conv.id); setDeleteModalOpen(true); }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Message panel */}
+          <div className={`flex-1 flex flex-col min-w-0 ${isMobile && !selectedConversation ? 'hidden' : ''}`}>
+            {selectedConversation && selectedOtherUser ? (
+              <>
+                <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-shrink-0 bg-white">
+                  {isMobile && (
+                    <button
+                      onClick={() => { setSelectedConversation(null); navigate('/blog/messages'); }}
+                      className="p-1.5 hover:bg-gray-100 rounded-full transition-colors -ml-1"
+                    >
+                      <ArrowLeft className="w-5 h-5 text-gray-600" />
+                    </button>
+                  )}
+                  <Link to={`/blog/profile/${selectedOtherUser.username}`} className="flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-semibold overflow-hidden hover:opacity-80 transition-opacity">
+                      {selectedOtherUser.avatar_url ? (
+                        <img src={selectedOtherUser.avatar_url} alt={selectedOtherUser.display_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span>{selectedOtherUser.display_name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/blog/profile/${selectedOtherUser.username}`}
+                      className="font-semibold text-gray-900 hover:text-emerald-600 transition-colors text-sm block truncate"
+                    >
+                      {selectedOtherUser.display_name}
+                    </Link>
+                    <p className="text-xs text-gray-500">@{selectedOtherUser.username}</p>
+                  </div>
+                  <BlogConversationOptionsMenu
+                    isFavorite={selectedSettings?.isFavorite || false}
+                    isHidden={selectedSettings?.isHidden || false}
+                    onToggleFavorite={() => handleToggleFavorite(selectedConversation)}
+                    onToggleHidden={() => handleToggleHidden(selectedConversation)}
+                    onDelete={() => { setConversationToDelete(selectedConversation); setDeleteModalOpen(true); }}
+                  />
+                </div>
+
+                {otherParticipantBlocked && (
+                  <BlogConversationBlockedBanner
+                    otherUserName={selectedOtherUser.display_name}
+                    onStartNew={handleStartNewConversationWithCurrentOther}
+                  />
+                )}
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                      <MessageCircle className="w-12 h-12 text-gray-200 mb-3" />
+                      <p className="text-gray-400 text-sm">No messages yet. Say hello!</p>
+                    </div>
+                  )}
+                  {messages.map((message) => {
+                    const isOwn = message.sender_id === user?.id;
+                    return (
+                      <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                            isOwn
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                              : 'bg-gray-100 text-gray-900'
+                          }`}
+                        >
+                          <p className="text-sm break-words leading-relaxed">{message.content}</p>
+                          <p className={`text-xs mt-1 ${isOwn ? 'text-emerald-100' : 'text-gray-400'}`}>
+                            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="p-3 border-t border-gray-200 flex-shrink-0 bg-white">
+                  {otherParticipantBlocked ? (
+                    <div className="text-center py-2 text-sm text-gray-400">
+                      You cannot send messages in this conversation.
+                    </div>
+                  ) : (
                     <div className="flex items-end gap-2">
-                      <button className="p-2 text-gray-400 hover:text-gray-300 transition-colors">
-                        <Paperclip className="w-5 h-5" />
-                      </button>
                       <textarea
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyPress={(e) => {
+                        onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             sendMessage();
                           }
                         }}
-                        placeholder="Type a message..."
-                        className="flex-1 resize-none border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        placeholder="Write a message..."
                         rows={1}
+                        className="flex-1 resize-none bg-gray-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                        style={{ maxHeight: 120 }}
                       />
                       <button
                         onClick={sendMessage}
-                        disabled={!newMessage.trim()}
-                        className="p-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!newMessage.trim() || sending}
+                        className="p-2.5 bg-emerald-600 text-white rounded-full hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       >
-                        <Send className="w-5 h-5" />
+                        <Send className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 text-lg">Select a conversation to start messaging</p>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <MessageCircle className="w-14 h-14 text-gray-200 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">Select a conversation</p>
+                  <p className="text-gray-400 text-sm mt-1">or start a new one with the + button</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

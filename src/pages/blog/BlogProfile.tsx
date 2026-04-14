@@ -179,33 +179,19 @@ function BlogProfileContent() {
     if (!user || !account) return;
 
     try {
-      const ids = [user.id, account.id].sort();
+      const { data, error } = await supabase.rpc('find_or_create_blog_conversation', {
+        p_user_a_id: user.id,
+        p_user_b_id: account.id,
+      });
 
-      const { data: existingConv } = await supabase
-        .from('blog_conversations')
-        .select('id')
-        .eq('participant_1_id', ids[0])
-        .eq('participant_2_id', ids[1])
-        .maybeSingle();
-
-      if (existingConv) {
-        navigate('/blog/messages');
+      if (!error && data) {
+        navigate(`/blog/messages?conversation=${data}`);
       } else {
-        const { data: newConv } = await supabase
-          .from('blog_conversations')
-          .insert({
-            participant_1_id: ids[0],
-            participant_2_id: ids[1],
-          })
-          .select()
-          .single();
-
-        if (newConv) {
-          navigate('/blog/messages');
-        }
+        navigate('/blog/messages');
       }
     } catch (error) {
       console.error('Error starting conversation:', error);
+      navigate('/blog/messages');
     }
   };
 
