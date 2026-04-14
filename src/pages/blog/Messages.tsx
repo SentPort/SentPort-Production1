@@ -9,6 +9,7 @@ import BlogDeleteConversationModal from '../../components/blog/BlogDeleteConvers
 import BlogConversationBlockedBanner from '../../components/blog/BlogConversationBlockedBanner';
 import BlogConversationOptionsMenu from '../../components/blog/BlogConversationOptionsMenu';
 import NewBlogConversationModal from '../../components/blog/NewBlogConversationModal';
+import { ChatMessageReactionPicker } from '../../components/shared/ChatMessageReactionPicker';
 
 export default function Messages() {
   return (
@@ -53,6 +54,9 @@ function MessagesContent() {
   const [otherParticipantBlocked, setOtherParticipantBlocked] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
+  const [messageReactions, setMessageReactions] = useState<Map<string, { emoji: string; count: number }[]>>(new Map());
+  const [userReactions, setUserReactions] = useState<Map<string, string>>(new Map());
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedConversationParam = useRef<string | null>(null);
@@ -106,6 +110,16 @@ function MessagesContent() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'blog_message_reactions' },
+        () => {
+          setMessages((prev) => {
+            loadMessageReactions(prev.map((m) => m.id));
+            return prev;
+          });
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -138,6 +152,36 @@ function MessagesContent() {
       }, 100);
     }
   }, [messages.length]);
+
+  const loadMessageReactions = async (messageIds: string[]) => {
+    if (!user || messageIds.length === 0) return;
+
+    const { data: reactions } = await supabase
+      .from('blog_message_reactions')
+      .select('*')
+      .in('message_id', messageIds);
+
+    if (reactions) {
+      const reactionsMap = new Map<string, { emoji: string; count: number }[]>();
+      const userReactionsMap = new Map<string, string>();
+
+      const grouped: Record<string, Record<string, number>> = {};
+      reactions.forEach((r: any) => {
+        if (!grouped[r.message_id]) grouped[r.message_id] = {};
+        grouped[r.message_id][r.emoji] = (grouped[r.message_id][r.emoji] || 0) + 1;
+        if (r.account_id === user.id) {
+          userReactionsMap.set(r.message_id, r.emoji);
+        }
+      });
+
+      Object.entries(grouped).forEach(([msgId, emojis]) => {
+        reactionsMap.set(msgId, Object.entries(emojis).map(([emoji, count]) => ({ emoji, count })));
+      });
+
+      setMessageReactions(reactionsMap);
+      setUserReactions(userReactionsMap);
+    }
+  };
 
   const loadConversations = async () => {
     if (!user) return;
@@ -228,7 +272,10 @@ function MessagesContent() {
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
-    if (data) setMessages(data);
+    if (data) {
+      setMessages(data);
+      loadMessageReactions(data.map((m: any) => m.id));
+    }
     markConversationRead(conversationId);
   };
 
@@ -631,20 +678,83 @@ function MessagesContent() {
                   )}
                   {messages.map((message) => {
                     const isOwn = message.sender_id === user?.id;
+                    const reactions = messageReactions.get(message.id) || [];
+                    const myReaction = userReactions.get(message.id);
+                    const isHovered = hoveredMessage === message.id;
                     return (
-                      <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                            isOwn
-                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                              : 'bg-gray-100 text-gray-900'
-                          }`}
-                        >
-                          <p className="text-sm break-words leading-relaxed">{message.content}</p>
-                          <p className={`text-xs mt-1 ${isOwn ? 'text-emerald-100' : 'text-gray-400'}`}>
-                            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                      <div
+                        key={message.id}
+                        className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
+                        onMouseEnter={() => setHoveredMessage(message.id)}
+                        onMouseLeave={() => setHoveredMessage(null)}
+                      >
+                        <div className={`flex items-end gap-1.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div
+                            className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
+                              isOwn
+                                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                                : 'bg-gray-100 text-gray-900'
+                            }`}
+                          >
+                            <p className="text-sm break-words leading-relaxed">{message.content}</p>
+                            <p className={`text-xs mt-1 ${isOwn ? 'text-emerald-100' : 'text-gray-400'}`}>
+                              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          {isHovered && user && (
+                            <div className="flex-shrink-0">
+                              <ChatMessageReactionPicker
+                                messageId={message.id}
+                                accountId={user.id}
+                                userReaction={myReaction}
+                                table="blog_message_reactions"
+                                onReactionChange={() => loadMessageReactions(messages.map((m) => m.id))}
+                                accentColor="bg-emerald-100"
+                              />
+                            </div>
+                          )}
                         </div>
+                        {reactions.length > 0 && (
+                          <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                            {reactions.map(({ emoji, count }) => (
+                              <button
+                                key={emoji}
+                                onClick={() => {
+                                  if (!user) return;
+                                  const msgId = message.id;
+                                  const accountId = user.id;
+                                  if (myReaction === emoji) {
+                                    supabase.from('blog_message_reactions').delete()
+                                      .eq('message_id', msgId)
+                                      .eq('account_id', accountId)
+                                      .eq('emoji', emoji)
+                                      .then(() => loadMessageReactions(messages.map((m) => m.id)));
+                                  } else {
+                                    const doInsert = () =>
+                                      supabase.from('blog_message_reactions').insert({ message_id: msgId, account_id: accountId, emoji })
+                                        .then(() => loadMessageReactions(messages.map((m) => m.id)));
+                                    if (myReaction) {
+                                      supabase.from('blog_message_reactions').delete()
+                                        .eq('message_id', msgId)
+                                        .eq('account_id', accountId)
+                                        .then(doInsert);
+                                    } else {
+                                      doInsert();
+                                    }
+                                  }
+                                }}
+                                className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 border transition-colors ${
+                                  myReaction === emoji
+                                    ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                                    : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                                }`}
+                              >
+                                <span>{emoji}</span>
+                                <span>{count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

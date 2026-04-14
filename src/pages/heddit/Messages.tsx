@@ -8,6 +8,7 @@ import { ConversationOptionsMenu } from '../../components/heddit/ConversationOpt
 import { DeleteConversationModal } from '../../components/heddit/DeleteConversationModal';
 import { ConversationBlockedBanner } from '../../components/heddit/ConversationBlockedBanner';
 import { NewConversationModal } from '../../components/heddit/NewConversationModal';
+import { ChatMessageReactionPicker } from '../../components/shared/ChatMessageReactionPicker';
 
 const MESSAGES_PER_PAGE = 30;
 
@@ -74,6 +75,9 @@ export default function Messages() {
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [oldestLoadedMessageId, setOldestLoadedMessageId] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [messageReactions, setMessageReactions] = useState<Map<string, { emoji: string; count: number }[]>>(new Map());
+  const [userReactions, setUserReactions] = useState<Map<string, string>>(new Map());
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -226,10 +230,15 @@ export default function Messages() {
       const chronological = [...data].reverse();
 
       if (loadOlder) {
-        setMessages(prev => [...chronological, ...prev]);
+        setMessages(prev => {
+          const updated = [...chronological, ...prev];
+          loadMessageReactions(updated.map(m => m.id));
+          return updated;
+        });
       } else {
         setMessages(chronological);
         setIsInitialLoad(true);
+        loadMessageReactions(chronological.map(m => m.id));
       }
 
       setHasMoreMessages(data.length === MESSAGES_PER_PAGE);
@@ -270,6 +279,37 @@ export default function Messages() {
         setOldestLoadedMessageId(chronological[0].id);
       }
       markMessagesAsRead(conversation);
+      loadMessageReactions(chronological.map(m => m.id));
+    }
+  };
+
+  const loadMessageReactions = async (messageIds: string[]) => {
+    if (messageIds.length === 0 || !currentAccountId) return;
+
+    const { data: reactions } = await supabase
+      .from('heddit_message_reactions')
+      .select('*')
+      .in('message_id', messageIds);
+
+    if (reactions) {
+      const reactionsMap = new Map<string, { emoji: string; count: number }[]>();
+      const userReactionsMap = new Map<string, string>();
+
+      const grouped: Record<string, Record<string, number>> = {};
+      reactions.forEach((r: any) => {
+        if (!grouped[r.message_id]) grouped[r.message_id] = {};
+        grouped[r.message_id][r.emoji] = (grouped[r.message_id][r.emoji] || 0) + 1;
+        if (r.account_id === currentAccountId) {
+          userReactionsMap.set(r.message_id, r.emoji);
+        }
+      });
+
+      Object.entries(grouped).forEach(([msgId, emojis]) => {
+        reactionsMap.set(msgId, Object.entries(emojis).map(([emoji, count]) => ({ emoji, count })));
+      });
+
+      setMessageReactions(reactionsMap);
+      setUserReactions(userReactionsMap);
     }
   };
 
@@ -682,17 +722,77 @@ export default function Messages() {
 
                   {messages.map((message) => {
                     const isSender = message.sender_id === currentAccountId;
+                    const reactions = messageReactions.get(message.id) || [];
+                    const myReaction = userReactions.get(message.id);
+                    const isHovered = hoveredMessage === message.id;
                     return (
                       <div
                         key={message.id}
-                        className={`flex ${isSender ? 'justify-end' : 'justify-start'}`}
+                        className={`flex flex-col ${isSender ? 'items-end' : 'items-start'}`}
+                        onMouseEnter={() => setHoveredMessage(message.id)}
+                        onMouseLeave={() => setHoveredMessage(null)}
                       >
-                        <div className={`max-w-md ${isSender ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-900'} rounded-lg p-3`}>
-                          <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                          <div className={`text-xs mt-1 ${isSender ? 'text-orange-100' : 'text-gray-500'}`}>
-                            {formatTime(message.created_at)}
+                        <div className={`flex items-end gap-1.5 ${isSender ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div className={`max-w-md ${isSender ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-900'} rounded-lg p-3`}>
+                            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                            <div className={`text-xs mt-1 ${isSender ? 'text-orange-100' : 'text-gray-500'}`}>
+                              {formatTime(message.created_at)}
+                            </div>
                           </div>
+                          {isHovered && currentAccountId && (
+                            <div className="flex-shrink-0">
+                              <ChatMessageReactionPicker
+                                messageId={message.id}
+                                accountId={currentAccountId}
+                                userReaction={myReaction}
+                                table="heddit_message_reactions"
+                                onReactionChange={() => loadMessageReactions(messages.map(m => m.id))}
+                                accentColor="bg-orange-100"
+                              />
+                            </div>
+                          )}
                         </div>
+                        {reactions.length > 0 && (
+                          <div className={`flex flex-wrap gap-1 mt-1 ${isSender ? 'justify-end' : 'justify-start'}`}>
+                            {reactions.map(({ emoji, count }) => (
+                              <button
+                                key={emoji}
+                                onClick={() => {
+                                  if (!currentAccountId) return;
+                                  const picker = { messageId: message.id, accountId: currentAccountId, emoji };
+                                  if (myReaction === emoji) {
+                                    supabase.from('heddit_message_reactions').delete()
+                                      .eq('message_id', picker.messageId)
+                                      .eq('account_id', picker.accountId)
+                                      .eq('emoji', picker.emoji)
+                                      .then(() => loadMessageReactions(messages.map(m => m.id)));
+                                  } else {
+                                    if (myReaction) {
+                                      supabase.from('heddit_message_reactions').delete()
+                                        .eq('message_id', picker.messageId)
+                                        .eq('account_id', picker.accountId)
+                                        .then(() => {
+                                          supabase.from('heddit_message_reactions').insert({ message_id: picker.messageId, account_id: picker.accountId, emoji: picker.emoji })
+                                            .then(() => loadMessageReactions(messages.map(m => m.id)));
+                                        });
+                                    } else {
+                                      supabase.from('heddit_message_reactions').insert({ message_id: picker.messageId, account_id: picker.accountId, emoji: picker.emoji })
+                                        .then(() => loadMessageReactions(messages.map(m => m.id)));
+                                    }
+                                  }
+                                }}
+                                className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 border transition-colors ${
+                                  myReaction === emoji
+                                    ? 'bg-orange-100 border-orange-300 text-orange-700'
+                                    : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                                }`}
+                              >
+                                <span>{emoji}</span>
+                                <span>{count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
