@@ -377,7 +377,7 @@ function MessagesContent() {
     setNewConversationModalOpen(false);
     setCreatingConversation(true);
 
-    const { data, error } = await supabase.rpc('find_or_create_blog_conversation', {
+    const { data, error } = await supabase.rpc('create_new_blog_conversation', {
       p_user_a_id: user.id,
       p_user_b_id: otherUserId,
     });
@@ -385,7 +385,7 @@ function MessagesContent() {
     setCreatingConversation(false);
 
     if (error) {
-      console.error('find_or_create_blog_conversation error:', error);
+      console.error('create_new_blog_conversation error:', error);
       return;
     }
 
