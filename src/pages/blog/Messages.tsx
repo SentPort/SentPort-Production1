@@ -52,6 +52,7 @@ function MessagesContent() {
   const [newConversationModalOpen, setNewConversationModalOpen] = useState(false);
   const [otherParticipantBlocked, setOtherParticipantBlocked] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedConversationParam = useRef<string | null>(null);
@@ -141,51 +142,79 @@ function MessagesContent() {
   const loadConversations = async () => {
     if (!user) return;
 
-    const { data: participantData } = await supabase
+    const { data: participantData, error: partErr } = await supabase
       .from('blog_conversation_participants')
-      .select('conversation_id, is_favorite, is_hidden, unread_count, blog_conversations!blog_conversation_participants_conversation_id_fkey(*)')
+      .select('conversation_id, is_favorite, is_hidden, unread_count')
       .eq('account_id', user.id)
-      .is('deleted_at', null)
-      .order('is_favorite', { ascending: false });
+      .is('deleted_at', null);
 
-    if (participantData) {
-      const convs = participantData
-        .map((p: any) => p.blog_conversations)
-        .filter(Boolean)
-        .sort((a: any, b: any) => {
-          const ta = a.last_message_at || a.created_at;
-          const tb = b.last_message_at || b.created_at;
-          return new Date(tb).getTime() - new Date(ta).getTime();
-        });
+    if (partErr) {
+      console.error('loadConversations participant error:', partErr);
+      setLoading(false);
+      return;
+    }
 
-      setConversations(convs);
+    if (!participantData || participantData.length === 0) {
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
 
-      const settingsMap = new Map<string, ConversationSetting>();
-      const unreadMap = new Map<string, number>();
-      participantData.forEach((p: any) => {
-        settingsMap.set(p.conversation_id, {
-          isFavorite: p.is_favorite || false,
-          isHidden: p.is_hidden || false,
-        });
-        unreadMap.set(p.conversation_id, p.unread_count || 0);
+    const conversationIds = participantData.map((p: any) => p.conversation_id);
+
+    const { data: convData, error: convErr } = await supabase
+      .from('blog_conversations')
+      .select('*')
+      .in('id', conversationIds)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (convErr) {
+      console.error('loadConversations conversations error:', convErr);
+      setLoading(false);
+      return;
+    }
+
+    const convs = (convData || []).sort((a: any, b: any) => {
+      const ta = a.last_message_at || a.created_at;
+      const tb = b.last_message_at || b.created_at;
+      return new Date(tb).getTime() - new Date(ta).getTime();
+    });
+
+    setConversations(convs);
+
+    const settingsMap = new Map<string, ConversationSetting>();
+    const unreadMap = new Map<string, number>();
+    participantData.forEach((p: any) => {
+      settingsMap.set(p.conversation_id, {
+        isFavorite: p.is_favorite || false,
+        isHidden: p.is_hidden || false,
       });
-      setConversationSettings(settingsMap);
-      setConversationUnreadCounts(unreadMap);
+      unreadMap.set(p.conversation_id, p.unread_count || 0);
+    });
+    setConversationSettings(settingsMap);
+    setConversationUnreadCounts(unreadMap);
 
-      const otherUsersMap = new Map<string, OtherUser>();
-      for (const conv of convs) {
-        const otherAccountId =
-          conv.participant_1_id === user.id ? conv.participant_2_id : conv.participant_1_id;
-        if (otherAccountId) {
-          const { data: acct } = await supabase
-            .from('blog_accounts')
-            .select('id, username, display_name, avatar_url')
-            .eq('id', otherAccountId)
-            .maybeSingle();
+    const otherAccountIds = convs.map((conv: any) =>
+      conv.participant_1_id === user.id ? conv.participant_2_id : conv.participant_1_id
+    ).filter(Boolean);
+
+    if (otherAccountIds.length > 0) {
+      const { data: accounts } = await supabase
+        .from('blog_accounts')
+        .select('id, username, display_name, avatar_url')
+        .in('id', otherAccountIds);
+
+      if (accounts) {
+        const accountMap = new Map(accounts.map((a: any) => [a.id, a]));
+        const otherUsersMap = new Map<string, OtherUser>();
+        for (const conv of convs) {
+          const otherAccountId =
+            conv.participant_1_id === user.id ? conv.participant_2_id : conv.participant_1_id;
+          const acct = accountMap.get(otherAccountId);
           if (acct) otherUsersMap.set(conv.id, acct);
         }
+        setConversationOtherUsers(otherUsersMap);
       }
-      setConversationOtherUsers(otherUsersMap);
     }
 
     setLoading(false);
@@ -343,20 +372,29 @@ function MessagesContent() {
     }
   };
 
-  const handleStartNewConversation = async (otherUserId: string) => {
-    if (!user) return;
+  const handleStartNewConversation = async (otherUserId: string, _username?: string) => {
+    if (!user || creatingConversation) return;
     setNewConversationModalOpen(false);
+    setCreatingConversation(true);
 
     const { data, error } = await supabase.rpc('find_or_create_blog_conversation', {
       p_user_a_id: user.id,
       p_user_b_id: otherUserId,
     });
 
-    if (!error && data) {
-      processedConversationParam.current = null;
+    setCreatingConversation(false);
+
+    if (error) {
+      console.error('find_or_create_blog_conversation error:', error);
+      return;
+    }
+
+    if (data) {
+      const conversationId = data as string;
+      processedConversationParam.current = conversationId;
       await loadConversations();
-      navigate(`/blog/messages?conversation=${data}`);
-      setSelectedConversation(data as string);
+      setSelectedConversation(conversationId);
+      navigate(`/blog/messages?conversation=${conversationId}`, { replace: true });
     }
   };
 
