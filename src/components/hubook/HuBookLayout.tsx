@@ -366,9 +366,9 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
                 >
                   <link.icon className="w-5 h-5" />
                   <span className="font-medium">{link.label}</span>
-                  {link.badge && link.badge > 0 && (
+                  {(link.badge ?? 0) > 0 && (
                     <span className="ml-auto bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {link.badge > 9 ? '9+' : link.badge}
+                      {link.badge! > 9 ? '9+' : link.badge}
                     </span>
                   )}
                 </Link>
@@ -426,9 +426,9 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
                   >
                     <link.icon className="w-5 h-5" />
                     <span className="font-medium">{link.label}</span>
-                    {link.badge && link.badge > 0 && (
+                    {(link.badge ?? 0) > 0 && (
                       <span className="ml-auto bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {link.badge > 9 ? '9+' : link.badge}
+                        {link.badge! > 9 ? '9+' : link.badge}
                       </span>
                     )}
                   </Link>
