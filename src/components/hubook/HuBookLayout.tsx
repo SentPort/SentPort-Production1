@@ -452,7 +452,7 @@ export default function HuBookLayout({ children }: { children: React.ReactNode }
                 ) : (
                   suggestions.map((user) => (
                     <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                      <Link to={`/hubook/user/${user.id}`} className="flex items-center gap-3 flex-1">
+                      <Link to={`/hubook/user/${user.id}`} className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
                         {user.profile_photo_url ? (
                           <img
                             src={user.profile_photo_url}
