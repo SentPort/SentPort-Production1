@@ -760,23 +760,23 @@ export default function SearchResults() {
       <Header />
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white border-b sticky top-16 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 mb-4">
-            <Link to="/" className="flex items-center gap-2">
-              <Globe className="w-8 h-8 text-blue-600" />
-              <span className="text-2xl font-bold text-gray-900">SentPort</span>
+        <div className="max-w-6xl mx-auto px-3 md:px-4 py-3 md:py-4">
+          <div className="flex items-center gap-2 md:gap-4 mb-2 md:mb-4">
+            <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+              <Globe className="w-7 h-7 md:w-8 md:h-8 text-blue-600" />
+              <span className="hidden sm:block text-2xl font-bold text-gray-900">SentPort</span>
             </Link>
             <SearchWithHistory
               platform="main"
               onSearch={handleSearch}
               placeholder="Search the Human-Only Web"
               variant="main"
-              className="flex-1"
+              className="flex-1 min-w-0"
               initialValue={query}
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -788,63 +788,66 @@ export default function SearchResults() {
               <span className="text-sm font-medium text-gray-700">Include Verified External Content</span>
             </label>
             {includeExternalContent && (
-              <span className="text-xs text-blue-600">Includes trusted sources like Wikipedia</span>
+              <span className="text-xs text-blue-600">
+                <span className="hidden sm:inline">Includes trusted sources like Wikipedia</span>
+                <span className="sm:hidden">Includes trusted sources like Wikipedia</span>
+              </span>
             )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-6 mb-6 border-b">
+      <div className="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
+        <div className="flex items-center mb-4 md:mb-6 border-b overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b-2 transition-colors flex-shrink-0 ${
               activeTab === 'all'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span className="font-medium">All</span>
+            <span className="font-medium text-sm md:text-base">All</span>
           </button>
           <button
             onClick={() => setActiveTab('images')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b-2 transition-colors flex-shrink-0 ${
               activeTab === 'images'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             <Image className="w-4 h-4" />
-            <span className="font-medium">Images</span>
+            <span className="font-medium text-sm md:text-base">Images</span>
           </button>
           <button
             onClick={() => setActiveTab('videos')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b-2 transition-colors flex-shrink-0 ${
               activeTab === 'videos'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             <Video className="w-4 h-4" />
-            <span className="font-medium">Videos</span>
+            <span className="font-medium text-sm md:text-base">Videos</span>
           </button>
           <button
             onClick={() => setActiveTab('news')}
-            className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2.5 md:py-3 border-b-2 transition-colors flex-shrink-0 ${
               activeTab === 'news'
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             <Newspaper className="w-4 h-4" />
-            <span className="font-medium">News</span>
+            <span className="font-medium text-sm md:text-base">News</span>
           </button>
         </div>
 
         {query && (
-          <div ref={resultsTopRef} className="mb-6">
-            <div className="flex items-center justify-between gap-4">
+          <div ref={resultsTopRef} className="mb-4 md:mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
               <div className="flex flex-col gap-1">
                 <p className="text-sm text-gray-600">
                   Showing <span className="font-semibold text-gray-900">{paginationInfo.startIndex + 1}-{paginationInfo.endIndex}</span> of{' '}
@@ -877,14 +880,14 @@ export default function SearchResults() {
               {actualTotalDuplicates > 0 && (
                 <button
                   onClick={() => setShowAllDuplicates(!showAllDuplicates)}
-                  className="text-sm text-green-600 hover:text-green-700 font-medium"
+                  className="self-start sm:self-auto text-sm text-green-600 hover:text-green-700 font-medium"
                 >
                   {showAllDuplicates ? 'Group Results' : 'Show All Variations'}
                 </button>
               )}
             </div>
             {domainStats.length > 1 && !showAllDuplicates && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-2 md:mt-3 flex flex-wrap gap-1.5 md:gap-2">
                 {domainStats.slice(0, 5).map(stat => (
                   <span
                     key={stat.domain}
@@ -1113,25 +1116,26 @@ export default function SearchResults() {
               // News article result card
               if (result.content_type === 'news_article') {
                 return (
-                  <div key={result.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                    <div className="flex gap-4">
+                  <div key={result.id} className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex gap-3 md:gap-4">
                       {result.thumbnail_url && (
-                        <a href={result.url} target="_blank" rel="noopener noreferrer">
+                        <a href={result.url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
                           <img
                             src={result.thumbnail_url}
                             alt={result.title}
-                            className="w-32 h-32 object-cover rounded flex-shrink-0"
+                            className="w-20 h-20 md:w-32 md:h-32 object-cover rounded"
                             loading="lazy"
                           />
                         </a>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
+                        <div className="flex items-center gap-2 mb-1.5 md:mb-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
                             <BadgeIcon className="w-3 h-3" />
-                            {badgeConfig.label}
+                            <span className="hidden sm:inline">{badgeConfig.label}</span>
+                            <span className="sm:hidden">{badgeConfig.label.split(' ').slice(-1)[0]}</span>
                           </span>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-xs md:text-sm text-gray-600 truncate">
                             {safeGetHostname(result.url, 'Unknown domain')}
                           </span>
                         </div>
@@ -1139,15 +1143,15 @@ export default function SearchResults() {
                           href={result.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xl font-medium text-blue-600 hover:underline line-clamp-2 block mb-2"
+                          className="text-base md:text-xl font-medium text-blue-600 hover:underline line-clamp-2 block mb-1.5 md:mb-2"
                         >
                           {result.title || 'Untitled Article'}
                         </a>
-                        <p className="text-sm text-gray-700 line-clamp-3 mb-3">
+                        <p className="text-xs md:text-sm text-gray-700 line-clamp-2 md:line-clamp-3 mb-2 md:mb-3">
                           {result.description || result.content_snippet}
                         </p>
                         <div className="flex items-center gap-3 text-xs text-gray-500">
-                          {result.author_name && <span>By {result.author_name}</span>}
+                          {result.author_name && <span className="hidden sm:inline">By {result.author_name}</span>}
                           {result.publication_date && (
                             <span>
                               {new Date(result.publication_date).toLocaleDateString('en-US', {
@@ -1167,16 +1171,17 @@ export default function SearchResults() {
               // Default web page result card
               return (
                 <div key={result.id}>
-                  <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                    <div className="flex items-start gap-3 mb-2">
-                      <BadgeIcon className={`w-5 h-5 ${badgeConfig.iconColor} flex-shrink-0 mt-1`} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-start gap-2 md:gap-3 mb-2">
+                      <BadgeIcon className={`w-4 h-4 md:w-5 md:h-5 ${badgeConfig.iconColor} flex-shrink-0 mt-1`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-1 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:py-1 rounded text-xs font-medium ${badgeConfig.bgColor} ${badgeConfig.textColor}`}>
                             <BadgeIcon className="w-3 h-3" />
-                            {badgeConfig.label}
+                            <span className="hidden sm:inline">{badgeConfig.label}</span>
+                            <span className="sm:hidden">{badgeConfig.label.split(' ').slice(-1)[0]}</span>
                           </span>
-                          <span className="text-sm text-gray-600">
+                          <span className="text-xs md:text-sm text-gray-600 truncate">
                             {result.domain || safeGetHostname(result.url, 'Unknown domain')}
                           </span>
                           {result.duplicateCount > 1 && !showAllDuplicates && (
@@ -1189,19 +1194,19 @@ export default function SearchResults() {
                         href={result.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xl font-medium text-blue-600 hover:underline"
+                        className="text-base md:text-xl font-medium text-blue-600 hover:underline line-clamp-2 md:line-clamp-none"
                       >
                         {result.title || 'Untitled Page'}
                       </a>
-                      <p className="text-sm text-gray-700 mt-2 line-clamp-2">
+                      <p className="text-xs md:text-sm text-gray-700 mt-1.5 md:mt-2 line-clamp-2">
                         {result.description || result.content_snippet}
                       </p>
-                      <div className="flex items-center gap-4 mt-3 min-w-0">
+                      <div className="flex items-center gap-2 md:gap-4 mt-2 md:mt-3 min-w-0">
                         <a
                           href={result.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline truncate min-w-0"
+                          className="text-xs md:text-sm text-blue-600 hover:underline truncate min-w-0"
                         >
                           {result.url}
                         </a>
@@ -1216,7 +1221,7 @@ export default function SearchResults() {
                         {result.duplicateCount > 1 && result.hiddenUrls && !showAllDuplicates && (
                           <button
                             onClick={() => toggleDuplicateExpansion(result.id)}
-                            className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 mt-3"
+                            className="flex items-center gap-1 text-xs text-green-600 hover:text-green-700 mt-2 md:mt-3"
                           >
                             {expandedDuplicates.has(result.id) ? (
                               <>
@@ -1235,14 +1240,14 @@ export default function SearchResults() {
                     </div>
                   </div>
                   {expandedDuplicates.has(result.id) && result.hiddenUrls && (
-                    <div className="mt-2 ml-12 space-y-1">
+                    <div className="mt-2 ml-6 md:ml-12 space-y-1">
                       {result.hiddenUrls.map((hiddenUrl, idx) => (
-                        <div key={idx} className="bg-gray-50 rounded p-3 border border-gray-200">
+                        <div key={idx} className="bg-gray-50 rounded p-2 md:p-3 border border-gray-200">
                           <a
                             href={hiddenUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:underline break-all"
+                            className="text-xs md:text-sm text-blue-600 hover:underline break-all"
                           >
                             {hiddenUrl}
                           </a>
