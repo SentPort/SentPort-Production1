@@ -50,6 +50,11 @@ function ViewPostContent() {
   const [currentUserBlogAccountId, setCurrentUserBlogAccountId] = useState<string | null>(null);
   const [openMenuCommentId, setOpenMenuCommentId] = useState<string | null>(null);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const [commentReplies, setCommentReplies] = useState<Record<string, any[]>>({});
   const [showDeletePostModal, setShowDeletePostModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPostMenu, setShowPostMenu] = useState(false);
@@ -273,11 +278,22 @@ function ViewPostContent() {
           blog_accounts (username, display_name, avatar_url)
         `)
         .eq('post_id', postId)
-        .is('parent_comment_id', null)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setComments(data || []);
+
+      const all = data || [];
+      const topLevel = all.filter(c => !c.parent_comment_id);
+      const repliesMap: Record<string, any[]> = {};
+      all.filter(c => c.parent_comment_id).forEach(reply => {
+        if (!repliesMap[reply.parent_comment_id]) {
+          repliesMap[reply.parent_comment_id] = [];
+        }
+        repliesMap[reply.parent_comment_id].push(reply);
+      });
+
+      setComments(topLevel);
+      setCommentReplies(repliesMap);
     } catch (err) {
       console.error('Error loading comments:', err);
     }
@@ -343,6 +359,46 @@ function ViewPostContent() {
       setCommentError('Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitReply = async (parentCommentId: string) => {
+    if (!user || !replyText.trim()) return;
+
+    setSubmittingReply(true);
+    setReplyError('');
+
+    try {
+      const { data: blogAccount, error: accountError } = await supabase
+        .from('blog_accounts')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (accountError) throw accountError;
+
+      if (!blogAccount) {
+        setReplyError('You need to join HuBlog before replying.');
+        return;
+      }
+
+      const { error } = await supabase.from('blog_comments').insert({
+        post_id: postId,
+        account_id: blogAccount.id,
+        content: replyText.trim(),
+        parent_comment_id: parentCommentId
+      });
+
+      if (error) throw error;
+
+      setReplyText('');
+      setReplyingToCommentId(null);
+      await loadComments();
+    } catch (err) {
+      console.error('Error submitting reply:', err);
+      setReplyError('Failed to post reply. Please try again.');
+    } finally {
+      setSubmittingReply(false);
     }
   };
 
@@ -592,7 +648,7 @@ function ViewPostContent() {
             </div>
             <div className="flex items-center gap-1">
               <MessageCircle className="w-4 h-4" />
-              <span>{comments.length} comments</span>
+              <span>{comments.length + Object.values(commentReplies).reduce((sum, r) => sum + r.length, 0)} comments</span>
             </div>
           </div>
 
@@ -693,7 +749,7 @@ function ViewPostContent() {
               className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-700/50 transition-colors text-gray-300"
             >
               <MessageCircle className="w-5 h-5" />
-              <span>{comments.length}</span>
+              <span>{comments.length + Object.values(commentReplies).reduce((sum, r) => sum + r.length, 0)}</span>
             </button>
             <button
               onClick={() => setShowShareModal(true)}
@@ -728,7 +784,7 @@ function ViewPostContent() {
 
         <div id="comments-section" className="bg-slate-800/70 backdrop-blur-md rounded-lg shadow-lg border border-slate-600/50 p-8">
           <h2 className="text-2xl font-bold text-white mb-6">
-            Comments ({comments.length})
+            Comments ({comments.length + Object.values(commentReplies).reduce((sum, r) => sum + r.length, 0)})
           </h2>
 
           {user ? (
@@ -774,64 +830,188 @@ function ViewPostContent() {
             {comments.map((comment) => {
               const isOwnComment = currentUserBlogAccountId && comment.account_id === currentUserBlogAccountId;
               const isMenuOpen = openMenuCommentId === comment.id;
+              const replies = commentReplies[comment.id] || [];
+              const isReplying = replyingToCommentId === comment.id;
 
               return (
-                <div key={comment.id} className="flex gap-4">
-                  {comment.blog_accounts?.avatar_url ? (
-                    <img
-                      src={comment.blog_accounts.avatar_url}
-                      alt={comment.blog_accounts.display_name}
-                      className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <span className="text-gray-300 font-bold">
-                        {comment.blog_accounts?.display_name?.[0]?.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <div className="bg-slate-700/50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="font-medium text-white">
-                          {comment.blog_accounts?.display_name}
+                <div key={comment.id}>
+                  <div className="flex gap-4">
+                    {comment.blog_accounts?.avatar_url ? (
+                      <img
+                        src={comment.blog_accounts.avatar_url}
+                        alt={comment.blog_accounts.display_name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-300 font-bold">
+                          {comment.blog_accounts?.display_name?.[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="bg-slate-700/50 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-medium text-white">
+                            {comment.blog_accounts?.display_name}
+                          </p>
+                          {isOwnComment && (
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenMenuCommentId(isMenuOpen ? null : comment.id)}
+                                className="p-1 hover:bg-slate-600/50 rounded transition-colors"
+                              >
+                                <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                              </button>
+                              {isMenuOpen && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={() => setOpenMenuCommentId(null)}
+                                  />
+                                  <div className="absolute right-0 top-8 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[120px]">
+                                    <button
+                                      onClick={() => {
+                                        setCommentToDelete(comment.id);
+                                        setOpenMenuCommentId(null);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-4 py-2 text-red-400 hover:bg-slate-700 transition-colors text-left"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      <span className="text-sm">Delete</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-gray-300">{comment.content}</p>
+                      </div>
+                      <div className="flex items-center gap-4 mt-1 ml-4">
+                        <p className="text-xs text-gray-400">
+                          {new Date(comment.created_at).toLocaleString()}
                         </p>
-                        {isOwnComment && (
-                          <div className="relative">
-                            <button
-                              onClick={() => setOpenMenuCommentId(isMenuOpen ? null : comment.id)}
-                              className="p-1 hover:bg-slate-600/50 rounded transition-colors"
-                            >
-                              <MoreHorizontal className="w-4 h-4 text-gray-400" />
-                            </button>
-                            {isMenuOpen && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-10"
-                                  onClick={() => setOpenMenuCommentId(null)}
-                                />
-                                <div className="absolute right-0 top-8 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[120px]">
-                                  <button
-                                    onClick={() => {
-                                      setCommentToDelete(comment.id);
-                                      setOpenMenuCommentId(null);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-red-400 hover:bg-slate-700 transition-colors text-left"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    <span className="text-sm">Delete</span>
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                        {user && (
+                          <button
+                            onClick={() => {
+                              if (isReplying) {
+                                setReplyingToCommentId(null);
+                                setReplyText('');
+                                setReplyError('');
+                              } else {
+                                setReplyingToCommentId(comment.id);
+                                setReplyText('');
+                                setReplyError('');
+                              }
+                            }}
+                            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-medium"
+                          >
+                            {isReplying ? 'Cancel' : 'Reply'}
+                          </button>
+                        )}
+                        {replies.length > 0 && (
+                          <span className="text-xs text-gray-500">
+                            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+                          </span>
                         )}
                       </div>
-                      <p className="text-gray-300">{comment.content}</p>
+
+                      {isReplying && (
+                        <div className="mt-3 ml-0">
+                          <textarea
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            placeholder={`Reply to ${comment.blog_accounts?.display_name}...`}
+                            className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 text-white placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none text-sm"
+                            rows={2}
+                            autoFocus
+                          />
+                          {replyError && (
+                            <p className="text-red-400 text-xs mt-1">{replyError}</p>
+                          )}
+                          <div className="flex justify-end mt-2">
+                            <button
+                              onClick={() => handleSubmitReply(comment.id)}
+                              disabled={submittingReply || !replyText.trim()}
+                              className="flex items-center gap-1.5 bg-emerald-500 text-white px-4 py-1.5 rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                            >
+                              <Send className="w-3 h-3" />
+                              {submittingReply ? 'Posting...' : 'Post Reply'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {replies.length > 0 && (
+                        <div className="mt-4 space-y-3 pl-4 border-l-2 border-slate-600/50">
+                          {replies.map((reply) => {
+                            const isOwnReply = currentUserBlogAccountId && reply.account_id === currentUserBlogAccountId;
+                            const isReplyMenuOpen = openMenuCommentId === reply.id;
+                            return (
+                              <div key={reply.id} className="flex gap-3">
+                                {reply.blog_accounts?.avatar_url ? (
+                                  <img
+                                    src={reply.blog_accounts.avatar_url}
+                                    alt={reply.blog_accounts.display_name}
+                                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-gray-300 font-bold text-xs">
+                                      {reply.blog_accounts?.display_name?.[0]?.toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex-1">
+                                  <div className="bg-slate-700/40 rounded-lg p-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="font-medium text-white text-sm">
+                                        {reply.blog_accounts?.display_name}
+                                      </p>
+                                      {isOwnReply && (
+                                        <div className="relative">
+                                          <button
+                                            onClick={() => setOpenMenuCommentId(isReplyMenuOpen ? null : reply.id)}
+                                            className="p-1 hover:bg-slate-600/50 rounded transition-colors"
+                                          >
+                                            <MoreHorizontal className="w-3.5 h-3.5 text-gray-400" />
+                                          </button>
+                                          {isReplyMenuOpen && (
+                                            <>
+                                              <div
+                                                className="fixed inset-0 z-10"
+                                                onClick={() => setOpenMenuCommentId(null)}
+                                              />
+                                              <div className="absolute right-0 top-7 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-20 min-w-[120px]">
+                                                <button
+                                                  onClick={() => {
+                                                    setCommentToDelete(reply.id);
+                                                    setOpenMenuCommentId(null);
+                                                  }}
+                                                  className="w-full flex items-center gap-2 px-4 py-2 text-red-400 hover:bg-slate-700 transition-colors text-left"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                  <span className="text-sm">Delete</span>
+                                                </button>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <p className="text-gray-300 text-sm">{reply.content}</p>
+                                  </div>
+                                  <p className="text-xs text-gray-400 mt-1 ml-3">
+                                    {new Date(reply.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-gray-400 mt-1 ml-4">
-                      {new Date(comment.created_at).toLocaleString()}
-                    </p>
                   </div>
                 </div>
               );
