@@ -986,6 +986,16 @@ export default function SearchResults() {
           </div>
         )}
 
+        {query && showWikipedia && activeTab === 'all' && (
+          <div className="block lg:hidden mb-6">
+            <WikipediaKnowledgePanel
+              query={analysis?.normalizedQuery || query}
+              onSpellingSuggestion={handleWikipediaSpellingSuggestion}
+              onWikipediaLoaded={handleWikipediaLoaded}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             {loading ? (
@@ -1410,7 +1420,7 @@ export default function SearchResults() {
           </div>
 
           {query && showWikipedia && activeTab === 'all' && (
-            <div className="lg:col-span-1">
+            <div className="hidden lg:block lg:col-span-1">
               <div className="sticky top-24">
                 <WikipediaKnowledgePanel
                   query={analysis?.normalizedQuery || query}
