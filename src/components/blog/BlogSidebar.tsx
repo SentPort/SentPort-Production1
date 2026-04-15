@@ -55,7 +55,7 @@ export default function BlogSidebar({ isOpen = true, onClose }: BlogSidebarProps
       const { count: followerCount } = await supabase
         .from('blog_follows')
         .select('*', { count: 'exact', head: true })
-        .eq('followed_id', user.id);
+        .eq('following_id', user.id);
 
       const { data: posts } = await supabase
         .from('blog_posts')
