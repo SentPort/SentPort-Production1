@@ -138,6 +138,26 @@ export default function ReactionButton({
     }
   };
 
+  const refreshCounts = async () => {
+    const { data } = await supabase
+      .from('blog_posts')
+      .select('like_count, love_count, insightful_count, inspiring_count, thoughtful_count, helpful_count, mindblown_count')
+      .eq('id', postId)
+      .single();
+
+    if (data) {
+      setCounts({
+        like: data.like_count || 0,
+        love: data.love_count || 0,
+        insightful: data.insightful_count || 0,
+        inspiring: data.inspiring_count || 0,
+        thoughtful: data.thoughtful_count || 0,
+        helpful: data.helpful_count || 0,
+        mindblown: data.mindblown_count || 0
+      });
+    }
+  };
+
   const handleReaction = async (type: ReactionType) => {
     if (!user || !myBlogAccountId || isLoading) return;
 
@@ -153,7 +173,6 @@ export default function ReactionButton({
         if (error) throw error;
 
         setMyReaction(null);
-        setCounts(prev => ({ ...prev, [type]: Math.max(0, prev[type] - 1) }));
       } else {
         const { error } = await supabase
           .from('blog_reactions')
@@ -167,18 +186,10 @@ export default function ReactionButton({
 
         if (error) throw error;
 
-        if (myReaction) {
-          setCounts(prev => ({
-            ...prev,
-            [myReaction]: Math.max(0, prev[myReaction] - 1),
-            [type]: prev[type] + 1
-          }));
-        } else {
-          setCounts(prev => ({ ...prev, [type]: prev[type] + 1 }));
-        }
         setMyReaction(type);
       }
 
+      await refreshCounts();
       onReactionChange?.();
       setIsOpen(false);
     } catch (error) {
